@@ -1,41 +1,44 @@
 using System.Collections;
 using UnityEngine;
 
-public class Enemigo : MonoBehaviour
+public class EnemigoVolador : MonoBehaviour
 {
     [Header("=== SALUD ===")]
     public int health = 3;
     public float invincibilityTime = 0.5f;
     private bool isInvincible = false;
-    public Vector2 knockbackForce = new Vector2(3f, 5f);
+    public Vector2 knockbackForce = new Vector2(4f, 3f);
 
     [Header("=== PROTECCIÓN ANTI-VUELO ===")]
     public float knockbackInvincibilityTime = 0.3f;
     private bool isKnockbackInvincible = false;
 
-    [Header("=== DETECCIÓN DE BORDES ===")]
-    public Transform edgeCheckPoint;
-    public float edgeCheckDistance = 0.5f;
-    public LayerMask groundLayer;
-    public bool showEdgeDebug = true;
-    public float edgeCheckOffset = 0.8f;
-    private bool isAtEdge = false;
-
     [Header("=== DETECCIÓN ===")]
-    public float detectionRange = 8f;
-    public float attackRange = 2f;
+    public float detectionRange = 10f;
+    public float attackRange = 2.5f;
     public LayerMask PlayerLayer;
     public LayerMask wallLayer;
     public Transform detectionPoint;
 
-    [Header("=== COMPORTAMIENTO ===")]
+    [Header("=== COMPORTAMIENTO DE VUELO ===")]
     public float moveSpeed = 3f;
     public float chaseSpeed = 5f;
+    public float fleeSpeed = 7f;
     public float guardTime = 0.8f;
     public float attackCooldown = 1.5f;
-    public float edgeWaitTime = 3f;
-    public float chaseTimeout = 5f;
-    public float maxEdgeWaitTime = 10f;
+    public float repositionTime = 2f; // Tiempo que huye antes de volver a atacar
+    public float repositionDistance = 5f; // Distancia mínima de reposición
+
+    [Header("=== MOVIMIENTO VERTICAL ===")]
+    public float hoverHeight = 0.5f; // Altura adicional sobre el jugador
+    public float verticalSpeed = 4f;
+    public float smoothTime = 0.3f; // Suavizado del movimiento
+
+    [Header("=== PATRULLA AÉREA ===")]
+    public bool shouldPatrol = true;
+    public Vector2 patrolAreaSize = new Vector2(8f, 4f); // Área de patrulla
+    public float waitTimeAtPatrolPoint = 2f;
+    public float patrolPointRadius = 0.5f; // Qué tan cerca debe estar del punto para considerarlo alcanzado
 
     [Header("=== ATAQUE ===")]
     public Transform attackPoint;
@@ -43,16 +46,12 @@ public class Enemigo : MonoBehaviour
     public int attackDamage = 1;
     public float attackDuration = 0.3f;
 
-    [Header("=== PATRULLA ===")]
-    public bool shouldPatrol = true;
-    public float patrolDistance = 5f;
-    public float waitTimeAtPatrolPoint = 2f;
-
     [Header("=== EFECTOS VISUALES ===")]
     public GameObject guardEffect;
     public GameObject attackEffect;
     public Color guardColor = Color.yellow;
     public Color attackColor = Color.red;
+    public Color fleeColor = new Color(1f, 0.5f, 0f); // Naranja
 
     [Header("=== DEBUG ===")]
     public bool showDebugGizmos = true;
@@ -62,9 +61,11 @@ public class Enemigo : MonoBehaviour
         Idle,
         Patrol,
         Guard,
+        Alert,
         Chase,
         Attack,
-        Stunned
+        Flee,
+        Reposition
     }
 
     private EnemyState currentState = EnemyState.Idle;
@@ -82,13 +83,12 @@ public class Enemigo : MonoBehaviour
     private float guardTimer = 0f;
     private bool isAttacking = false;
     private Vector2 startPosition;
-    private float patrolTarget;
-    private bool movingRight = true;
+    private Vector2 currentPatrolTarget;
     private float waitTimer = 0f;
-    private float edgeWaitTimer = 0f;
-    private float chaseTimer = 0f;
-    private float totalEdgeTime = 0f;
-    private float playerIgnoreTimer = 0f;
+    private float fleeTimer = 0f;
+    private Vector2 fleeDirection;
+    private Vector2 velocitySmooth = Vector2.zero;
+    private bool hasReachedRepositionDistance = false;
 
     void Start()
     {
@@ -102,12 +102,18 @@ public class Enemigo : MonoBehaviour
             originalColor = spriteRenderer.color;
         }
 
+        // Configurar Rigidbody2D para vuelo
+        if (rb != null)
+        {
+            rb.gravityScale = 0f; // Sin gravedad
+        }
+
         // Buscar jugador
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
         {
             player = playerObj.transform;
-            Debug.Log($"Enemigo {gameObject.name} encontró al jugador");
+            Debug.Log($"Enemigo Volador {gameObject.name} encontró al jugador");
         }
         else
         {
@@ -116,7 +122,7 @@ public class Enemigo : MonoBehaviour
 
         // Inicializar patrulla
         startPosition = transform.position;
-        patrolTarget = startPosition.x + patrolDistance;
+        GenerateNewPatrolPoint();
 
         // Crear detection point si no existe
         if (detectionPoint == null)
@@ -124,14 +130,13 @@ public class Enemigo : MonoBehaviour
             detectionPoint = transform;
         }
 
-        // Crear edge check point si no existe
-        if (edgeCheckPoint == null)
+        // Crear attack point si no existe
+        if (attackPoint == null)
         {
-            GameObject edgeCheck = new GameObject("EdgeCheckPoint");
-            edgeCheck.transform.SetParent(transform);
-            edgeCheck.transform.localPosition = new Vector3(edgeCheckOffset, -0.5f, 0);
-            edgeCheckPoint = edgeCheck.transform;
-            Debug.LogWarning($"{gameObject.name}: EdgeCheckPoint creado automáticamente. Ajusta su altura (Y) en el inspector.");
+            GameObject attackPt = new GameObject("AttackPoint");
+            attackPt.transform.SetParent(transform);
+            attackPt.transform.localPosition = new Vector3(1f, 0f, 0f);
+            attackPoint = attackPt.transform;
         }
 
         // Estado inicial
@@ -140,29 +145,25 @@ public class Enemigo : MonoBehaviour
 
     void Update()
     {
-        // No hacer nada si está invencible o aturdido
-        if (isInvincible || currentState == EnemyState.Stunned)
+        // No hacer nada si está invencible en ciertas condiciones
+        if (isInvincible && currentState != EnemyState.Flee && currentState != EnemyState.Reposition)
         {
             return;
         }
 
         // Actualizar timers
-        playerIgnoreTimer -= Time.deltaTime;
         attackTimer -= Time.deltaTime;
-
-        // Verificar borde
-        CheckEdge();
 
         // Calcular detección del jugador
         Vector3 detectionPos = detectionPoint.position;
         float distanceToPlayer = player != null ? Vector2.Distance(detectionPos, player.position) : Mathf.Infinity;
 
         bool canSeePlayer = CanSeePlayer(detectionPos, distanceToPlayer);
-        bool playerDetected = canSeePlayer && (playerIgnoreTimer <= 0f);
-        bool playerInAttackRange = playerDetected && distanceToPlayer <= attackRange;
+        bool playerInAttackRange = canSeePlayer && distanceToPlayer <= attackRange;
 
-        // Mirar al jugador si está detectado
-        if (playerDetected && player != null && currentState != EnemyState.Attack)
+        // Mirar al jugador si está detectado (excepto en estados especiales)
+        if (canSeePlayer && player != null && currentState != EnemyState.Attack &&
+            currentState != EnemyState.Flee && currentState != EnemyState.Reposition)
         {
             LookAtPlayer();
         }
@@ -171,23 +172,35 @@ public class Enemigo : MonoBehaviour
         switch (currentState)
         {
             case EnemyState.Idle:
-                HandleIdle(playerDetected);
+                HandleIdle(canSeePlayer);
                 break;
 
             case EnemyState.Patrol:
-                HandlePatrol(playerDetected);
+                HandlePatrol(canSeePlayer);
                 break;
 
             case EnemyState.Guard:
-                HandleGuard(playerDetected, playerInAttackRange);
+                HandleGuard(canSeePlayer, playerInAttackRange);
+                break;
+
+            case EnemyState.Alert:
+                HandleAlert(canSeePlayer, playerInAttackRange);
                 break;
 
             case EnemyState.Chase:
-                HandleChase(playerDetected, playerInAttackRange);
+                HandleChase(canSeePlayer, playerInAttackRange);
                 break;
 
             case EnemyState.Attack:
                 HandleAttack();
+                break;
+
+            case EnemyState.Flee:
+                HandleFlee();
+                break;
+
+            case EnemyState.Reposition:
+                HandleReposition(canSeePlayer);
                 break;
         }
 
@@ -219,32 +232,13 @@ public class Enemigo : MonoBehaviour
         return false;
     }
 
-    void CheckEdge()
-    {
-        if (edgeCheckPoint == null) return;
-
-        float direction = isFacingRight ? 1f : -1f;
-        Vector2 checkStartPoint = new Vector2(
-            transform.position.x + (edgeCheckOffset * direction),
-            edgeCheckPoint.position.y
-        );
-
-        RaycastHit2D hit = Physics2D.Raycast(checkStartPoint, Vector2.down, edgeCheckDistance, groundLayer);
-        isAtEdge = (hit.collider == null);
-
-        if (showEdgeDebug)
-        {
-            Debug.DrawRay(checkStartPoint, Vector2.down * edgeCheckDistance, isAtEdge ? Color.red : Color.cyan);
-        }
-    }
-
     void HandleIdle(bool playerDetected)
     {
-        rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        rb.linearVelocity = Vector2.zero;
 
         if (playerDetected)
         {
-            EnterGuardState();
+            EnterAlertState();
         }
     }
 
@@ -252,53 +246,60 @@ public class Enemigo : MonoBehaviour
     {
         if (playerDetected)
         {
-            EnterGuardState();
+            EnterAlertState();
             return;
         }
 
         if (waitTimer > 0)
         {
             waitTimer -= Time.deltaTime;
-            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+            rb.linearVelocity = Vector2.zero;
             return;
         }
 
-        if (isAtEdge)
+        // Evitar quedarse muy bajo
+        float minHeight = startPosition.y - patrolAreaSize.y / 2f;
+        if (transform.position.y < minHeight)
         {
-            Debug.Log($"{gameObject.name}: Borde detectado, cambiando dirección");
-            movingRight = !movingRight;
-            waitTimer = waitTimeAtPatrolPoint;
-            Flip();
+            Vector2 upwardDirection = Vector2.up;
+            rb.linearVelocity = upwardDirection * moveSpeed;
             return;
         }
 
-        float direction = movingRight ? 1f : -1f;
-        rb.linearVelocity = new Vector2(direction * moveSpeed, rb.linearVelocity.y);
+        // Moverse hacia el punto de patrulla
+        Vector2 direction = (currentPatrolTarget - (Vector2)transform.position).normalized;
+        Vector2 targetVelocity = direction * moveSpeed;
+        rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime);
 
-        // Ajustar dirección visual
-        if ((movingRight && !isFacingRight) || (!movingRight && isFacingRight))
+        // Voltear según dirección
+        if ((direction.x > 0 && !isFacingRight) || (direction.x < 0 && isFacingRight))
         {
             Flip();
         }
 
-        // Verificar límites de patrulla
-        if (movingRight && transform.position.x >= patrolTarget)
+        // Verificar si alcanzó el punto de patrulla
+        if (Vector2.Distance(transform.position, currentPatrolTarget) < patrolPointRadius)
         {
-            movingRight = false;
             waitTimer = waitTimeAtPatrolPoint;
-        }
-        else if (!movingRight && transform.position.x <= startPosition.x - patrolDistance)
-        {
-            movingRight = true;
-            waitTimer = waitTimeAtPatrolPoint;
+            GenerateNewPatrolPoint();
         }
     }
 
     void HandleGuard(bool playerDetected, bool inAttackRange)
     {
-        rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        // Mantenerse a la altura del jugador mientras vigila
+        if (player != null)
+        {
+            float targetY = player.position.y + hoverHeight;
+            Vector2 targetPosition = new Vector2(transform.position.x, targetY);
+            Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
+            rb.linearVelocity = new Vector2(0, direction.y * verticalSpeed * 0.5f);
+        }
+        else
+        {
+            rb.linearVelocity = Vector2.zero;
+        }
 
-        // Si el jugador se aleja, volver a patrullar
         if (!playerDetected)
         {
             Debug.Log($"{gameObject.name}: Jugador fuera de rango");
@@ -309,76 +310,52 @@ public class Enemigo : MonoBehaviour
         LookAtPlayer();
         guardTimer += Time.deltaTime;
 
-        // Contador de tiempo en el borde
-        if (isAtEdge)
-        {
-            totalEdgeTime += Time.deltaTime;
-
-            // Si pasaron 10 segundos en el borde, volver a patrullar
-            if (totalEdgeTime >= maxEdgeWaitTime)
-            {
-                Debug.Log($"{gameObject.name}: Tiempo máximo en borde alcanzado");
-                TurnAroundAndPatrol();
-                return;
-            }
-        }
-        else
-        {
-            totalEdgeTime = 0f;
-        }
-
-        // Intentar atacar si está en rango
         if (inAttackRange && guardTimer >= guardTime && attackTimer <= 0)
         {
             ExitGuardState();
             EnterAttackState();
-            ResetTimers();
+            guardTimer = 0f;
         }
-        // Si no está en rango de ataque pero ya esperó
         else if (!inAttackRange && guardTimer >= guardTime)
         {
-            if (!isAtEdge)
-            {
-                // Perseguir
-                ExitGuardState();
-                currentState = EnemyState.Chase;
-                chaseTimer = 0f;
-                totalEdgeTime = 0f;
-            }
-            else
-            {
-                edgeWaitTimer += Time.deltaTime;
+            ExitGuardState();
+            EnterChaseState();
+        }
+    }
 
-                // Después de 3 segundos en el borde, intentar volver a patrullar
-                if (edgeWaitTimer >= edgeWaitTime)
-                {
-                    Debug.Log($"{gameObject.name}: Esperó {edgeWaitTime}s en el borde");
-                    TurnAroundAndPatrol();
-                }
-            }
+    void HandleAlert(bool playerDetected, bool inAttackRange)
+    {
+        // Estado de alerta - se acerca al jugador ajustando altura
+        if (!playerDetected)
+        {
+            ReturnToPatrol();
+            return;
         }
 
-        if (!isAtEdge)
+        if (player != null)
         {
-            edgeWaitTimer = 0f;
+            // Moverse hacia el jugador y ajustar altura simultáneamente
+            float targetY = player.position.y + hoverHeight;
+            Vector2 targetPosition = new Vector2(player.position.x, targetY);
+            Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
+
+            // Velocidad más rápida en alerta para acercarse
+            Vector2 targetVelocity = direction * (chaseSpeed * 0.8f);
+            rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime * 0.5f);
+
+            LookAtPlayer();
+
+            // Cambiar a guardia cuando esté más cerca
+            float distanceToPlayer = Vector2.Distance(transform.position, player.position);
+            if (distanceToPlayer <= detectionRange * 0.6f)
+            {
+                EnterGuardState();
+            }
         }
     }
 
     void HandleChase(bool playerDetected, bool playerInAttackRange)
     {
-        chaseTimer += Time.deltaTime;
-
-        // Timeout de persecución
-        if (chaseTimer >= chaseTimeout)
-        {
-            Debug.Log($"{gameObject.name}: Timeout de persecución - Ignorando jugador por 3s");
-            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
-            playerIgnoreTimer = 3f;
-            ReturnToPatrol();
-            return;
-        }
-
-        // Perder de vista al jugador
         if (!playerDetected)
         {
             Debug.Log($"{gameObject.name}: Perdió de vista al jugador");
@@ -386,33 +363,21 @@ public class Enemigo : MonoBehaviour
             return;
         }
 
-        // Borde durante persecución
-        if (isAtEdge)
+        if (player != null)
         {
-            Debug.Log($"{gameObject.name}: Borde detectado durante persecución");
-            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+            // Calcular posición objetivo a la altura del jugador
+            float targetY = player.position.y + hoverHeight;
+            Vector2 targetPosition = new Vector2(player.position.x, targetY);
+
+            Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
+            Vector2 targetVelocity = direction * chaseSpeed;
+            rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime);
+
             LookAtPlayer();
-            EnterGuardState();
-            return;
-        }
 
-        // Perseguir
-        Vector2 direction = (player.position - transform.position).normalized;
-        rb.linearVelocity = new Vector2(direction.x * chaseSpeed, rb.linearVelocity.y);
-
-        LookAtPlayer();
-
-        // Intentar atacar si está en rango
-        if (playerInAttackRange)
-        {
-            if (attackTimer <= 0)
+            if (playerInAttackRange && attackTimer <= 0)
             {
-                chaseTimer = 0f;
                 EnterAttackState();
-            }
-            else
-            {
-                EnterGuardState();
             }
         }
     }
@@ -425,6 +390,56 @@ public class Enemigo : MonoBehaviour
         }
     }
 
+    void HandleFlee()
+    {
+        fleeTimer += Time.deltaTime;
+
+        // Huir en dirección opuesta al jugador
+        Vector2 targetVelocity = fleeDirection * fleeSpeed;
+        rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime * 0.5f);
+
+        // Verificar si alcanzó distancia segura
+        if (player != null)
+        {
+            float distanceToPlayer = Vector2.Distance(transform.position, player.position);
+            if (distanceToPlayer >= repositionDistance)
+            {
+                hasReachedRepositionDistance = true;
+            }
+        }
+
+        // Después del tiempo de huida y alcanzó distancia segura, reposicionarse
+        if (fleeTimer >= repositionTime && hasReachedRepositionDistance)
+        {
+            EnterRepositionState();
+        }
+    }
+
+    void HandleReposition(bool playerDetected)
+    {
+        // Detenerse y prepararse para volver a atacar
+        rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, Vector2.zero, Time.deltaTime * 3f);
+
+        if (rb.linearVelocity.magnitude < 0.1f)
+        {
+            if (playerDetected)
+            {
+                EnterAlertState();
+            }
+            else
+            {
+                ReturnToPatrol();
+            }
+        }
+    }
+
+    void EnterAlertState()
+    {
+        currentState = EnemyState.Alert;
+        guardTimer = 0f;
+        Debug.Log($"{gameObject.name}: ¡Alerta! Jugador detectado");
+    }
+
     void EnterGuardState()
     {
         currentState = EnemyState.Guard;
@@ -435,7 +450,7 @@ public class Enemigo : MonoBehaviour
             guardEffect.SetActive(true);
         }
 
-        if (spriteRenderer != null)
+        if (spriteRenderer != null && !isInvincible)
         {
             spriteRenderer.color = guardColor;
         }
@@ -456,12 +471,18 @@ public class Enemigo : MonoBehaviour
         }
     }
 
+    void EnterChaseState()
+    {
+        currentState = EnemyState.Chase;
+        Debug.Log($"{gameObject.name}: Persiguiendo");
+    }
+
     void EnterAttackState()
     {
         currentState = EnemyState.Attack;
-        rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        rb.linearVelocity = Vector2.zero;
 
-        if (spriteRenderer != null)
+        if (spriteRenderer != null && !isInvincible)
         {
             spriteRenderer.color = attackColor;
         }
@@ -469,60 +490,77 @@ public class Enemigo : MonoBehaviour
         Debug.Log($"{gameObject.name}: Atacando");
     }
 
+    void EnterFleeState()
+    {
+        currentState = EnemyState.Flee;
+        fleeTimer = 0f;
+        hasReachedRepositionDistance = false;
+
+        // Calcular dirección de huida (opuesta al jugador)
+        if (player != null)
+        {
+            fleeDirection = ((Vector2)transform.position - (Vector2)player.position).normalized;
+        }
+        else
+        {
+            fleeDirection = isFacingRight ? Vector2.left : Vector2.right;
+        }
+
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = fleeColor;
+        }
+
+        Debug.Log($"{gameObject.name}: ¡Huyendo para reposicionarse!");
+    }
+
+    void EnterRepositionState()
+    {
+        currentState = EnemyState.Reposition;
+
+        if (spriteRenderer != null && !isInvincible)
+        {
+            spriteRenderer.color = originalColor;
+        }
+
+        Debug.Log($"{gameObject.name}: Reposicionándose");
+    }
+
     IEnumerator PerformAttack()
     {
         isAttacking = true;
 
-        // INSTANCIAR EFECTO DE ATAQUE
+        // Instanciar efecto de ataque
         if (attackEffect != null && attackPoint != null)
         {
-            Debug.Log($"{gameObject.name}: Instanciando efecto de ataque en {attackPoint.position}");
-
-            // Instanciar el efecto como hijo del attackPoint para que se mueva con el enemigo
             GameObject effect = Instantiate(attackEffect, attackPoint);
-
-            // Posición local relativa al attackPoint
             effect.transform.localPosition = Vector3.zero;
 
-            // AUMENTAR EL TAMAÑO DEL EFECTO (ajusta estos valores si es necesario)
-            float effectScale = 0.7f; // Cambiar este valor para hacer el efecto más grande o pequeño
+            float effectScale = 0.7f;
             effect.transform.localScale = new Vector3(
-                (isFacingRight ? 1f : -1f) * effectScale,  // Voltear según dirección y escalar
+                (isFacingRight ? 1f : -1f) * effectScale,
                 effectScale,
                 effectScale
             );
 
-            // Rotación correcta
             effect.transform.localRotation = Quaternion.identity;
 
-            // Si el efecto tiene Particle System, iniciarlo
             ParticleSystem ps = effect.GetComponent<ParticleSystem>();
             if (ps != null)
             {
                 ps.Play();
-                Debug.Log($"{gameObject.name}: Particle System activado");
             }
 
-            // Si tiene SpriteRenderer, asegurar que es visible
             SpriteRenderer sr = effect.GetComponent<SpriteRenderer>();
             if (sr != null)
             {
-                sr.sortingOrder = 10; // Ponerlo encima de otros sprites
-                Debug.Log($"{gameObject.name}: SpriteRenderer configurado");
+                sr.sortingOrder = 10;
             }
 
-            // Destruir el efecto después del ataque
             Destroy(effect, attackDuration + 0.5f);
         }
-        else
-        {
-            if (attackEffect == null)
-                Debug.LogWarning($"{gameObject.name}: ¡No hay 'Attack Effect' asignado en el Inspector!");
-            if (attackPoint == null)
-                Debug.LogWarning($"{gameObject.name}: ¡No hay 'Attack Point' asignado en el Inspector!");
-        }
 
-        // REALIZAR EL ATAQUE
+        // Realizar el ataque
         if (attackPoint != null)
         {
             Collider2D[] hits = Physics2D.OverlapCircleAll(attackPoint.position, attackRadius);
@@ -539,10 +577,6 @@ public class Enemigo : MonoBehaviour
                     }
                 }
             }
-        }
-        else
-        {
-            Debug.LogError($"{gameObject.name}: ¡El 'AttackPoint' no está asignado en el Inspector! El ataque fallará.");
         }
 
         yield return new WaitForSeconds(attackDuration);
@@ -576,33 +610,26 @@ public class Enemigo : MonoBehaviour
         Vector3 scale = transform.localScale;
         scale.x *= -1;
         transform.localScale = scale;
-
-        Debug.Log($"{gameObject.name}: Volteado - Mirando {(isFacingRight ? "derecha" : "izquierda")}");
     }
 
     void ReturnToPatrol()
     {
         ExitGuardState();
         currentState = shouldPatrol ? EnemyState.Patrol : EnemyState.Idle;
-        ResetTimers();
+        guardTimer = 0f;
     }
 
-    void TurnAroundAndPatrol()
+    void GenerateNewPatrolPoint()
     {
-        ExitGuardState();
-        movingRight = !isFacingRight;
-        Flip();
-        waitTimer = waitTimeAtPatrolPoint;
-        currentState = EnemyState.Patrol;
-        ResetTimers();
-        playerIgnoreTimer = waitTimeAtPatrolPoint + 2f;
-    }
+        // Generar punto aleatorio dentro del área de patrulla
+        float randomX = startPosition.x + Random.Range(-patrolAreaSize.x / 2f, patrolAreaSize.x / 2f);
+        // Asegurar que el punto no esté muy bajo
+        float minY = startPosition.y - patrolAreaSize.y / 4f; // Solo la parte superior del área
+        float maxY = startPosition.y + patrolAreaSize.y / 2f;
+        float randomY = Random.Range(minY, maxY);
+        currentPatrolTarget = new Vector2(randomX, randomY);
 
-    void ResetTimers()
-    {
-        edgeWaitTimer = 0f;
-        chaseTimer = 0f;
-        totalEdgeTime = 0f;
+        Debug.Log($"{gameObject.name}: Nuevo punto de patrulla en {currentPatrolTarget}");
     }
 
     public void TakeDamage(int damage, float knockbackDirection)
@@ -627,40 +654,33 @@ public class Enemigo : MonoBehaviour
         }
 
         ExitGuardState();
-        currentState = EnemyState.Stunned;
-        ResetTimers();
 
         if (health <= 0)
         {
-            Die(); // <-- AQUÍ SE LLAMA A LA FUNCIÓN QUE FALTA
+            Die();
         }
         else
         {
-            // Después del daño, el enemigo entrará en modo persecución agresiva
-            StartCoroutine(RecoverAndChase());
+            // Después del daño, huir para reposicionarse
+            StartCoroutine(FlashAndFlee());
             StartCoroutine(KnockbackInvincibility());
         }
     }
 
-    // ===============================================
-    // --- FUNCIÓN QUE FALTABA ---
-    // ===============================================
     void Die()
     {
         Debug.Log($"{gameObject.name}: Murió");
         // Aquí puedes añadir efectos de muerte, puntuación, etc.
         Destroy(gameObject);
     }
-    // ===============================================
 
-    // Nueva coroutine que reemplaza InvincibilityFrames y hace que persiga después del golpe
-    IEnumerator RecoverAndChase()
+    IEnumerator FlashAndFlee()
     {
         isInvincible = true;
 
         float flashDuration = invincibilityTime / 10f;
 
-        // Efecto visual de parpadeo mientras se recupera
+        // Efecto visual de parpadeo en rojo
         for (int i = 0; i < 5; i++)
         {
             if (spriteRenderer != null) spriteRenderer.color = Color.red;
@@ -671,20 +691,8 @@ public class Enemigo : MonoBehaviour
 
         isInvincible = false;
 
-        // Después de recuperarse, entrar en modo persecución agresiva
-        if (player != null)
-        {
-            Debug.Log($"{gameObject.name}: ¡Recuperado! Entrando en modo persecución agresiva");
-            currentState = EnemyState.Chase;
-            chaseTimer = 0f;
-            playerIgnoreTimer = 0f; // No ignorar al jugador
-            attackTimer = 0f; // Permitir atacar inmediatamente si está en rango
-        }
-        else
-        {
-            // Si no hay jugador, volver a patrullar
-            currentState = EnemyState.Idle;
-        }
+        // Entrar en modo huida
+        EnterFleeState();
     }
 
     IEnumerator KnockbackInvincibility()
@@ -700,7 +708,8 @@ public class Enemigo : MonoBehaviour
         {
             animator.SetBool("isGuarding", currentState == EnemyState.Guard);
             animator.SetBool("isAttacking", currentState == EnemyState.Attack);
-            animator.SetFloat("speed", Mathf.Abs(rb.linearVelocity.x));
+            animator.SetBool("isFleeing", currentState == EnemyState.Flee);
+            animator.SetFloat("speed", rb.linearVelocity.magnitude);
         }
     }
 
@@ -725,29 +734,25 @@ public class Enemigo : MonoBehaviour
             Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
         }
 
-        // Zona de patrulla
-        if (shouldPatrol && Application.isPlaying)
+        // Área de patrulla
+        if (shouldPatrol)
         {
-            Gizmos.color = Color.green;
-            Gizmos.DrawLine(
-                new Vector2(startPosition.x - patrolDistance, startPosition.y),
-                new Vector2(startPosition.x + patrolDistance, startPosition.y)
-            );
+            Vector2 center = Application.isPlaying ? startPosition : (Vector2)transform.position;
+            Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
+            Gizmos.DrawWireCube(center, new Vector3(patrolAreaSize.x, patrolAreaSize.y, 0f));
+
+            // Punto de patrulla actual
+            if (Application.isPlaying)
+            {
+                Gizmos.color = Color.cyan;
+                Gizmos.DrawWireSphere(currentPatrolTarget, patrolPointRadius);
+                Gizmos.DrawLine(transform.position, currentPatrolTarget);
+            }
         }
 
-        // Detección de bordes
-        if (edgeCheckPoint != null)
-        {
-            float direction = isFacingRight ? 1f : -1f;
-            Vector2 checkStartPoint = new Vector2(
-                transform.position.x + (edgeCheckOffset * direction),
-                edgeCheckPoint.position.y
-            );
-
-            Gizmos.color = isAtEdge ? Color.red : Color.cyan;
-            Gizmos.DrawLine(checkStartPoint, checkStartPoint + Vector2.down * edgeCheckDistance);
-            Gizmos.DrawWireSphere(checkStartPoint + Vector2.down * edgeCheckDistance, 0.1f);
-        }
+        // Distancia de reposición
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(detectionPos, repositionDistance);
 
         // Raycast de detección del jugador
         if (Application.isPlaying && player != null)
