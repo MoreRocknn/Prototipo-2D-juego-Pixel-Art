@@ -304,9 +304,29 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
         }
         else if (!isCritical && wasCritical)
         {
+            // CAMBIO IMPORTANTE: Restaurar el estado del enemigo
             StopAllCoroutines(); // Detener parpadeo si se cura
             canBeAbsorbed = false;
             isCriticalStunned = false;
+
+            // Restaurar color original
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = originalColor;
+            }
+
+            // Volver a estado de patrulla o persecución
+            if (player != null && Vector2.Distance(transform.position, player.position) <= detectionRange)
+            {
+                currentState = EnemyState.Chase;
+                chaseTimer = 0f;
+            }
+            else
+            {
+                ReturnToPatrol();
+            }
+
+            Debug.Log($"{gameObject.name}: Salió del estado crítico - Volviendo a combate");
         }
     }
 
@@ -322,7 +342,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
 
         // Parpadeo durante el stun
         float elapsed = 0f;
-        while (elapsed < criticalStunDuration)
+        while (elapsed < criticalStunDuration && isCritical) // CAMBIO: verificar si sigue crítico
         {
             if (spriteRenderer != null)
             {
@@ -339,6 +359,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
             elapsed += criticalBlinkSpeed * 2f;
         }
 
+        // Si ya no está crítico, salir de la corrutina
+        if (!isCritical)
+        {
+            yield break;
+        }
+
         // Fase 2: Ahora puede ser absorbido
         isCriticalStunned = false;
         canBeAbsorbed = true;
@@ -350,6 +376,18 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
         }
 
         Debug.Log($"{gameObject.name} - ¡Ahora puede ser absorbido con E!");
+
+        // CAMBIO: Volver a estado activo después del stun
+        // El enemigo puede moverse pero sigue vulnerable a absorción
+        if (player != null && Vector2.Distance(transform.position, player.position) <= detectionRange)
+        {
+            currentState = EnemyState.Chase;
+            chaseTimer = 0f;
+        }
+        else
+        {
+            ReturnToPatrol();
+        }
 
         // Continuar parpadeando hasta que sea absorbido o muera
         while (isCritical && spriteRenderer != null)
