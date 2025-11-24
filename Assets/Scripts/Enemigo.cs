@@ -1,17 +1,36 @@
 using System.Collections;
 using UnityEngine;
 
-public class Enemigo : MonoBehaviour
+public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
 {
     [Header("=== SALUD ===")]
     public int health = 3;
+    public int maxHealth = 3;
     public float invincibilityTime = 0.5f;
     private bool isInvincible = false;
     public Vector2 knockbackForce = new Vector2(3f, 5f);
 
+    [Header("=== BARRA DE VIDA ===")]
+    public Vector3 healthBarOffset = new Vector3(0, 1.2f, 0);
+    public bool showHealthBar = true;
+    private HealthBarUI healthBar;
+
+    [Header("=== PARPADEO AL MORIR ===")]
+    public int criticalHealthThreshold = 1;
+    public float criticalBlinkSpeed = 0.15f;
+    private bool isCritical = false;
+
     [Header("=== PROTECCIÓN ANTI-VUELO ===")]
     public float knockbackInvincibilityTime = 0.3f;
     private bool isKnockbackInvincible = false;
+
+    [Header("=== SISTEMA DE HABILIDADES ===")]
+    public bool startsWithAbility = true;
+    public AbilityType startingAbility = AbilityType.Dash;
+    private AbilityHolder abilityHolder;
+    private bool canBeAbsorbed = false;
+    public KeyCode enemyAbilityKey = KeyCode.Z; // Para debug/testing
+    private bool isDashing = false;
 
     [Header("=== DETECCIÓN DE BORDES ===")]
     public Transform edgeCheckPoint;
@@ -102,6 +121,28 @@ public class Enemigo : MonoBehaviour
             originalColor = spriteRenderer.color;
         }
 
+        // Inicializar vida
+        health = maxHealth;
+
+        // Crear barra de vida
+        if (showHealthBar)
+        {
+            CreateHealthBar();
+        }
+
+        // Inicializar sistema de habilidades
+        abilityHolder = GetComponent<AbilityHolder>();
+        if (abilityHolder == null)
+        {
+            abilityHolder = gameObject.AddComponent<AbilityHolder>();
+        }
+
+        // Dar habilidad inicial si está configurado
+        if (startsWithAbility)
+        {
+            GiveStartingAbility();
+        }
+
         // Buscar jugador
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
@@ -138,10 +179,38 @@ public class Enemigo : MonoBehaviour
         currentState = shouldPatrol ? EnemyState.Patrol : EnemyState.Idle;
     }
 
+    void CreateHealthBar()
+    {
+        if (HealthBarFactory.Instance != null)
+        {
+            healthBar = HealthBarFactory.Instance.CreateHealthBar(transform, health, maxHealth, healthBarOffset);
+        }
+        else
+        {
+            // Crear barra de vida programáticamente si no hay factory
+            GameObject canvasObj = new GameObject($"HealthBar_{gameObject.name}");
+            healthBar = canvasObj.AddComponent<HealthBarUI>();
+            healthBar.Initialize(transform, health, maxHealth);
+            healthBar.offset = healthBarOffset;
+        }
+    }
+
+    void GiveStartingAbility()
+    {
+        switch (startingAbility)
+        {
+            case AbilityType.Dash:
+                abilityHolder.SetAbility(new DashAbility());
+                Debug.Log($"{gameObject.name} inicia con habilidad: DASH");
+                break;
+                // Aquí puedes añadir más habilidades en el futuro
+        }
+    }
+
     void Update()
     {
-        // No hacer nada si está invencible o aturdido
-        if (isInvincible || currentState == EnemyState.Stunned)
+        // No hacer nada si está invencible, aturdido o dasheando
+        if (isInvincible || currentState == EnemyState.Stunned || isDashing)
         {
             return;
         }
@@ -149,6 +218,9 @@ public class Enemigo : MonoBehaviour
         // Actualizar timers
         playerIgnoreTimer -= Time.deltaTime;
         attackTimer -= Time.deltaTime;
+
+        // Verificar si está en estado crítico
+        CheckCriticalHealth();
 
         // Verificar borde
         CheckEdge();
@@ -165,6 +237,17 @@ public class Enemigo : MonoBehaviour
         if (playerDetected && player != null && currentState != EnemyState.Attack)
         {
             LookAtPlayer();
+        }
+
+        // Usar habilidad si puede (solo en combate)
+        if ((currentState == EnemyState.Chase || currentState == EnemyState.Guard) &&
+            abilityHolder != null && abilityHolder.HasAbility())
+        {
+            // Usar dash cuando persigue al jugador
+            if (currentState == EnemyState.Chase && playerDetected)
+            {
+                abilityHolder.UseAbility();
+            }
         }
 
         // Máquina de estados
@@ -192,6 +275,121 @@ public class Enemigo : MonoBehaviour
         }
 
         UpdateAnimations();
+    }
+
+    void CheckCriticalHealth()
+    {
+        bool wasCritical = isCritical;
+        isCritical = (health <= criticalHealthThreshold && health > 0);
+
+        // Si acaba de entrar en estado crítico, iniciar parpadeo
+        if (isCritical && !wasCritical)
+        {
+            StartCoroutine(CriticalHealthBlink());
+            canBeAbsorbed = true; // Permitir absorción
+            Debug.Log($"{gameObject.name} está en estado CRÍTICO - ¡Puede ser absorbido!");
+        }
+        else if (!isCritical && wasCritical)
+        {
+            StopAllCoroutines(); // Detener parpadeo si se cura
+            canBeAbsorbed = false;
+        }
+    }
+
+    IEnumerator CriticalHealthBlink()
+    {
+        while (isCritical && spriteRenderer != null)
+        {
+            spriteRenderer.color = Color.red;
+            yield return new WaitForSeconds(criticalBlinkSpeed);
+            spriteRenderer.color = originalColor;
+            yield return new WaitForSeconds(criticalBlinkSpeed);
+        }
+    }
+
+    // ============================================
+    // IMPLEMENTACIÓN DE IAbsorbable
+    // ============================================
+    public bool CanBeAbsorbed()
+    {
+        return canBeAbsorbed && isCritical;
+    }
+
+    public void OnAbsorbed()
+    {
+        Debug.Log($"{gameObject.name}: ¡Habilidad absorbida/transferida!");
+
+        // Efecto visual de absorción
+        if (spriteRenderer != null)
+        {
+            StartCoroutine(AbsorptionFlash());
+        }
+
+        // Si el enemigo ya no tiene habilidad después de la absorción, puede morir
+        if (abilityHolder != null && !abilityHolder.HasAbility())
+        {
+            Debug.Log($"{gameObject.name}: Sin habilidad - muriendo");
+            Die();
+        }
+    }
+
+    IEnumerator AbsorptionFlash()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            if (spriteRenderer != null) spriteRenderer.color = Color.cyan;
+            yield return new WaitForSeconds(0.1f);
+            if (spriteRenderer != null) spriteRenderer.color = Color.white;
+            yield return new WaitForSeconds(0.1f);
+        }
+        if (spriteRenderer != null) spriteRenderer.color = originalColor;
+    }
+
+    // ============================================
+    // IMPLEMENTACIÓN DE IDashExecutor
+    // ============================================
+    public void PerformDash(float force, float duration)
+    {
+        if (!isDashing)
+        {
+            StartCoroutine(EnemyDashCoroutine(force, duration));
+        }
+    }
+
+    IEnumerator EnemyDashCoroutine(float force, float duration)
+    {
+        isDashing = true;
+
+        // Dash hacia el jugador si está cerca
+        float dashDirection = isFacingRight ? 1f : -1f;
+
+        if (player != null)
+        {
+            dashDirection = (player.position.x > transform.position.x) ? 1f : -1f;
+        }
+
+        // Aplicar velocidad de dash
+        rb.linearVelocity = new Vector2(dashDirection * force, 0f);
+
+        // Efecto visual
+        if (spriteRenderer != null)
+        {
+            Color dashColor = new Color(0.3f, 0.8f, 1f);
+            spriteRenderer.color = dashColor;
+        }
+
+        Debug.Log($"{gameObject.name} ejecutó DASH hacia {(dashDirection > 0 ? "derecha" : "izquierda")}");
+
+        yield return new WaitForSeconds(duration);
+
+        isDashing = false;
+        if (spriteRenderer != null && !isInvincible)
+        {
+            spriteRenderer.color = originalColor;
+        }
+
+        // Reducir velocidad
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.3f, rb.linearVelocity.y);
     }
 
     bool CanSeePlayer(Vector3 detectionPos, float distance)
@@ -275,13 +473,11 @@ public class Enemigo : MonoBehaviour
         float direction = movingRight ? 1f : -1f;
         rb.linearVelocity = new Vector2(direction * moveSpeed, rb.linearVelocity.y);
 
-        // Ajustar dirección visual
         if ((movingRight && !isFacingRight) || (!movingRight && isFacingRight))
         {
             Flip();
         }
 
-        // Verificar límites de patrulla
         if (movingRight && transform.position.x >= patrolTarget)
         {
             movingRight = false;
@@ -298,7 +494,6 @@ public class Enemigo : MonoBehaviour
     {
         rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
 
-        // Si el jugador se aleja, volver a patrullar
         if (!playerDetected)
         {
             Debug.Log($"{gameObject.name}: Jugador fuera de rango");
@@ -309,12 +504,10 @@ public class Enemigo : MonoBehaviour
         LookAtPlayer();
         guardTimer += Time.deltaTime;
 
-        // Contador de tiempo en el borde
         if (isAtEdge)
         {
             totalEdgeTime += Time.deltaTime;
 
-            // Si pasaron 10 segundos en el borde, volver a patrullar
             if (totalEdgeTime >= maxEdgeWaitTime)
             {
                 Debug.Log($"{gameObject.name}: Tiempo máximo en borde alcanzado");
@@ -327,19 +520,16 @@ public class Enemigo : MonoBehaviour
             totalEdgeTime = 0f;
         }
 
-        // Intentar atacar si está en rango
         if (inAttackRange && guardTimer >= guardTime && attackTimer <= 0)
         {
             ExitGuardState();
             EnterAttackState();
             ResetTimers();
         }
-        // Si no está en rango de ataque pero ya esperó
         else if (!inAttackRange && guardTimer >= guardTime)
         {
             if (!isAtEdge)
             {
-                // Perseguir
                 ExitGuardState();
                 currentState = EnemyState.Chase;
                 chaseTimer = 0f;
@@ -349,7 +539,6 @@ public class Enemigo : MonoBehaviour
             {
                 edgeWaitTimer += Time.deltaTime;
 
-                // Después de 3 segundos en el borde, intentar volver a patrullar
                 if (edgeWaitTimer >= edgeWaitTime)
                 {
                     Debug.Log($"{gameObject.name}: Esperó {edgeWaitTime}s en el borde");
@@ -368,17 +557,15 @@ public class Enemigo : MonoBehaviour
     {
         chaseTimer += Time.deltaTime;
 
-        // Timeout de persecución
         if (chaseTimer >= chaseTimeout)
         {
-            Debug.Log($"{gameObject.name}: Timeout de persecución - Ignorando jugador por 3s");
+            Debug.Log($"{gameObject.name}: Timeout de persecución");
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
             playerIgnoreTimer = 3f;
             ReturnToPatrol();
             return;
         }
 
-        // Perder de vista al jugador
         if (!playerDetected)
         {
             Debug.Log($"{gameObject.name}: Perdió de vista al jugador");
@@ -386,7 +573,6 @@ public class Enemigo : MonoBehaviour
             return;
         }
 
-        // Borde durante persecución
         if (isAtEdge)
         {
             Debug.Log($"{gameObject.name}: Borde detectado durante persecución");
@@ -396,13 +582,11 @@ public class Enemigo : MonoBehaviour
             return;
         }
 
-        // Perseguir
         Vector2 direction = (player.position - transform.position).normalized;
         rb.linearVelocity = new Vector2(direction.x * chaseSpeed, rb.linearVelocity.y);
 
         LookAtPlayer();
 
-        // Intentar atacar si está en rango
         if (playerInAttackRange)
         {
             if (attackTimer <= 0)
@@ -473,56 +657,29 @@ public class Enemigo : MonoBehaviour
     {
         isAttacking = true;
 
-        // INSTANCIAR EFECTO DE ATAQUE
         if (attackEffect != null && attackPoint != null)
         {
-            Debug.Log($"{gameObject.name}: Instanciando efecto de ataque en {attackPoint.position}");
-
-            // Instanciar el efecto como hijo del attackPoint para que se mueva con el enemigo
             GameObject effect = Instantiate(attackEffect, attackPoint);
-
-            // Posición local relativa al attackPoint
             effect.transform.localPosition = Vector3.zero;
 
-            // AUMENTAR EL TAMAÑO DEL EFECTO (ajusta estos valores si es necesario)
-            float effectScale = 0.7f; // Cambiar este valor para hacer el efecto más grande o pequeño
+            float effectScale = 0.7f;
             effect.transform.localScale = new Vector3(
-                (isFacingRight ? 1f : -1f) * effectScale,  // Voltear según dirección y escalar
+                (isFacingRight ? 1f : -1f) * effectScale,
                 effectScale,
                 effectScale
             );
 
-            // Rotación correcta
             effect.transform.localRotation = Quaternion.identity;
 
-            // Si el efecto tiene Particle System, iniciarlo
             ParticleSystem ps = effect.GetComponent<ParticleSystem>();
-            if (ps != null)
-            {
-                ps.Play();
-                Debug.Log($"{gameObject.name}: Particle System activado");
-            }
+            if (ps != null) ps.Play();
 
-            // Si tiene SpriteRenderer, asegurar que es visible
             SpriteRenderer sr = effect.GetComponent<SpriteRenderer>();
-            if (sr != null)
-            {
-                sr.sortingOrder = 10; // Ponerlo encima de otros sprites
-                Debug.Log($"{gameObject.name}: SpriteRenderer configurado");
-            }
+            if (sr != null) sr.sortingOrder = 10;
 
-            // Destruir el efecto después del ataque
             Destroy(effect, attackDuration + 0.5f);
         }
-        else
-        {
-            if (attackEffect == null)
-                Debug.LogWarning($"{gameObject.name}: ¡No hay 'Attack Effect' asignado en el Inspector!");
-            if (attackPoint == null)
-                Debug.LogWarning($"{gameObject.name}: ¡No hay 'Attack Point' asignado en el Inspector!");
-        }
 
-        // REALIZAR EL ATAQUE
         if (attackPoint != null)
         {
             Collider2D[] hits = Physics2D.OverlapCircleAll(attackPoint.position, attackRadius);
@@ -539,10 +696,6 @@ public class Enemigo : MonoBehaviour
                     }
                 }
             }
-        }
-        else
-        {
-            Debug.LogError($"{gameObject.name}: ¡El 'AttackPoint' no está asignado en el Inspector! El ataque fallará.");
         }
 
         yield return new WaitForSeconds(attackDuration);
@@ -614,7 +767,13 @@ public class Enemigo : MonoBehaviour
         }
 
         health -= damage;
-        Debug.Log($"{gameObject.name}: Recibió {damage} de daño. Vida: {health}");
+        Debug.Log($"{gameObject.name}: Recibió {damage} de daño. Vida: {health}/{maxHealth}");
+
+        // Actualizar barra de vida
+        if (healthBar != null)
+        {
+            healthBar.UpdateHealth(health, maxHealth);
+        }
 
         // Aplicar knockback
         if (rb != null)
@@ -632,35 +791,34 @@ public class Enemigo : MonoBehaviour
 
         if (health <= 0)
         {
-            Die(); // <-- AQUÍ SE LLAMA A LA FUNCIÓN QUE FALTA
+            Die();
         }
         else
         {
-            // Después del daño, el enemigo entrará en modo persecución agresiva
             StartCoroutine(RecoverAndChase());
             StartCoroutine(KnockbackInvincibility());
         }
     }
 
-    // ===============================================
-    // --- FUNCIÓN QUE FALTABA ---
-    // ===============================================
     void Die()
     {
         Debug.Log($"{gameObject.name}: Murió");
-        // Aquí puedes añadir efectos de muerte, puntuación, etc.
+
+        // Destruir barra de vida
+        if (healthBar != null)
+        {
+            Destroy(healthBar.gameObject);
+        }
+
         Destroy(gameObject);
     }
-    // ===============================================
 
-    // Nueva coroutine que reemplaza InvincibilityFrames y hace que persiga después del golpe
     IEnumerator RecoverAndChase()
     {
         isInvincible = true;
 
         float flashDuration = invincibilityTime / 10f;
 
-        // Efecto visual de parpadeo mientras se recupera
         for (int i = 0; i < 5; i++)
         {
             if (spriteRenderer != null) spriteRenderer.color = Color.red;
@@ -671,18 +829,16 @@ public class Enemigo : MonoBehaviour
 
         isInvincible = false;
 
-        // Después de recuperarse, entrar en modo persecución agresiva
         if (player != null)
         {
             Debug.Log($"{gameObject.name}: ¡Recuperado! Entrando en modo persecución agresiva");
             currentState = EnemyState.Chase;
             chaseTimer = 0f;
-            playerIgnoreTimer = 0f; // No ignorar al jugador
-            attackTimer = 0f; // Permitir atacar inmediatamente si está en rango
+            playerIgnoreTimer = 0f;
+            attackTimer = 0f;
         }
         else
         {
-            // Si no hay jugador, volver a patrullar
             currentState = EnemyState.Idle;
         }
     }
@@ -704,28 +860,33 @@ public class Enemigo : MonoBehaviour
         }
     }
 
+    void OnDestroy()
+    {
+        // Limpiar barra de vida al destruir el enemigo
+        if (healthBar != null)
+        {
+            Destroy(healthBar.gameObject);
+        }
+    }
+
     void OnDrawGizmosSelected()
     {
         if (!showDebugGizmos) return;
 
         Vector3 detectionPos = detectionPoint != null ? detectionPoint.position : transform.position;
 
-        // Rango de detección
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(detectionPos, detectionRange);
 
-        // Rango de ataque
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(detectionPos, attackRange);
 
-        // Punto de ataque
         if (attackPoint != null)
         {
             Gizmos.color = Color.magenta;
             Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
         }
 
-        // Zona de patrulla
         if (shouldPatrol && Application.isPlaying)
         {
             Gizmos.color = Color.green;
@@ -735,7 +896,6 @@ public class Enemigo : MonoBehaviour
             );
         }
 
-        // Detección de bordes
         if (edgeCheckPoint != null)
         {
             float direction = isFacingRight ? 1f : -1f;
@@ -749,7 +909,6 @@ public class Enemigo : MonoBehaviour
             Gizmos.DrawWireSphere(checkStartPoint + Vector2.down * edgeCheckDistance, 0.1f);
         }
 
-        // Raycast de detección del jugador
         if (Application.isPlaying && player != null)
         {
             Vector2 directionToPlayer = (player.position - detectionPos).normalized;

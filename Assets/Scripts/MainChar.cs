@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections;
 
-public class MainChar : MonoBehaviour
+public class MainChar : MonoBehaviour, IDashExecutor
 {
     [Header("Movimiento")]
     public float moveSpeed = 8f;
@@ -45,9 +45,8 @@ public class MainChar : MonoBehaviour
     public float playerKnockbackForce = 3f;
     public GameObject sideAttackEffect;
 
-    // DOWN ATTACK DESHABILITADO TEMPORALMENTE
     [Header("Down Attack (DESHABILITADO)")]
-    public bool enableDownAttack = false; // Cambia a true para reactivar
+    public bool enableDownAttack = false;
     public Transform downAttackPoint;
     public GameObject downAttackEffect;
     private bool isAttackingDown = false;
@@ -83,6 +82,15 @@ public class MainChar : MonoBehaviour
     public Color damageColor = new Color(1f, 0.3f, 0.3f);
     private bool isDamageInvincible = false;
 
+    [Header("Sistema de Habilidades")]
+    public KeyCode abilityUseKey = KeyCode.Q;
+    private AbilityHolder abilityHolder;
+    private bool isDashing = false;
+
+    [Header("Efectos de Dash")]
+    public GameObject dashTrailEffect;
+    public Color dashColor = new Color(0.3f, 0.8f, 1f);
+
     private float defaultGravityScale;
     private float coyoteTimeCounter;
     private float jumpBufferCounter;
@@ -99,177 +107,34 @@ public class MainChar : MonoBehaviour
         currentHealth = maxHealth;
         wallGrabStamina = wallGrabStaminaMax;
 
-        if (GameManager.Instance != null && GameManager.Instance.hasCheckpoint)
+        // Inicializar sistema de habilidades
+        abilityHolder = GetComponent<AbilityHolder>();
+        if (abilityHolder == null)
         {
-            transform.position = GameManager.Instance.GetRespawnPosition();
+            abilityHolder = gameObject.AddComponent<AbilityHolder>();
         }
+
+        if (GameManager.Instance != null && GameManager.Instance.hasCheckpoint)
+            transform.position = GameManager.Instance.GetRespawnPosition();
     }
 
     void Update()
     {
-        // ========================================
-        // CONTROLES PERSONALIZADOS: FLECHAS
-        // ========================================
-        moveInput = 0f;
-        if (Input.GetKey(KeyCode.RightArrow))
-        {
-            moveInput = 1f;
-        }
-        else if (Input.GetKey(KeyCode.LeftArrow))
-        {
-            moveInput = -1f;
-        }
+        if (isDashing) return; // No hacer nada mientras hace dash
 
-        float verticalInput = 0f;
-        if (Input.GetKey(KeyCode.DownArrow))
-        {
-            verticalInput = -1f;
-        }
-        else if (Input.GetKey(KeyCode.UpArrow))
-        {
-            verticalInput = 1f;
-        }
-
-        // ========================================
-        // SALTO CON ESPACIO
-        // ========================================
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            jumpBufferCounter = jumpBufferTime;
-            jumpReleased = false;
-        }
-        else
-        {
-            jumpBufferCounter -= Time.deltaTime;
-        }
-
-        if (Input.GetKeyUp(KeyCode.Space))
-        {
-            jumpReleased = true;
-
-            if (rb.linearVelocity.y > 0f)
-            {
-                rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * jumpCutMultiplier);
-            }
-        }
-
-        // ========================================
-        // ATAQUE CON TECLA X
-        // ========================================
-        isAttackingDown = false;
-        if (Input.GetKeyDown(KeyCode.X))
-        {
-            // Solo permitir down attack si está habilitado
-            if (enableDownAttack && verticalInput < 0 && !isGrounded)
-            {
-                isAttackingDown = true;
-            }
-            Attack();
-        }
-
-        // Sistema de gravedad con Wall Grab
-        if (isWallGrabbing)
-        {
-            rb.gravityScale = 0f;
-        }
-        else if (isWallSliding)
-        {
-            rb.gravityScale = defaultGravityScale * wallSlideGravityMultiplier;
-        }
-        else if (rb.linearVelocity.y < -0.5f)
-        {
-            rb.gravityScale = defaultGravityScale * fallGravityMultiplier;
-        }
-        else if (rb.linearVelocity.y > 0.5f && !Input.GetKey(KeyCode.Space))
-        {
-            rb.gravityScale = defaultGravityScale * lowJumpMultiplier;
-        }
-        else
-        {
-            rb.gravityScale = defaultGravityScale;
-        }
-
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer);
-        isTouchingWall = Physics2D.OverlapCircle(wallCheck.position, checkRadius, wallLayer);
-
-        if (isGrounded)
-        {
-            wasWallJumping = false;
-            consecutiveBounces = 0;
-            wallGrabStamina = wallGrabStaminaMax;
-        }
-
-        // Coyote time
-        if (isGrounded)
-        {
-            coyoteTimeCounter = coyoteTime;
-        }
-        else
-        {
-            coyoteTimeCounter -= Time.deltaTime;
-        }
-
-        if (wallJumpCounter > 0f)
-        {
-            wallJumpCounter -= Time.deltaTime;
-        }
-
-        // Wall Grab y Wall Slide
-        bool isPushingWall = (moveInput * wallSide > 0);
-        bool wantsToGrab = canWallGrab && Input.GetKey(wallGrabKey);
-        if (isTouchingWall && !isGrounded && wantsToGrab)
-        {
-            isWallGrabbing = true;
-            isWallSliding = false;
-
-            if (wallGrabStaminaMax > 0)
-            {
-                wallGrabStamina -= Time.deltaTime;
-                if (wallGrabStamina <= 0)
-                {
-                    isWallGrabbing = false;
-                }
-            }
-        }
-        else if (isTouchingWall && !isGrounded && rb.linearVelocity.y < 0f && isPushingWall)
-        {
-            isWallGrabbing = false;
-
-            if (verticalInput < 0)
-            {
-                isWallSliding = false;
-            }
-            else
-            {
-                isWallSliding = true;
-            }
-        }
-        else
-        {
-            isWallGrabbing = false;
-            isWallSliding = false;
-        }
-
-        if (Time.time - lastBounceTime > bounceResetTime && !isGrounded)
-        {
-            consecutiveBounces = 0;
-        }
-
-        if (wallJumpCounter <= 0.05f)
-        {
-            if (moveInput < 0 && isFacingRight)
-            {
-                Flip();
-            }
-            else if (moveInput > 0 && !isFacingRight)
-            {
-                Flip();
-            }
-        }
+        HandleInput();
+        UpdatePhysicsChecks();
+        HandleGravity();
+        HandleWallMechanics();
+        HandleFlip();
+        HandleBounceReset();
+        HandleAbilityInput();
     }
 
     void FixedUpdate()
     {
+        if (isDashing) return; // No mover durante dash
+
         if (isWallGrabbing)
         {
             rb.linearVelocity = Vector2.zero;
@@ -283,20 +148,14 @@ public class MainChar : MonoBehaviour
 
         if (wallJumpCounter > 0f)
         {
-            float controlAmount = 1f - (wallJumpCounter / wallJumpLockTime);
+            if (wallJumpCounter > wallJumpLockTime) return;
 
-            if (wallJumpCounter > wallJumpLockTime)
-            {
-                return;
-            }
-            else
-            {
-                float targetX = moveInput * moveSpeed * controlAmount;
-                rb.linearVelocity = new Vector2(
-                    Mathf.Lerp(rb.linearVelocity.x, targetX, wallJumpAirDrag),
-                    rb.linearVelocity.y
-                );
-            }
+            float controlAmount = 1f - (wallJumpCounter / wallJumpLockTime);
+            float targetX = moveInput * moveSpeed * controlAmount;
+            rb.linearVelocity = new Vector2(
+                Mathf.Lerp(rb.linearVelocity.x, targetX, wallJumpAirDrag),
+                rb.linearVelocity.y
+            );
         }
         else if (!isWallSliding)
         {
@@ -305,20 +164,154 @@ public class MainChar : MonoBehaviour
             rb.linearVelocity = new Vector2(appliedX, rb.linearVelocity.y);
         }
 
-        if (jumpBufferCounter > 0f && jumpReleased == false)
+        HandleJump();
+        LimitFallSpeed();
+    }
+
+    // --- Métodos privados para modularidad y legibilidad ---
+
+    private void HandleInput()
+    {
+        // Movimiento horizontal
+        moveInput = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
+
+        // Movimiento vertical
+        float verticalInput = (Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
+
+        // Salto
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            jumpBufferCounter = jumpBufferTime;
+            jumpReleased = false;
+        }
+        else
+        {
+            jumpBufferCounter -= Time.deltaTime;
+        }
+
+        if (Input.GetKeyUp(KeyCode.Space))
+        {
+            jumpReleased = true;
+            if (rb.linearVelocity.y > 0f)
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * jumpCutMultiplier);
+        }
+
+        // Ataque
+        isAttackingDown = false;
+        if (Input.GetKeyDown(KeyCode.X))
+        {
+            if (enableDownAttack && verticalInput < 0 && !isGrounded)
+                isAttackingDown = true;
+            Attack();
+        }
+    }
+
+    private void HandleAbilityInput()
+    {
+        if (Input.GetKeyDown(abilityUseKey) && abilityHolder != null)
+        {
+            abilityHolder.UseAbility();
+        }
+    }
+
+    private void UpdatePhysicsChecks()
+    {
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer);
+        isTouchingWall = Physics2D.OverlapCircle(wallCheck.position, checkRadius, wallLayer);
+
+        if (isGrounded)
+        {
+            wasWallJumping = false;
+            consecutiveBounces = 0;
+            wallGrabStamina = wallGrabStaminaMax;
+            coyoteTimeCounter = coyoteTime;
+        }
+        else
+        {
+            coyoteTimeCounter -= Time.deltaTime;
+        }
+
+        if (wallJumpCounter > 0f)
+            wallJumpCounter -= Time.deltaTime;
+    }
+
+    private void HandleGravity()
+    {
+        if (isDashing)
+        {
+            rb.gravityScale = 0f;
+            return;
+        }
+
+        if (isWallGrabbing)
+            rb.gravityScale = 0f;
+        else if (isWallSliding)
+            rb.gravityScale = defaultGravityScale * wallSlideGravityMultiplier;
+        else if (rb.linearVelocity.y < -0.5f)
+            rb.gravityScale = defaultGravityScale * fallGravityMultiplier;
+        else if (rb.linearVelocity.y > 0.5f && !Input.GetKey(KeyCode.Space))
+            rb.gravityScale = defaultGravityScale * lowJumpMultiplier;
+        else
+            rb.gravityScale = defaultGravityScale;
+    }
+
+    private void HandleWallMechanics()
+    {
+        bool isPushingWall = (moveInput * wallSide > 0);
+        bool wantsToGrab = canWallGrab && Input.GetKey(wallGrabKey);
+
+        if (isTouchingWall && !isGrounded && wantsToGrab)
+        {
+            isWallGrabbing = true;
+            isWallSliding = false;
+
+            if (wallGrabStaminaMax > 0)
+            {
+                wallGrabStamina -= Time.deltaTime;
+                if (wallGrabStamina <= 0)
+                    isWallGrabbing = false;
+            }
+        }
+        else if (isTouchingWall && !isGrounded && rb.linearVelocity.y < 0f && isPushingWall)
+        {
+            isWallGrabbing = false;
+            isWallSliding = (Input.GetKey(KeyCode.DownArrow)) ? false : true;
+        }
+        else
+        {
+            isWallGrabbing = false;
+            isWallSliding = false;
+        }
+    }
+
+    private void HandleFlip()
+    {
+        if (isDashing) return; // No voltear durante dash
+        if (wallJumpCounter > 0.05f) return;
+
+        if (moveInput < 0 && isFacingRight)
+            Flip();
+        else if (moveInput > 0 && !isFacingRight)
+            Flip();
+    }
+
+    private void HandleBounceReset()
+    {
+        if (Time.time - lastBounceTime > bounceResetTime && !isGrounded)
+            consecutiveBounces = 0;
+    }
+
+    private void HandleJump()
+    {
+        if (jumpBufferCounter > 0f && !jumpReleased)
         {
             if (isTouchingWall && !isGrounded && wallJumpCounter <= 0f)
             {
                 bool isPushingTowardsWall = (moveInput * wallSide > 0);
+                float xForce = -wallSide * wallJumpForce.x * (isPushingTowardsWall || Mathf.Abs(moveInput) < 0.1f ? 0.7f : 1f);
+                float yForce = wallJumpForce.y * (isPushingTowardsWall || Mathf.Abs(moveInput) < 0.1f ? 1f : 0.95f);
 
-                if (isPushingTowardsWall || Mathf.Abs(moveInput) < 0.1f)
-                {
-                    rb.linearVelocity = new Vector2(-wallSide * wallJumpForce.x * 0.7f, wallJumpForce.y);
-                }
-                else
-                {
-                    rb.linearVelocity = new Vector2(-wallSide * wallJumpForce.x, wallJumpForce.y * 0.95f);
-                }
+                rb.linearVelocity = new Vector2(xForce, yForce);
 
                 wallJumpCounter = wallJumpControlTime;
                 wasWallJumping = true;
@@ -338,20 +331,73 @@ public class MainChar : MonoBehaviour
                 jumpBufferCounter = 0f;
             }
         }
-
-        if (rb.linearVelocity.y < -maxFallSpeed)
-        {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, -maxFallSpeed);
-        }
     }
 
-    void Flip()
+    private void LimitFallSpeed()
+    {
+        if (rb.linearVelocity.y < -maxFallSpeed)
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, -maxFallSpeed);
+    }
+
+    private void Flip()
     {
         isFacingRight = !isFacingRight;
         wallSide *= -1;
         Vector3 scaler = transform.localScale;
         scaler.x *= -1;
         transform.localScale = scaler;
+    }
+
+    // ============================================
+    // IMPLEMENTACIÓN DE IDashExecutor
+    // ============================================
+    public void PerformDash(float force, float duration)
+    {
+        if (!isDashing)
+        {
+            StartCoroutine(DashCoroutine(force, duration));
+        }
+    }
+
+    private IEnumerator DashCoroutine(float force, float duration)
+    {
+        isDashing = true;
+
+        // Determinar dirección del dash
+        float dashDirection = isFacingRight ? 1f : -1f;
+
+        // Si hay input, usar esa dirección
+        if (Mathf.Abs(moveInput) > 0.1f)
+        {
+            dashDirection = Mathf.Sign(moveInput);
+        }
+
+        // Aplicar velocidad de dash
+        rb.linearVelocity = new Vector2(dashDirection * force, 0f);
+
+        // Efecto visual
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color originalColor = sr != null ? sr.color : Color.white;
+        if (sr != null) sr.color = dashColor;
+
+        // Crear trail effect
+        if (dashTrailEffect != null)
+        {
+            GameObject trail = Instantiate(dashTrailEffect, transform.position, Quaternion.identity);
+            Destroy(trail, duration + 0.5f);
+        }
+
+        Debug.Log($"¡DASH ejecutado! Dirección: {dashDirection}, Fuerza: {force}");
+
+        yield return new WaitForSeconds(duration);
+
+        // Restaurar gravedad y color
+        isDashing = false;
+        rb.gravityScale = defaultGravityScale;
+        if (sr != null) sr.color = originalColor;
+
+        // Reducir velocidad gradualmente
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.5f, rb.linearVelocity.y);
     }
 
     public void TakeDamage(int damage)
@@ -365,14 +411,12 @@ public class MainChar : MonoBehaviour
         currentHealth -= damage;
         Debug.Log($"Jugador recibió {damage} de daño. Vida: {currentHealth}/{maxHealth}");
 
-        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
         float knockbackDir = 1f;
-
+        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
         if (enemies.Length > 0)
         {
             float closestDist = Mathf.Infinity;
             GameObject closestEnemy = null;
-
             foreach (GameObject enemy in enemies)
             {
                 float dist = Vector2.Distance(transform.position, enemy.transform.position);
@@ -382,11 +426,8 @@ public class MainChar : MonoBehaviour
                     closestEnemy = enemy;
                 }
             }
-
             if (closestEnemy != null)
-            {
                 knockbackDir = transform.position.x > closestEnemy.transform.position.x ? 1f : -1f;
-            }
         }
 
         if (rb != null)
@@ -396,13 +437,9 @@ public class MainChar : MonoBehaviour
         }
 
         if (currentHealth <= 0)
-        {
             Die();
-        }
         else
-        {
             StartCoroutine(DamageInvincibility());
-        }
     }
 
     IEnumerator DamageInvincibility()
@@ -427,34 +464,25 @@ public class MainChar : MonoBehaviour
     void Die()
     {
         Debug.Log("¡Jugador murió!");
-
         if (GameManager.Instance != null)
-        {
             StartCoroutine(RespawnAfterDeath());
-        }
         else
-        {
             UnityEngine.SceneManagement.SceneManager.LoadScene(
                 UnityEngine.SceneManagement.SceneManager.GetActiveScene().name
             );
-        }
     }
 
     IEnumerator RespawnAfterDeath()
     {
         enabled = false;
-
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         if (sr != null) sr.enabled = false;
 
         yield return new WaitForSeconds(1f);
 
         currentHealth = maxHealth;
-
         if (GameManager.Instance != null)
-        {
             transform.position = GameManager.Instance.GetRespawnPosition();
-        }
 
         if (sr != null) sr.enabled = true;
         rb.linearVelocity = Vector2.zero;
@@ -467,14 +495,10 @@ public class MainChar : MonoBehaviour
     void Attack()
     {
         GameObject effectToShow = isAttackingDown ? downAttackEffect : sideAttackEffect;
-
         if (effectToShow != null)
         {
             ParticleSystem ps = effectToShow.GetComponent<ParticleSystem>();
-            if (ps != null)
-            {
-                ps.Play();
-            }
+            if (ps != null) ps.Play();
         }
 
         if (!isAttackingDown)
@@ -483,112 +507,103 @@ public class MainChar : MonoBehaviour
             rb.AddForce(new Vector2(knockbackDir * playerKnockbackForce, 0), ForceMode2D.Impulse);
         }
 
-        // DOWN ATTACK - Solo si está habilitado
         if (isAttackingDown && enableDownAttack)
         {
-            Transform currentAttackPoint = downAttackPoint;
-
-            Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(currentAttackPoint.position, attackRange, enemyLayer);
-            Collider2D[] hitGround = Physics2D.OverlapCircleAll(currentAttackPoint.position, attackRange, groundLayer);
-
-            bool hitSomething = false;
-
-            foreach (Collider2D enemyCollider in hitEnemies)
-            {
-                // Intentar obtener el script Enemigo
-                Enemigo enemy = enemyCollider.GetComponent<Enemigo>();
-                if (enemy != null)
-                {
-                    hitSomething = true;
-                    int enemyKnockbackDir = isFacingRight ? 1 : -1;
-                    enemy.TakeDamage(attackDamage, enemyKnockbackDir);
-                }
-                else
-                {
-                    // Si no es Enemigo, intentar con EnemigoVolador
-                    EnemigoVolador flyingEnemy = enemyCollider.GetComponent<EnemigoVolador>();
-                    if (flyingEnemy != null)
-                    {
-                        hitSomething = true;
-                        int enemyKnockbackDir = isFacingRight ? 1 : -1;
-                        flyingEnemy.TakeDamage(attackDamage, enemyKnockbackDir);
-                    }
-                }
-            }
-
-            if (hitGround.Length > 0)
-            {
-                hitSomething = true;
-                Debug.Log("¡Pegaste al suelo!");
-            }
-
-            if (hitSomething)
-            {
-                if (consecutiveBounces < maxConsecutiveBounces)
-                {
-                    rb.linearVelocity = new Vector2(rb.linearVelocity.x, downAttackBounceForce);
-                    consecutiveBounces++;
-                    lastBounceTime = Time.time;
-                    Debug.Log($"¡Rebote automático! ({consecutiveBounces}/{maxConsecutiveBounces})");
-                }
-                else
-                {
-                    rb.linearVelocity = new Vector2(rb.linearVelocity.x, downAttackBounceForce * 0.3f);
-                    Debug.Log("¡Límite de rebotes alcanzado! Rebote reducido");
-                }
-            }
+            HandleDownAttack();
         }
-        // SIDE ATTACK - Siempre activo
         else
         {
-            Transform currentAttackPoint = attackPoint;
-            Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(currentAttackPoint.position, attackRange, enemyLayer);
+            HandleSideAttack();
+        }
+    }
 
-            foreach (Collider2D enemyCollider in hitEnemies)
+    private void HandleDownAttack()
+    {
+        Transform currentAttackPoint = downAttackPoint;
+        Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(currentAttackPoint.position, attackRange, enemyLayer);
+        Collider2D[] hitGround = Physics2D.OverlapCircleAll(currentAttackPoint.position, attackRange, groundLayer);
+
+        bool hitSomething = false;
+
+        foreach (Collider2D enemyCollider in hitEnemies)
+        {
+            if (TryDealDamage(enemyCollider, isFacingRight ? 1 : -1))
+                hitSomething = true;
+        }
+
+        if (hitGround.Length > 0)
+        {
+            hitSomething = true;
+            Debug.Log("¡Pegaste al suelo!");
+        }
+
+        if (hitSomething)
+        {
+            if (consecutiveBounces < maxConsecutiveBounces)
             {
-                // Intentar obtener el script Enemigo
-                Enemigo enemy = enemyCollider.GetComponent<Enemigo>();
-                if (enemy != null)
-                {
-                    int enemyKnockbackDir = isFacingRight ? 1 : -1;
-                    enemy.TakeDamage(attackDamage, enemyKnockbackDir);
-                    Debug.Log($"Golpeó a enemigo terrestre: {enemyCollider.name}");
-                }
-                else
-                {
-                    // Si no es Enemigo, intentar con EnemigoVolador
-                    EnemigoVolador flyingEnemy = enemyCollider.GetComponent<EnemigoVolador>();
-                    if (flyingEnemy != null)
-                    {
-                        int enemyKnockbackDir = isFacingRight ? 1 : -1;
-                        flyingEnemy.TakeDamage(attackDamage, enemyKnockbackDir);
-                        Debug.Log($"Golpeó a enemigo volador: {enemyCollider.name}");
-                    }
-                }
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x, downAttackBounceForce);
+                consecutiveBounces++;
+                lastBounceTime = Time.time;
+                Debug.Log($"¡Rebote automático! ({consecutiveBounces}/{maxConsecutiveBounces})");
+            }
+            else
+            {
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x, downAttackBounceForce * 0.3f);
+                Debug.Log("¡Límite de rebotes alcanzado! Rebote reducido");
             }
         }
     }
 
+    private void HandleSideAttack()
+    {
+        Transform currentAttackPoint = attackPoint;
+        Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(currentAttackPoint.position, attackRange, enemyLayer);
+
+        foreach (Collider2D enemyCollider in hitEnemies)
+        {
+            if (TryDealDamage(enemyCollider, isFacingRight ? 1 : -1))
+                Debug.Log($"Golpeó a enemigo: {enemyCollider.name}");
+        }
+    }
+
+    private bool TryDealDamage(Collider2D enemyCollider, int knockbackDir)
+    {
+        var enemy = enemyCollider.GetComponent<Enemigo>();
+        if (enemy != null)
+        {
+            enemy.TakeDamage(attackDamage, knockbackDir);
+            return true;
+        }
+        var flyingEnemy = enemyCollider.GetComponent<EnemigoVolador>();
+        if (flyingEnemy != null)
+        {
+            flyingEnemy.TakeDamage(attackDamage, knockbackDir);
+            return true;
+        }
+        return false;
+    }
+
     void OnDrawGizmos()
     {
-        Gizmos.color = Color.green;
         if (groundCheck != null)
+        {
+            Gizmos.color = Color.green;
             Gizmos.DrawWireSphere(groundCheck.position, checkRadius);
-
-        Gizmos.color = Color.blue;
+        }
         if (wallCheck != null)
+        {
+            Gizmos.color = Color.blue;
             Gizmos.DrawWireSphere(wallCheck.position, checkRadius);
-
-        Gizmos.color = Color.red;
+        }
         if (attackPoint != null)
+        {
+            Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(attackPoint.position, attackRange);
-
-        // Solo mostrar down attack si está habilitado
-        if (enableDownAttack)
+        }
+        if (enableDownAttack && downAttackPoint != null)
         {
             Gizmos.color = Color.yellow;
-            if (downAttackPoint != null)
-                Gizmos.DrawWireSphere(downAttackPoint.position, attackRange);
+            Gizmos.DrawWireSphere(downAttackPoint.position, attackRange);
         }
     }
 }
