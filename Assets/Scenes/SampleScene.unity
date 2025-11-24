@@ -230,8 +230,10 @@ MonoBehaviour:
   knockbackForce: {x: 3, y: 3}
   healthBarOffset: {x: 0, y: 1.2, z: 0}
   showHealthBar: 1
+  hideHealthBarWhenFull: 1
   criticalHealthThreshold: 1
   criticalBlinkSpeed: 0.15
+  criticalStunDuration: 3
   knockbackInvincibilityTime: 0.3
   startsWithAbility: 1
   startingAbility: 1
@@ -1499,7 +1501,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 731642549}
-  - component: {fileID: 731642548}
+  - component: {fileID: 731642550}
   m_Layer: 0
   m_Name: HealthBarFactory
   m_TagString: Untagged
@@ -1507,30 +1509,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &731642548
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 731642547}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a22cd7b0987d7f24799b349cca28eea8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  healthSlider: {fileID: 0}
-  fillImage: {fileID: 0}
-  backgroundImage: {fileID: 0}
-  fullHealthColor: {r: 0, g: 1, b: 0, a: 1}
-  midHealthColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  lowHealthColor: {r: 1, g: 0, b: 0, a: 1}
-  criticalHealthColor: {r: 0.5, g: 0, b: 0, a: 1}
-  backgroundColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.8}
-  offset: {x: 0, y: 1.5, z: 0}
-  hideWhenFull: 1
-  alwaysShow: 0
-  smoothSpeed: 5
 --- !u!4 &731642549
 Transform:
   m_ObjectHideFlags: 0
@@ -1546,6 +1524,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &731642550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 731642547}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 047c87be7b6cd2c4e9e9210eefc5857f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  healthBarPrefab: {fileID: 8470190603193729950, guid: 36bc94b2ef887b04fb2b161d1729095f, type: 3}
+  autoCreateIfNoPrefab: 1
 --- !u!1 &826415828
 GameObject:
   m_ObjectHideFlags: 0
@@ -2886,7 +2878,7 @@ Transform:
   m_GameObject: {fileID: 1121880874}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -18.11, y: 6.16, z: 0}
+  m_LocalPosition: {x: -18.11, y: 6.09, z: 0}
   m_LocalScale: {x: 30.088106, y: 7.605671, z: 1.7336}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3299,7 +3291,7 @@ MonoBehaviour:
   damageKnockbackForce: {x: 5, y: 5}
   damageColor: {r: 1, g: 0.3, b: 0.3, a: 1}
   abilityUseKey: 113
-  dashTrailEffect: {fileID: 1229963976}
+  dashTrailEffect: {fileID: 0}
   dashColor: {r: 0.3, g: 0.8, b: 1, a: 1}
 --- !u!1 &1287791586
 GameObject:
@@ -4198,8 +4190,9 @@ MonoBehaviour:
     m_Bits: 128
   absorptionEffectPrefab: {fileID: 0}
   absorptionBeamColor: {r: 0, g: 1, b: 1, a: 1}
-  absorptionPromptUI: {fileID: 0}
+  absorptionPromptUI: {fileID: 6522572905786468876, guid: bc68b22684ccd3e499dc8b2d163b4da3, type: 3}
   absorptionText: {fileID: 0}
+  absorptionIndicatorPrefab: {fileID: 0}
 --- !u!4 &1857028247
 Transform:
   m_ObjectHideFlags: 0

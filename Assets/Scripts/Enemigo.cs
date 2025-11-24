@@ -13,12 +13,15 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
     [Header("=== BARRA DE VIDA ===")]
     public Vector3 healthBarOffset = new Vector3(0, 1.2f, 0);
     public bool showHealthBar = true;
+    public bool hideHealthBarWhenFull = true;
     private HealthBarUI healthBar;
 
     [Header("=== PARPADEO AL MORIR ===")]
     public int criticalHealthThreshold = 1;
     public float criticalBlinkSpeed = 0.15f;
+    public float criticalStunDuration = 3f;
     private bool isCritical = false;
+    private bool isCriticalStunned = false;
 
     [Header("=== PROTECCIÓN ANTI-VUELO ===")]
     public float knockbackInvincibilityTime = 0.3f;
@@ -184,6 +187,11 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
         if (HealthBarFactory.Instance != null)
         {
             healthBar = HealthBarFactory.Instance.CreateHealthBar(transform, health, maxHealth, healthBarOffset);
+            if (healthBar != null)
+            {
+                healthBar.hideWhenFull = hideHealthBarWhenFull;
+                healthBar.alwaysShow = !hideHealthBarWhenFull;
+            }
         }
         else
         {
@@ -192,6 +200,8 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
             healthBar = canvasObj.AddComponent<HealthBarUI>();
             healthBar.Initialize(transform, health, maxHealth);
             healthBar.offset = healthBarOffset;
+            healthBar.hideWhenFull = hideHealthBarWhenFull;
+            healthBar.alwaysShow = !hideHealthBarWhenFull;
         }
     }
 
@@ -209,9 +219,14 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
 
     void Update()
     {
-        // No hacer nada si está invencible, aturdido o dasheando
-        if (isInvincible || currentState == EnemyState.Stunned || isDashing)
+        // No hacer nada si está invencible, aturdido, dasheando o stunned crítico
+        if (isInvincible || currentState == EnemyState.Stunned || isDashing || isCriticalStunned)
         {
+            // Detener movimiento si está stunned
+            if (isCriticalStunned)
+            {
+                rb.linearVelocity = Vector2.zero;
+            }
             return;
         }
 
@@ -282,22 +297,61 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor
         bool wasCritical = isCritical;
         isCritical = (health <= criticalHealthThreshold && health > 0);
 
-        // Si acaba de entrar en estado crítico, iniciar parpadeo
+        // Si acaba de entrar en estado crítico, iniciar parpadeo y stun
         if (isCritical && !wasCritical)
         {
-            StartCoroutine(CriticalHealthBlink());
-            canBeAbsorbed = true; // Permitir absorción
-            Debug.Log($"{gameObject.name} está en estado CRÍTICO - ¡Puede ser absorbido!");
+            StartCoroutine(CriticalHealthSequence());
         }
         else if (!isCritical && wasCritical)
         {
             StopAllCoroutines(); // Detener parpadeo si se cura
             canBeAbsorbed = false;
+            isCriticalStunned = false;
         }
     }
 
-    IEnumerator CriticalHealthBlink()
+    IEnumerator CriticalHealthSequence()
     {
+        Debug.Log($"{gameObject.name} está en estado CRÍTICO - Inmóvil por {criticalStunDuration}s");
+
+        // Fase 1: Inmóvil y parpadeando
+        isCriticalStunned = true;
+        canBeAbsorbed = false;
+        rb.linearVelocity = Vector2.zero;
+        currentState = EnemyState.Stunned;
+
+        // Parpadeo durante el stun
+        float elapsed = 0f;
+        while (elapsed < criticalStunDuration)
+        {
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = Color.red;
+            }
+            yield return new WaitForSeconds(criticalBlinkSpeed);
+
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = originalColor;
+            }
+            yield return new WaitForSeconds(criticalBlinkSpeed);
+
+            elapsed += criticalBlinkSpeed * 2f;
+        }
+
+        // Fase 2: Ahora puede ser absorbido
+        isCriticalStunned = false;
+        canBeAbsorbed = true;
+
+        // Forzar mostrar la barra de vida
+        if (healthBar != null)
+        {
+            healthBar.ForceShow();
+        }
+
+        Debug.Log($"{gameObject.name} - ¡Ahora puede ser absorbido con E!");
+
+        // Continuar parpadeando hasta que sea absorbido o muera
         while (isCritical && spriteRenderer != null)
         {
             spriteRenderer.color = Color.red;

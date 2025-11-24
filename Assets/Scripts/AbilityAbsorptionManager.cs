@@ -1,6 +1,5 @@
 using UnityEngine;
 using System.Collections.Generic;
-using TMPro;
 
 // ============================================
 // ENUM DE HABILIDADES
@@ -198,7 +197,11 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
     [Header("UI")]
     public GameObject absorptionPromptUI;
-    public TextMeshProUGUI absorptionText;
+    public UnityEngine.UI.Text absorptionText;
+
+    [Header("Indicador Visual sobre Enemigo")]
+    public GameObject absorptionIndicatorPrefab;
+    private GameObject currentIndicator;
 
     private Transform player;
     private AbilityHolder playerAbilityHolder;
@@ -250,6 +253,12 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
     void CheckForAbsorbableTargets()
     {
+        // Limpiar indicador anterior
+        if (currentIndicator != null && nearbyAbsorbableTarget == null)
+        {
+            Destroy(currentIndicator);
+        }
+
         nearbyAbsorbableTarget = null;
 
         Collider2D[] colliders = Physics2D.OverlapCircleAll(player.position, absorptionRange, absorptionTargetLayer);
@@ -272,7 +281,81 @@ public class AbilityAbsorptionManager : MonoBehaviour
         }
 
         nearbyAbsorbableTarget = closestTarget;
+
+        // Crear indicador visual sobre el enemigo
+        if (nearbyAbsorbableTarget != null)
+        {
+            MonoBehaviour targetMono = nearbyAbsorbableTarget as MonoBehaviour;
+            if (targetMono != null && currentIndicator == null)
+            {
+                CreateAbsorptionIndicator(targetMono.transform);
+            }
+            else if (currentIndicator != null && targetMono != null)
+            {
+                // Actualizar posición del indicador
+                currentIndicator.transform.position = targetMono.transform.position + new Vector3(0, 1.5f, 0);
+            }
+        }
+        else if (currentIndicator != null)
+        {
+            Destroy(currentIndicator);
+        }
+
         UpdateUI();
+    }
+
+    void CreateAbsorptionIndicator(Transform target)
+    {
+        if (absorptionIndicatorPrefab != null)
+        {
+            currentIndicator = Instantiate(absorptionIndicatorPrefab, target.position + new Vector3(0, 1.5f, 0), Quaternion.identity);
+            currentIndicator.transform.SetParent(target);
+        }
+        else
+        {
+            // Crear indicador simple si no hay prefab
+            currentIndicator = new GameObject("AbsorptionIndicator");
+            currentIndicator.transform.position = target.position + new Vector3(0, 1.5f, 0);
+            currentIndicator.transform.SetParent(target);
+
+            // Crear Canvas para el texto "E"
+            Canvas canvas = currentIndicator.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+
+            RectTransform rect = currentIndicator.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(0.5f, 0.5f);
+            rect.localScale = Vector3.one * 0.01f;
+
+            // Crear texto "E"
+            GameObject textObj = new GameObject("E_Text");
+            textObj.transform.SetParent(currentIndicator.transform, false);
+
+            UnityEngine.UI.Text text = textObj.AddComponent<UnityEngine.UI.Text>();
+            text.text = "E";
+            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.fontSize = 100;
+            text.fontStyle = FontStyle.Bold;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.color = Color.cyan;
+
+            RectTransform textRect = textObj.GetComponent<RectTransform>();
+            textRect.sizeDelta = new Vector2(100, 100);
+            textRect.anchoredPosition = Vector2.zero;
+
+            // Añadir efecto de pulsación
+            StartCoroutine(PulseIndicator(currentIndicator.transform));
+        }
+    }
+
+    System.Collections.IEnumerator PulseIndicator(Transform indicator)
+    {
+        Vector3 baseScale = indicator.localScale;
+        while (indicator != null)
+        {
+            float pulse = 1f + Mathf.Sin(Time.time * 3f) * 0.2f;
+            indicator.localScale = baseScale * pulse;
+            yield return null;
+        }
     }
 
     void PerformAbsorption()
@@ -291,6 +374,12 @@ public class AbilityAbsorptionManager : MonoBehaviour
         // Intercambiar habilidades
         playerAbilityHolder.SetAbility(targetAbility);
         targetAbilityHolder.SetAbility(playerAbility);
+
+        // Destruir indicador
+        if (currentIndicator != null)
+        {
+            Destroy(currentIndicator);
+        }
 
         // Efecto visual
         if (absorptionEffectPrefab != null)
