@@ -205,6 +205,7 @@ GameObject:
   - component: {fileID: 40544031}
   - component: {fileID: 40544030}
   - component: {fileID: 40544029}
+  - component: {fileID: 40544034}
   m_Layer: 7
   m_Name: Enemigo
   m_TagString: Enemy
@@ -224,27 +225,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 503e2a70fbe115847a92ca4486a80518, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  health: 5
+  health: 0
   maxHealth: 3
-  invincibilityTime: 1
+  invincibilityTime: 0.5
   knockbackForce: {x: 3, y: 3}
+  isBoss: 0
   healthBarOffset: {x: 0, y: 1.2, z: 0}
-  showHealthBar: 1
   hideHealthBarWhenFull: 1
   criticalHealthThreshold: 1
-  criticalBlinkSpeed: 0.15
   criticalStunDuration: 3
-  knockbackInvincibilityTime: 0.3
-  startsWithAbility: 1
-  startingAbility: 1
-  enemyAbilityKey: 122
-  edgeCheckPoint: {fileID: 1917275660}
-  edgeCheckDistance: 0.5
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 8
-  showEdgeDebug: 1
-  edgeCheckOffset: 0.8
   detectionRange: 9.99
   attackRange: 0.74
   PlayerLayer:
@@ -253,18 +242,28 @@ MonoBehaviour:
   wallLayer:
     serializedVersion: 2
     m_Bits: 64
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 8
   detectionPoint: {fileID: 1049253646}
+  edgeCheckPoint: {fileID: 1917275660}
+  startsWithAbility: 1
+  startingAbility: 1
+  dashCooldownTime: 3
+  dashDistanceThreshold: 6.02
+  dashColor: {r: 0.3, g: 0.8, b: 1, a: 1}
+  showDashTrail: 1
   moveSpeed: 3
   chaseSpeed: 5
   guardTime: 0.8
   attackCooldown: 1.5
-  edgeWaitTime: 5
   chaseTimeout: 5
+  edgeWaitTime: 3
   maxEdgeWaitTime: 10
   attackPoint: {fileID: 1049253646}
   attackRadius: 0.8
   attackDamage: 1
-  attackDuration: 0.5
+  attackDuration: 0.3
   shouldPatrol: 1
   patrolDistance: 7
   waitTimeAtPatrolPoint: 2
@@ -272,7 +271,6 @@ MonoBehaviour:
   attackEffect: {fileID: 1573622495}
   guardColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   attackColor: {r: 1, g: 0, b: 0, a: 1}
-  showDebugGizmos: 1
 --- !u!50 &40544030
 Rigidbody2D:
   serializedVersion: 5
@@ -422,6 +420,28 @@ Transform:
   - {fileID: 1917275660}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!95 &40544034
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 40544028}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 0}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &88905133
 GameObject:
   m_ObjectHideFlags: 0
@@ -3293,6 +3313,8 @@ MonoBehaviour:
   abilityUseKey: 113
   dashTrailEffect: {fileID: 0}
   dashColor: {r: 0.3, g: 0.8, b: 1, a: 1}
+  showGhostTrail: 1
+  ghostTrailFrequency: 0.05
 --- !u!1 &1287791586
 GameObject:
   m_ObjectHideFlags: 0

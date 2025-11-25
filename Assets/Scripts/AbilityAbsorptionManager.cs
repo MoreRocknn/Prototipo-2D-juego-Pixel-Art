@@ -8,11 +8,6 @@ public enum AbilityType
 {
     None,
     Dash,
-    // Aquí puedes añadir más habilidades en el futuro
-    // DoubleJump,
-    // FireBall,
-    // Shield,
-    // etc.
 }
 
 // ============================================
@@ -26,13 +21,18 @@ public abstract class Ability
     public Sprite abilityIcon;
     public Color abilityColor = Color.cyan;
 
+    // SISTEMA DE USOS LIMITADOS
+    public int maxUses = 3;
+    public int currentUses = 3;
+    public bool limitedUses = true;
+
     public abstract void Execute(GameObject owner);
     public abstract bool CanUse(GameObject owner);
     public abstract Ability Clone();
 }
 
 // ============================================
-// HABILIDAD: DASH
+// HABILIDAD: DASH (Con usos limitados)
 // ============================================
 [System.Serializable]
 public class DashAbility : Ability
@@ -47,12 +47,20 @@ public class DashAbility : Ability
     {
         abilityType = AbilityType.Dash;
         abilityName = "Dash";
-        abilityColor = new Color(0.3f, 0.8f, 1f); // Azul claro
+        abilityColor = new Color(0.3f, 0.8f, 1f);
+
+        // Configuración por defecto: 3 usos
+        maxUses = 3;
+        currentUses = 3;
+        limitedUses = true;
     }
 
     public override bool CanUse(GameObject owner)
     {
-        return Time.time - lastDashTime >= dashCooldown;
+        bool cooldownOK = Time.time - lastDashTime >= dashCooldown;
+        bool usesOK = !limitedUses || currentUses > 0;
+
+        return cooldownOK && usesOK;
     }
 
     public override void Execute(GameObject owner)
@@ -61,11 +69,16 @@ public class DashAbility : Ability
 
         lastDashTime = Time.time;
 
+        if (limitedUses)
+        {
+            currentUses--;
+            Debug.Log($"Dash usado. Restantes: {currentUses}/{maxUses}");
+        }
+
         var dashExecutor = owner.GetComponent<IDashExecutor>();
         if (dashExecutor != null)
         {
             dashExecutor.PerformDash(dashForce, dashDuration);
-            Debug.Log($"{owner.name} ejecutó DASH con fuerza {dashForce}");
         }
     }
 
@@ -76,21 +89,36 @@ public class DashAbility : Ability
             dashForce = this.dashForce,
             dashDuration = this.dashDuration,
             dashCooldown = this.dashCooldown,
-            abilityColor = this.abilityColor
+            abilityColor = this.abilityColor,
+            maxUses = this.maxUses,
+            currentUses = this.maxUses, // Restaurar cargas al absorber
+            limitedUses = this.limitedUses
         };
     }
 }
 
 // ============================================
-// INTERFAZ PARA EJECUTAR DASH
+// INTERFACES
 // ============================================
 public interface IDashExecutor
 {
     void PerformDash(float force, float duration);
 }
 
+public interface IAbsorbable
+{
+    bool CanBeAbsorbed();
+    void OnAbsorbed();
+}
+
+public interface IResettable
+{
+    void ResetState();
+    bool IsBoss { get; }
+}
+
 // ============================================
-// COMPONENTE DE HABILIDAD (para cada entidad)
+// COMPONENTE DE HABILIDAD (Holder)
 // ============================================
 public class AbilityHolder : MonoBehaviour
 {
@@ -118,11 +146,17 @@ public class AbilityHolder : MonoBehaviour
 
     void Update()
     {
-        // Efecto de brillo si tiene habilidad
-        if (hasAbilityVisualActive && spriteRenderer != null && currentAbility != null)
+        // Solo mostramos visuales si hay habilidad Y le quedan usos
+        bool canUse = currentAbility != null && (!currentAbility.limitedUses || currentAbility.currentUses > 0);
+
+        if (hasAbilityVisualActive && spriteRenderer != null && currentAbility != null && canUse)
         {
             float pulse = Mathf.PingPong(Time.time * 2f, 0.3f);
             spriteRenderer.color = Color.Lerp(originalColor, currentAbility.abilityColor, pulse);
+        }
+        else if (spriteRenderer != null && hasAbilityVisualActive && !canUse)
+        {
+            spriteRenderer.color = originalColor;
         }
     }
 
@@ -130,7 +164,6 @@ public class AbilityHolder : MonoBehaviour
     {
         currentAbility = newAbility?.Clone();
         UpdateVisuals();
-        Debug.Log($"{gameObject.name} ahora tiene la habilidad: {(currentAbility != null ? currentAbility.abilityName : "Ninguna")}");
     }
 
     public Ability GetAbility()
@@ -155,7 +188,6 @@ public class AbilityHolder : MonoBehaviour
         {
             currentAbility.Execute(gameObject);
 
-            // Efecto visual al usar habilidad
             if (abilityParticles != null)
             {
                 abilityParticles.Play();
@@ -165,7 +197,8 @@ public class AbilityHolder : MonoBehaviour
 
     private void UpdateVisuals()
     {
-        hasAbilityVisualActive = (currentAbility != null);
+        bool canUse = currentAbility != null && (!currentAbility.limitedUses || currentAbility.currentUses > 0);
+        hasAbilityVisualActive = canUse;
 
         if (abilityAuraEffect != null)
         {
@@ -180,7 +213,7 @@ public class AbilityHolder : MonoBehaviour
 }
 
 // ============================================
-// MANAGER DE ABSORCIÓN (Singleton)
+// MANAGER PRINCIPAL (OPTIMIZADO MEMORIA)
 // ============================================
 public class AbilityAbsorptionManager : MonoBehaviour
 {
@@ -199,7 +232,7 @@ public class AbilityAbsorptionManager : MonoBehaviour
     public GameObject absorptionPromptUI;
     public UnityEngine.UI.Text absorptionText;
 
-    [Header("Indicador Visual sobre Enemigo")]
+    [Header("Indicador Visual")]
     public GameObject absorptionIndicatorPrefab;
     private GameObject currentIndicator;
 
@@ -207,16 +240,18 @@ public class AbilityAbsorptionManager : MonoBehaviour
     private AbilityHolder playerAbilityHolder;
     private IAbsorbable nearbyAbsorbableTarget;
 
+    private List<IResettable> resettableEnemies = new List<IResettable>();
+
+    // OPTIMIZACIÓN: Variables para evitar Allocations (Basura en memoria)
+    private float checkTimer = 0f;
+    private float checkInterval = 0.2f;
+    private Collider2D[] hitCollidersBuffer = new Collider2D[10]; // Buffer reutilizable para físicas
+    private Font uiFont; // Cachear fuente
+
     void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
     }
 
     void Start()
@@ -237,13 +272,59 @@ public class AbilityAbsorptionManager : MonoBehaviour
         {
             absorptionPromptUI.SetActive(false);
         }
+
+        // OPTIMIZACIÓN: Cargar fuente UNA SOLA VEZ al inicio
+        uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+    }
+
+    public void RegisterResettable(IResettable enemy)
+    {
+        if (!resettableEnemies.Contains(enemy)) resettableEnemies.Add(enemy);
+    }
+
+    public void UnregisterResettable(IResettable enemy)
+    {
+        if (resettableEnemies.Contains(enemy)) resettableEnemies.Remove(enemy);
+    }
+
+    public void OnPlayerDeath()
+    {
+        Debug.Log("Resetting Game State...");
+
+        if (playerAbilityHolder != null)
+        {
+            playerAbilityHolder.RemoveAbility();
+        }
+
+        for (int i = resettableEnemies.Count - 1; i >= 0; i--)
+        {
+            var enemy = resettableEnemies[i];
+            if (enemy != null && !enemy.ToString().Equals("null"))
+            {
+                if (!enemy.IsBoss) enemy.ResetState();
+            }
+        }
     }
 
     void Update()
     {
         if (player == null) return;
 
-        CheckForAbsorbableTargets();
+        checkTimer -= Time.deltaTime;
+        if (checkTimer <= 0)
+        {
+            CheckForAbsorbableTargets();
+            checkTimer = checkInterval;
+        }
+
+        if (currentIndicator != null && nearbyAbsorbableTarget != null)
+        {
+            MonoBehaviour targetMono = nearbyAbsorbableTarget as MonoBehaviour;
+            if (targetMono != null)
+            {
+                currentIndicator.transform.position = targetMono.transform.position + new Vector3(0, 1.5f, 0);
+            }
+        }
 
         if (Input.GetKeyDown(absorbKey) && nearbyAbsorbableTarget != null)
         {
@@ -253,21 +334,23 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
     void CheckForAbsorbableTargets()
     {
-        // Limpiar indicador anterior
-        if (currentIndicator != null && nearbyAbsorbableTarget == null)
-        {
-            Destroy(currentIndicator);
-        }
+        IAbsorbable newTarget = null;
 
-        nearbyAbsorbableTarget = null;
+        // OPTIMIZACIÓN CRÍTICA CORREGIDA: Usar ContactFilter2D + OverlapCircle
+        // Esto reemplaza a OverlapCircleNonAlloc eliminando el aviso de "Obsoleto"
+        ContactFilter2D filter = new ContactFilter2D();
+        filter.SetLayerMask(absorptionTargetLayer);
+        filter.useTriggers = Physics2D.queriesHitTriggers; // Respetar configuración global
 
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(player.position, absorptionRange, absorptionTargetLayer);
+        int hitCount = Physics2D.OverlapCircle(player.position, absorptionRange, filter, hitCollidersBuffer);
 
         float closestDistance = Mathf.Infinity;
-        IAbsorbable closestTarget = null;
 
-        foreach (Collider2D col in colliders)
+        for (int i = 0; i < hitCount; i++)
         {
+            Collider2D col = hitCollidersBuffer[i];
+            if (col == null) continue;
+
             IAbsorbable absorbable = col.GetComponent<IAbsorbable>();
             if (absorbable != null && absorbable.CanBeAbsorbed())
             {
@@ -275,28 +358,28 @@ public class AbilityAbsorptionManager : MonoBehaviour
                 if (distance < closestDistance)
                 {
                     closestDistance = distance;
-                    closestTarget = absorbable;
+                    newTarget = absorbable;
                 }
             }
         }
 
-        nearbyAbsorbableTarget = closestTarget;
-
-        // Crear indicador visual sobre el enemigo
-        if (nearbyAbsorbableTarget != null)
+        if (newTarget != nearbyAbsorbableTarget)
         {
-            MonoBehaviour targetMono = nearbyAbsorbableTarget as MonoBehaviour;
-            if (targetMono != null && currentIndicator == null)
+            nearbyAbsorbableTarget = newTarget;
+
+            if (currentIndicator != null) Destroy(currentIndicator);
+
+            if (nearbyAbsorbableTarget != null)
             {
-                CreateAbsorptionIndicator(targetMono.transform);
-            }
-            else if (currentIndicator != null && targetMono != null)
-            {
-                // Actualizar posición del indicador
-                currentIndicator.transform.position = targetMono.transform.position + new Vector3(0, 1.5f, 0);
+                MonoBehaviour targetMono = nearbyAbsorbableTarget as MonoBehaviour;
+                if (targetMono != null)
+                {
+                    CreateAbsorptionIndicator(targetMono.transform);
+                }
             }
         }
-        else if (currentIndicator != null)
+
+        if (nearbyAbsorbableTarget == null && currentIndicator != null)
         {
             Destroy(currentIndicator);
         }
@@ -309,16 +392,12 @@ public class AbilityAbsorptionManager : MonoBehaviour
         if (absorptionIndicatorPrefab != null)
         {
             currentIndicator = Instantiate(absorptionIndicatorPrefab, target.position + new Vector3(0, 1.5f, 0), Quaternion.identity);
-            currentIndicator.transform.SetParent(target);
         }
         else
         {
-            // Crear indicador simple si no hay prefab
             currentIndicator = new GameObject("AbsorptionIndicator");
             currentIndicator.transform.position = target.position + new Vector3(0, 1.5f, 0);
-            currentIndicator.transform.SetParent(target);
 
-            // Crear Canvas para el texto "E"
             Canvas canvas = currentIndicator.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
 
@@ -326,13 +405,14 @@ public class AbilityAbsorptionManager : MonoBehaviour
             rect.sizeDelta = new Vector2(0.5f, 0.5f);
             rect.localScale = Vector3.one * 0.01f;
 
-            // Crear texto "E"
             GameObject textObj = new GameObject("E_Text");
             textObj.transform.SetParent(currentIndicator.transform, false);
 
             UnityEngine.UI.Text text = textObj.AddComponent<UnityEngine.UI.Text>();
             text.text = "E";
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            // OPTIMIZACIÓN: Usar fuente cacheada
+            text.font = uiFont;
+
             text.fontSize = 100;
             text.fontStyle = FontStyle.Bold;
             text.alignment = TextAnchor.MiddleCenter;
@@ -342,7 +422,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
             textRect.sizeDelta = new Vector2(100, 100);
             textRect.anchoredPosition = Vector2.zero;
 
-            // Añadir efecto de pulsación
             StartCoroutine(PulseIndicator(currentIndicator.transform));
         }
     }
@@ -371,17 +450,14 @@ public class AbilityAbsorptionManager : MonoBehaviour
         Ability targetAbility = targetAbilityHolder.GetAbility();
         Ability playerAbility = playerAbilityHolder.GetAbility();
 
-        // Intercambiar habilidades
         playerAbilityHolder.SetAbility(targetAbility);
         targetAbilityHolder.SetAbility(playerAbility);
 
-        // Destruir indicador
         if (currentIndicator != null)
         {
             Destroy(currentIndicator);
         }
 
-        // Efecto visual
         if (absorptionEffectPrefab != null)
         {
             GameObject effect = Instantiate(absorptionEffectPrefab,
@@ -390,7 +466,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
             Destroy(effect, 2f);
         }
 
-        // Línea de conexión visual
         StartCoroutine(DrawAbsorptionBeam(player.position, targetObject.transform.position));
 
         nearbyAbsorbableTarget.OnAbsorbed();
@@ -457,13 +532,4 @@ public class AbilityAbsorptionManager : MonoBehaviour
             Gizmos.DrawWireSphere(player.position, absorptionRange);
         }
     }
-}
-
-// ============================================
-// INTERFAZ PARA ENTIDADES ABSORBIBLES
-// ============================================
-public interface IAbsorbable
-{
-    bool CanBeAbsorbed();
-    void OnAbsorbed();
 }

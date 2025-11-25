@@ -88,8 +88,10 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private bool isDashing = false;
 
     [Header("Efectos de Dash")]
-    public GameObject dashTrailEffect;
+    public GameObject dashTrailEffect; // (Opcional) Prefab de partículas si quieres
     public Color dashColor = new Color(0.3f, 0.8f, 1f);
+    public bool showGhostTrail = true; // NUEVO: Activar efecto fantasma
+    public float ghostTrailFrequency = 0.05f; // Cada cuanto tiempo sale un fantasma
 
     private float defaultGravityScale;
     private float coyoteTimeCounter;
@@ -380,11 +382,17 @@ public class MainChar : MonoBehaviour, IDashExecutor
         Color originalColor = sr != null ? sr.color : Color.white;
         if (sr != null) sr.color = dashColor;
 
-        // Crear trail effect
+        // Crear trail effect (Partículas originales)
         if (dashTrailEffect != null)
         {
             GameObject trail = Instantiate(dashTrailEffect, transform.position, Quaternion.identity);
             Destroy(trail, duration + 0.5f);
+        }
+
+        // NUEVO: EFECTO FANTASMA (PAPEL CEBOLLA)
+        if (showGhostTrail)
+        {
+            StartCoroutine(SpawnGhostTrail(duration, sr));
         }
 
         Debug.Log($"¡DASH ejecutado! Dirección: {dashDirection}, Fuerza: {force}");
@@ -398,6 +406,32 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
         // Reducir velocidad gradualmente
         rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.5f, rb.linearVelocity.y);
+    }
+
+    // NUEVA CORRUTINA: Genera copias fantasmas del jugador
+    private IEnumerator SpawnGhostTrail(float duration, SpriteRenderer originalSr)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration && isDashing)
+        {
+            // Crear un objeto fantasma
+            GameObject ghost = new GameObject("GhostTrail_Player");
+            ghost.transform.position = transform.position;
+            ghost.transform.localScale = transform.localScale;
+            ghost.transform.rotation = transform.rotation;
+
+            // Copiar el sprite
+            SpriteRenderer ghostSr = ghost.AddComponent<SpriteRenderer>();
+            ghostSr.sprite = originalSr.sprite;
+            ghostSr.color = new Color(dashColor.r, dashColor.g, dashColor.b, 0.5f); // Semi-transparente
+            ghostSr.sortingOrder = originalSr.sortingOrder - 1;
+
+            // Destruir el fantasma rápidamente
+            Destroy(ghost, 0.3f);
+
+            yield return new WaitForSeconds(ghostTrailFrequency);
+            elapsed += ghostTrailFrequency;
+        }
     }
 
     public void TakeDamage(int damage)
@@ -464,6 +498,12 @@ public class MainChar : MonoBehaviour, IDashExecutor
     void Die()
     {
         Debug.Log("¡Jugador murió!");
+
+        if (AbilityAbsorptionManager.Instance != null)
+        {
+            AbilityAbsorptionManager.Instance.OnPlayerDeath();
+        }
+
         if (GameManager.Instance != null)
             StartCoroutine(RespawnAfterDeath());
         else
@@ -572,12 +612,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
         if (enemy != null)
         {
             enemy.TakeDamage(attackDamage, knockbackDir);
-            return true;
-        }
-        var flyingEnemy = enemyCollider.GetComponent<EnemigoVolador>();
-        if (flyingEnemy != null)
-        {
-            flyingEnemy.TakeDamage(attackDamage, knockbackDir);
             return true;
         }
         return false;
