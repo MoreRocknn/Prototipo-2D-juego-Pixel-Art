@@ -88,15 +88,18 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private bool isDashing = false;
 
     [Header("Efectos de Dash")]
-    public GameObject dashTrailEffect; // (Opcional) Prefab de partículas si quieres
+    public GameObject dashTrailEffect;
     public Color dashColor = new Color(0.3f, 0.8f, 1f);
-    public bool showGhostTrail = true; // NUEVO: Activar efecto fantasma
-    public float ghostTrailFrequency = 0.05f; // Cada cuanto tiempo sale un fantasma
+    public bool showGhostTrail = true;
+    public float ghostTrailFrequency = 0.05f;
 
     private float defaultGravityScale;
     private float coyoteTimeCounter;
     private float jumpBufferCounter;
     private bool jumpReleased = true;
+
+    // NUEVA VARIABLE: Bloqueo de Input (para curación, etc.)
+    private bool isInputLocked = false;
 
     void Start()
     {
@@ -109,11 +112,17 @@ public class MainChar : MonoBehaviour, IDashExecutor
         currentHealth = maxHealth;
         wallGrabStamina = wallGrabStaminaMax;
 
-        // Inicializar sistema de habilidades
         abilityHolder = GetComponent<AbilityHolder>();
         if (abilityHolder == null)
         {
             abilityHolder = gameObject.AddComponent<AbilityHolder>();
+        }
+
+        // Inicializar Healing System si no existe
+        HealingSystem healingSystem = GetComponent<HealingSystem>();
+        if (healingSystem == null)
+        {
+            healingSystem = gameObject.AddComponent<HealingSystem>();
         }
 
         if (GameManager.Instance != null && GameManager.Instance.hasCheckpoint)
@@ -122,7 +131,11 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
     void Update()
     {
-        if (isDashing) return; // No hacer nada mientras hace dash
+        if (isDashing) return;
+
+        // --- CORRECCIÓN: Si el input está bloqueado, no hacer nada ---
+        if (isInputLocked) return;
+        // ------------------------------------------------------------
 
         HandleInput();
         UpdatePhysicsChecks();
@@ -131,11 +144,29 @@ public class MainChar : MonoBehaviour, IDashExecutor
         HandleFlip();
         HandleBounceReset();
         HandleAbilityInput();
+
+        if (Input.GetKeyDown(KeyCode.V))
+        {
+            HealingSystem healingSystem = GetComponent<HealingSystem>();
+            if (healingSystem != null)
+            {
+                Debug.Log(healingSystem.GetVialsInfo());
+            }
+        }
     }
 
     void FixedUpdate()
     {
-        if (isDashing) return; // No mover durante dash
+        if (isDashing) return;
+
+        // --- CORRECCIÓN: Si el input está bloqueado, no aplicar fuerzas de movimiento ---
+        if (isInputLocked)
+        {
+            // Mantenemos la velocidad Y (gravedad) pero matamos la X
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+            return;
+        }
+        // --------------------------------------------------------------------------------
 
         if (isWallGrabbing)
         {
@@ -170,17 +201,25 @@ public class MainChar : MonoBehaviour, IDashExecutor
         LimitFallSpeed();
     }
 
-    // --- Métodos privados para modularidad y legibilidad ---
+    // === NUEVOS MÉTODOS PÚBLICOS DE CONTROL ===
+    public void SetInputLock(bool locked)
+    {
+        isInputLocked = locked;
+        if (locked) moveInput = 0; // Resetear input
+    }
+
+    public void StopPhysics()
+    {
+        if (rb != null) rb.linearVelocity = Vector2.zero;
+    }
+    // ===========================================
 
     private void HandleInput()
     {
-        // Movimiento horizontal
         moveInput = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
 
-        // Movimiento vertical
         float verticalInput = (Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
 
-        // Salto
         if (Input.GetKeyDown(KeyCode.Space))
         {
             jumpBufferCounter = jumpBufferTime;
@@ -198,7 +237,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * jumpCutMultiplier);
         }
 
-        // Ataque
         isAttackingDown = false;
         if (Input.GetKeyDown(KeyCode.X))
         {
@@ -288,7 +326,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
     private void HandleFlip()
     {
-        if (isDashing) return; // No voltear durante dash
+        if (isDashing) return;
         if (wallJumpCounter > 0.05f) return;
 
         if (moveInput < 0 && isFacingRight)
@@ -350,9 +388,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
         transform.localScale = scaler;
     }
 
-    // ============================================
-    // IMPLEMENTACIÓN DE IDashExecutor
-    // ============================================
     public void PerformDash(float force, float duration)
     {
         if (!isDashing)
@@ -364,69 +399,54 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private IEnumerator DashCoroutine(float force, float duration)
     {
         isDashing = true;
-
-        // Determinar dirección del dash
         float dashDirection = isFacingRight ? 1f : -1f;
 
-        // Si hay input, usar esa dirección
         if (Mathf.Abs(moveInput) > 0.1f)
         {
             dashDirection = Mathf.Sign(moveInput);
         }
 
-        // Aplicar velocidad de dash
         rb.linearVelocity = new Vector2(dashDirection * force, 0f);
 
-        // Efecto visual
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         Color originalColor = sr != null ? sr.color : Color.white;
         if (sr != null) sr.color = dashColor;
 
-        // Crear trail effect (Partículas originales)
         if (dashTrailEffect != null)
         {
             GameObject trail = Instantiate(dashTrailEffect, transform.position, Quaternion.identity);
             Destroy(trail, duration + 0.5f);
         }
 
-        // NUEVO: EFECTO FANTASMA (PAPEL CEBOLLA)
         if (showGhostTrail)
         {
             StartCoroutine(SpawnGhostTrail(duration, sr));
         }
 
-        Debug.Log($"¡DASH ejecutado! Dirección: {dashDirection}, Fuerza: {force}");
-
         yield return new WaitForSeconds(duration);
 
-        // Restaurar gravedad y color
         isDashing = false;
         rb.gravityScale = defaultGravityScale;
         if (sr != null) sr.color = originalColor;
 
-        // Reducir velocidad gradualmente
         rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.5f, rb.linearVelocity.y);
     }
 
-    // NUEVA CORRUTINA: Genera copias fantasmas del jugador
     private IEnumerator SpawnGhostTrail(float duration, SpriteRenderer originalSr)
     {
         float elapsed = 0f;
         while (elapsed < duration && isDashing)
         {
-            // Crear un objeto fantasma
             GameObject ghost = new GameObject("GhostTrail_Player");
             ghost.transform.position = transform.position;
             ghost.transform.localScale = transform.localScale;
             ghost.transform.rotation = transform.rotation;
 
-            // Copiar el sprite
             SpriteRenderer ghostSr = ghost.AddComponent<SpriteRenderer>();
             ghostSr.sprite = originalSr.sprite;
-            ghostSr.color = new Color(dashColor.r, dashColor.g, dashColor.b, 0.5f); // Semi-transparente
+            ghostSr.color = new Color(dashColor.r, dashColor.g, dashColor.b, 0.5f);
             ghostSr.sortingOrder = originalSr.sortingOrder - 1;
 
-            // Destruir el fantasma rápidamente
             Destroy(ghost, 0.3f);
 
             yield return new WaitForSeconds(ghostTrailFrequency);
@@ -503,6 +523,14 @@ public class MainChar : MonoBehaviour, IDashExecutor
         {
             AbilityAbsorptionManager.Instance.OnPlayerDeath();
         }
+
+        // --- CORRECCIÓN: Resetear viales al morir ---
+        HealingSystem healingSystem = GetComponent<HealingSystem>();
+        if (healingSystem != null)
+        {
+            healingSystem.OnPlayerDeath();
+        }
+        // --------------------------------------------
 
         if (GameManager.Instance != null)
             StartCoroutine(RespawnAfterDeath());
@@ -584,12 +612,10 @@ public class MainChar : MonoBehaviour, IDashExecutor
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, downAttackBounceForce);
                 consecutiveBounces++;
                 lastBounceTime = Time.time;
-                Debug.Log($"¡Rebote automático! ({consecutiveBounces}/{maxConsecutiveBounces})");
             }
             else
             {
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, downAttackBounceForce * 0.3f);
-                Debug.Log("¡Límite de rebotes alcanzado! Rebote reducido");
             }
         }
     }

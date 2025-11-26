@@ -91,7 +91,7 @@ public class DashAbility : Ability
             dashCooldown = this.dashCooldown,
             abilityColor = this.abilityColor,
             maxUses = this.maxUses,
-            currentUses = this.maxUses, // Restaurar cargas al absorber
+            currentUses = this.maxUses,
             limitedUses = this.limitedUses
         };
     }
@@ -213,7 +213,7 @@ public class AbilityHolder : MonoBehaviour
 }
 
 // ============================================
-// MANAGER PRINCIPAL (OPTIMIZADO MEMORIA)
+// MANAGER PRINCIPAL
 // ============================================
 public class AbilityAbsorptionManager : MonoBehaviour
 {
@@ -242,11 +242,11 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
     private List<IResettable> resettableEnemies = new List<IResettable>();
 
-    // OPTIMIZACIÓN: Variables para evitar Allocations (Basura en memoria)
+    // OPTIMIZACIÓN
     private float checkTimer = 0f;
     private float checkInterval = 0.2f;
-    private Collider2D[] hitCollidersBuffer = new Collider2D[10]; // Buffer reutilizable para físicas
-    private Font uiFont; // Cachear fuente
+    private Collider2D[] hitCollidersBuffer = new Collider2D[10];
+    private Font uiFont;
 
     void Awake()
     {
@@ -273,7 +273,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
             absorptionPromptUI.SetActive(false);
         }
 
-        // OPTIMIZACIÓN: Cargar fuente UNA SOLA VEZ al inicio
         uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
     }
 
@@ -336,11 +335,9 @@ public class AbilityAbsorptionManager : MonoBehaviour
     {
         IAbsorbable newTarget = null;
 
-        // OPTIMIZACIÓN CRÍTICA CORREGIDA: Usar ContactFilter2D + OverlapCircle
-        // Esto reemplaza a OverlapCircleNonAlloc eliminando el aviso de "Obsoleto"
         ContactFilter2D filter = new ContactFilter2D();
         filter.SetLayerMask(absorptionTargetLayer);
-        filter.useTriggers = Physics2D.queriesHitTriggers; // Respetar configuración global
+        filter.useTriggers = Physics2D.queriesHitTriggers;
 
         int hitCount = Physics2D.OverlapCircle(player.position, absorptionRange, filter, hitCollidersBuffer);
 
@@ -410,9 +407,7 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
             UnityEngine.UI.Text text = textObj.AddComponent<UnityEngine.UI.Text>();
             text.text = "E";
-            // OPTIMIZACIÓN: Usar fuente cacheada
             text.font = uiFont;
-
             text.fontSize = 100;
             text.fontStyle = FontStyle.Bold;
             text.alignment = TextAnchor.MiddleCenter;
@@ -450,7 +445,21 @@ public class AbilityAbsorptionManager : MonoBehaviour
         Ability targetAbility = targetAbilityHolder.GetAbility();
         Ability playerAbility = playerAbilityHolder.GetAbility();
 
+        // 1. Asignar habilidad al jugador
         playerAbilityHolder.SetAbility(targetAbility);
+
+        // --- CORRECCIÓN CLAVE ---
+        // Forzar que el jugador SIEMPRE tenga usos limitados (3),
+        // sin importar si el enemigo los tenía infinitos.
+        if (playerAbilityHolder.currentAbility != null)
+        {
+            playerAbilityHolder.currentAbility.limitedUses = true;
+            playerAbilityHolder.currentAbility.maxUses = 3;
+            playerAbilityHolder.currentAbility.currentUses = 3;
+            Debug.Log("Habilidad absorbida: Se han limitado los usos a 3 para el jugador.");
+        }
+        // -----------------------
+
         targetAbilityHolder.SetAbility(playerAbility);
 
         if (currentIndicator != null)

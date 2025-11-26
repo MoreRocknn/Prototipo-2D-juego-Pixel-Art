@@ -25,7 +25,7 @@ public class DeathZone : MonoBehaviour
     {
         if (other.CompareTag("Player") && !isRespawning)
         {
-            Debug.Log("¡Jugador cayó en DeadZone! Iniciando respawn...");
+            if (showDebugMessages) Debug.Log("¡Jugador cayó en DeadZone! Iniciando respawn...");
             StartCoroutine(RespawnPlayer(other.gameObject));
         }
     }
@@ -34,7 +34,7 @@ public class DeathZone : MonoBehaviour
     {
         if (collision.gameObject.CompareTag("Player") && !isRespawning)
         {
-            Debug.Log("¡Jugador cayó en DeadZone (via Collision)! Iniciando respawn...");
+            if (showDebugMessages) Debug.Log("¡Jugador cayó en DeadZone (via Collision)! Iniciando respawn...");
             StartCoroutine(RespawnPlayer(collision.gameObject));
         }
     }
@@ -43,12 +43,10 @@ public class DeathZone : MonoBehaviour
     {
         isRespawning = true;
 
-        // --- NUEVO: AVISAR AL MANAGER PARA QUE RESETEE ENEMIGOS ---
         if (AbilityAbsorptionManager.Instance != null)
         {
             AbilityAbsorptionManager.Instance.OnPlayerDeath();
         }
-        // ---------------------------------------------------------
 
         MainChar playerController = player.GetComponent<MainChar>();
         Rigidbody2D rb = player.GetComponent<Rigidbody2D>();
@@ -78,9 +76,22 @@ public class DeathZone : MonoBehaviour
 
         player.transform.position = respawnPos;
 
+        // --- CORRECCIÓN: RESETEAR VIDA Y VIALES AL RESPAWNEAR ---
+        if (playerController != null)
+        {
+            playerController.currentHealth = playerController.maxHealth; // Vida a tope
+        }
+
+        HealingSystem healing = player.GetComponent<HealingSystem>();
+        if (healing != null)
+        {
+            healing.RefillVials(); // Viales a tope
+        }
+        // --------------------------------------------------------
+
         if (rb != null)
         {
-            rb.gravityScale = 3.5f; // Asegúrate de que este valor coincida con la gravedad normal de tu personaje
+            rb.gravityScale = 3.5f;
             rb.linearVelocity = Vector2.zero;
         }
 

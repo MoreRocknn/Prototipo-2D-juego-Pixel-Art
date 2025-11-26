@@ -26,19 +26,26 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     public bool startsWithAbility = true;
     public AbilityType startingAbility = AbilityType.Dash;
 
-    [Header("=== DASH AGRESIVO & VISUALES ===")]
-    public float dashCooldownTime = 3f;
-    public float dashDistanceThreshold = 3.5f;
+    [Header("=== DASH AGRESIVO MEJORADO ===")]
+    public float dashForce = 20f;
+    public float dashDuration = 0.35f;
+    public float dashCooldownTime = 2f;
+    public float dashMinDistance = 3f;
+    public float dashMaxDistance = 10f;
+    public float dashPredictionTime = 0.2f;
+    public bool canDashThroughPlayer = false;
     public Color dashColor = new Color(0.3f, 0.8f, 1f);
     public bool showDashTrail = true;
     private float dashCooldownTimer = 0f;
+    private bool isDashingToPlayer = false;
 
     [Header("=== COMPORTAMIENTO ===")]
     public float moveSpeed = 3f;
     public float chaseSpeed = 5f;
     public float guardTime = 0.8f;
     public float attackCooldown = 1.5f;
-    public float chaseTimeout = 5f;
+    public float chaseTimeout = 8f;
+    public float extendedChaseRange = 15f;
     public float edgeWaitTime = 3f;
     public float maxEdgeWaitTime = 10f;
 
@@ -51,12 +58,24 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     public float patrolDistance = 5f;
     public float waitTimeAtPatrolPoint = 2f;
 
+    [Header("=== ANIMACIONES ===")]
+    public string animSpeed = "speed";
+    public string animIsGrounded = "isGrounded";
+    public string animIsGuarding = "isGuarding";
+    public string animIsAttacking = "isAttacking";
+    public string animIsDashing = "isDashing";
+    public string animIsCritical = "isCritical";
+    public string animIsStunned = "isStunned";
+    public string animTakeDamage = "takeDamage";
+    public string animDie = "die";
+    public string animAttackTrigger = "attack";
+
     [Header("=== VISUALES ===")]
     public GameObject guardEffect, attackEffect;
     public Color guardColor = Color.yellow, attackColor = Color.red;
 
     private EnemyState currentState = EnemyState.Idle;
-    private enum EnemyState { Idle, Patrol, Guard, Chase, Attack, Stunned }
+    private enum EnemyState { Idle, Patrol, Guard, Chase, Attack, Stunned, Dashing }
 
     private SpriteRenderer sr;
     private Rigidbody2D rb;
@@ -71,6 +90,10 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     private bool isInvincible, isCritical, isCriticalStunned, isAttacking, isDashing;
     private float guardTimer, attackTimer, waitTimer, chaseTimer, edgeWaitTimer, totalEdgeTime, playerIgnoreTimer;
 
+    private Vector2 lastKnownPlayerPosition;
+    private bool hasSeenPlayer = false;
+    private Rigidbody2D playerRb;
+
     void Start()
     {
         sr = GetComponent<SpriteRenderer>();
@@ -82,9 +105,18 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         startPos = transform.position;
         health = maxHealth;
 
-        if (startsWithAbility) abilityHolder.SetAbility(new DashAbility());
+        if (startsWithAbility)
+        {
+            DashAbility enemyDash = new DashAbility();
+            enemyDash.limitedUses = false;
+            abilityHolder.SetAbility(enemyDash);
+        }
 
         player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        if (player)
+        {
+            playerRb = player.GetComponent<Rigidbody2D>();
+        }
 
         if (!detectionPoint) detectionPoint = transform;
         if (!edgeCheckPoint) CreateEdgeCheck();
@@ -118,21 +150,29 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         isCritical = false;
         isCriticalStunned = false;
         isInvincible = false;
+        isDashing = false;
+        isDashingToPlayer = false;
+        hasSeenPlayer = false;
 
         if (startsWithAbility && abilityHolder != null)
         {
-            abilityHolder.SetAbility(new DashAbility());
+            DashAbility enemyDash = new DashAbility();
+            enemyDash.limitedUses = false;
+            abilityHolder.SetAbility(enemyDash);
         }
 
+        // --- CORRECCIÓN: Asegurar que la barra se reactiva al revivir ---
         if (healthBar == null) SetupHealthBar();
         else
         {
             healthBar.gameObject.SetActive(true);
             healthBar.UpdateHealth(health, maxHealth);
         }
+        // ---------------------------------------------------------------
 
         ResetTimers();
         rb.linearVelocity = Vector2.zero;
+        UpdateAnimations();
     }
 
     void SetupHealthBar()
@@ -151,10 +191,16 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     void Update()
     {
-        if (isInvincible || currentState == EnemyState.Stunned || isDashing || isCriticalStunned)
+        if (isInvincible || currentState == EnemyState.Stunned || isCriticalStunned)
         {
-            // Permitir que la física funcione incluso aturdido, pero no el movimiento controlado
             if (isCriticalStunned) rb.linearVelocity = Vector2.zero;
+            UpdateAnimations();
+            return;
+        }
+
+        if (isDashing)
+        {
+            UpdateAnimations();
             return;
         }
 
@@ -163,45 +209,98 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         CheckEdge();
 
         bool seePlayer = CanSeePlayer();
-        bool detected = seePlayer && playerIgnoreTimer <= 0;
-
         float distToPlayer = Mathf.Infinity;
+
         if (player != null)
         {
             distToPlayer = Vector2.Distance(detectionPoint.position, player.position);
+
+            if (seePlayer)
+            {
+                lastKnownPlayerPosition = player.position;
+                hasSeenPlayer = true;
+            }
         }
 
-        bool inRange = detected && distToPlayer <= attackRange;
+        bool detected = (seePlayer && playerIgnoreTimer <= 0) ||
+                        (hasSeenPlayer && distToPlayer <= extendedChaseRange && playerIgnoreTimer <= 0);
+
+        bool inRange = seePlayer && distToPlayer <= attackRange;
 
         if (currentState == EnemyState.Chase && detected && abilityHolder.HasAbility() && dashCooldownTimer <= 0)
         {
-            if (distToPlayer > dashDistanceThreshold) abilityHolder.UseAbility();
+            if (distToPlayer >= dashMinDistance && distToPlayer <= dashMaxDistance && !isAtEdge)
+            {
+                Vector2 predictedPos = PredictPlayerPosition();
+                float predictedDist = Vector2.Distance(transform.position, predictedPos);
+
+                if (predictedDist >= dashMinDistance)
+                {
+                    isDashingToPlayer = true;
+                    abilityHolder.UseAbility();
+                }
+            }
         }
 
         switch (currentState)
         {
-            case EnemyState.Idle: SetVelocity(0); if (detected) EnterState(EnemyState.Guard); break;
-            case EnemyState.Patrol: if (detected) EnterState(EnemyState.Guard); else HandlePatrol(); break;
-            case EnemyState.Guard: HandleGuard(detected, inRange); break;
-            case EnemyState.Chase: HandleChase(detected, inRange); break;
-            case EnemyState.Attack: if (!isAttacking) StartCoroutine(PerformAttack()); break;
+            case EnemyState.Idle:
+                SetVelocity(0);
+                if (detected) EnterState(EnemyState.Guard);
+                break;
+            case EnemyState.Patrol:
+                if (detected) EnterState(EnemyState.Guard);
+                else HandlePatrol();
+                break;
+            case EnemyState.Guard:
+                HandleGuard(detected, inRange, seePlayer);
+                break;
+            case EnemyState.Chase:
+                HandleChase(detected, inRange, seePlayer);
+                break;
+            case EnemyState.Attack:
+                if (!isAttacking) StartCoroutine(PerformAttack());
+                break;
         }
 
-        UpdateAnim();
+        UpdateAnimations();
     }
 
-    void UpdateAnim()
+    // ... (El resto de métodos auxiliares como UpdateAnimations, IsGrounded, PredictPlayerPosition, PerformAttack, etc. se mantienen igual) ...
+    // Para ahorrar espacio no los repito todos, pero aquí está la parte clave modificada: DIE
+
+    void UpdateAnimations()
     {
         if (!anim || !anim.runtimeAnimatorController) return;
-        anim.SetBool("isGuarding", currentState == EnemyState.Guard);
-        anim.SetBool("isAttacking", currentState == EnemyState.Attack);
-        anim.SetFloat("speed", Mathf.Abs(rb.linearVelocity.x));
+
+        anim.SetBool(animIsGrounded, IsGrounded());
+        anim.SetBool(animIsGuarding, currentState == EnemyState.Guard);
+        anim.SetBool(animIsAttacking, currentState == EnemyState.Attack);
+        anim.SetBool(animIsDashing, isDashing);
+        anim.SetBool(animIsCritical, isCritical);
+        anim.SetBool(animIsStunned, currentState == EnemyState.Stunned || isCriticalStunned);
+        anim.SetFloat(animSpeed, Mathf.Abs(rb.linearVelocity.x));
+    }
+
+    bool IsGrounded()
+    {
+        Vector2 origin = new Vector2(transform.position.x, transform.position.y - 0.5f);
+        return Physics2D.Raycast(origin, Vector2.down, 0.2f, groundLayer);
+    }
+
+    Vector2 PredictPlayerPosition()
+    {
+        if (!player || !playerRb) return player ? (Vector2)player.position : transform.position;
+        Vector2 playerVelocity = playerRb.linearVelocity;
+        Vector2 currentPos = player.position;
+        return currentPos + (playerVelocity * dashPredictionTime);
     }
 
     IEnumerator PerformAttack()
     {
         isAttacking = true;
         SetVelocity(0);
+        if (anim) anim.SetTrigger(animAttackTrigger);
 
         if (attackEffect && attackPoint)
         {
@@ -212,20 +311,19 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
         if (sr) sr.color = attackColor;
 
+        yield return null;
+        yield return new WaitForSeconds(attackDuration * 0.5f);
+
         if (attackPoint != null)
         {
             Collider2D[] hits = Physics2D.OverlapCircleAll(attackPoint.position, attackRadius);
             foreach (var hit in hits)
             {
-                if (hit.CompareTag("Player"))
-                {
-                    hit.GetComponent<MainChar>()?.TakeDamage(attackDamage);
-                }
+                if (hit.CompareTag("Player")) hit.GetComponent<MainChar>()?.TakeDamage(attackDamage);
             }
         }
 
-        yield return new WaitForSeconds(attackDuration);
-
+        yield return new WaitForSeconds(attackDuration * 0.5f);
         isAttacking = false;
         attackTimer = attackCooldown;
         EnterState(EnemyState.Guard);
@@ -243,15 +341,16 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
     }
 
-    void HandleGuard(bool detected, bool inRange)
+    void HandleGuard(bool detected, bool inRange, bool seePlayer)
     {
         SetVelocity(0);
-        if (!detected) { ReturnToPatrol(); return; }
-        LookAtPlayer();
+        if (!detected) { hasSeenPlayer = false; ReturnToPatrol(); return; }
+        if (player) LookAtPlayer();
+
         if (isAtEdge)
         {
             totalEdgeTime += Time.deltaTime;
-            if (totalEdgeTime >= maxEdgeWaitTime) { TurnAroundAndPatrol(); return; }
+            if (totalEdgeTime >= maxEdgeWaitTime) { hasSeenPlayer = false; TurnAroundAndPatrol(); return; }
         }
         else totalEdgeTime = 0;
 
@@ -264,20 +363,23 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
                 else
                 {
                     edgeWaitTimer += Time.deltaTime;
-                    if (edgeWaitTimer >= edgeWaitTime) TurnAroundAndPatrol();
+                    if (edgeWaitTimer >= edgeWaitTime) { hasSeenPlayer = false; TurnAroundAndPatrol(); }
                 }
             }
         }
         if (!isAtEdge) edgeWaitTimer = 0;
     }
 
-    void HandleChase(bool detected, bool inRange)
+    void HandleChase(bool detected, bool inRange, bool seePlayer)
     {
-        if (chaseTimer >= chaseTimeout || !detected) { playerIgnoreTimer = 3f; ReturnToPatrol(); return; }
+        if (chaseTimer >= chaseTimeout || !detected) { playerIgnoreTimer = 3f; hasSeenPlayer = false; ReturnToPatrol(); return; }
         if (isAtEdge) { SetVelocity(0); LookAtPlayer(); EnterState(EnemyState.Guard); return; }
+
         LookAtPlayer();
-        Vector2 dir = (player.position - transform.position).normalized;
+        Vector2 targetPos = seePlayer ? (Vector2)player.position : lastKnownPlayerPosition;
+        Vector2 dir = (targetPos - (Vector2)transform.position).normalized;
         SetVelocity(dir.x * chaseSpeed);
+
         if (inRange)
         {
             if (attackTimer <= 0) EnterState(EnemyState.Attack);
@@ -285,25 +387,15 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
     }
 
-    // CAMBIO AQUÍ: Permitir daño incluso si está criticalStunned
     public void TakeDamage(int damage, float knockbackDir)
     {
-        // Solo ignoramos daño si es invencible (por golpe reciente), pero NO si está aturdido crítico
         if (isInvincible) return;
-
         health -= damage;
         if (healthBar) healthBar.UpdateHealth(health, maxHealth);
-
+        if (anim) anim.SetTrigger(animTakeDamage);
         rb.linearVelocity = new Vector2(knockbackForce.x * knockbackDir, knockbackForce.y);
-
-        // Si no estaba crítico, ahora se aturde normal. Si estaba crítico, sigue crítico hasta morir.
-        if (!isCritical)
-        {
-            currentState = EnemyState.Stunned;
-        }
-
+        if (!isCritical) currentState = EnemyState.Stunned;
         ResetTimers();
-
         if (health <= 0) Die();
         else if (!isCritical) StartCoroutine(RecoverAndChase());
     }
@@ -320,20 +412,13 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             SpriteRenderer playerSr = player.GetComponent<SpriteRenderer>();
             if (playerScript != null && playerSr != null) playerScript.StartCoroutine(PlayerAbsorptionFlash(playerSr));
         }
-        if (abilityHolder && !abilityHolder.HasAbility())
-        {
-            Die();
-        }
+        if (abilityHolder && !abilityHolder.HasAbility()) Die();
     }
 
     IEnumerator PlayerAbsorptionFlash(SpriteRenderer playerSr)
     {
         Color oldColor = playerSr.color;
-        for (int i = 0; i < 4; i++)
-        {
-            playerSr.color = dashColor; yield return new WaitForSeconds(0.08f);
-            playerSr.color = Color.white; yield return new WaitForSeconds(0.08f);
-        }
+        for (int i = 0; i < 4; i++) { playerSr.color = dashColor; yield return new WaitForSeconds(0.08f); playerSr.color = Color.white; yield return new WaitForSeconds(0.08f); }
         playerSr.color = oldColor;
     }
 
@@ -341,15 +426,48 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     IEnumerator DashRoutine(float force, float duration)
     {
-        isDashing = true; dashCooldownTimer = dashCooldownTime;
-        float dir = (player && player.position.x > transform.position.x) ? 1 : (isFacingRight ? 1 : -1);
-        SetVelocity(dir * force);
+        isDashing = true;
+        dashCooldownTimer = dashCooldownTime;
+        currentState = EnemyState.Dashing;
+
+        float dir;
+        if (isDashingToPlayer && player)
+        {
+            Vector2 predictedPos = PredictPlayerPosition();
+            dir = (predictedPos.x > transform.position.x) ? 1 : -1;
+            if ((dir > 0 && !isFacingRight) || (dir < 0 && isFacingRight)) Flip();
+        }
+        else dir = isFacingRight ? 1 : -1;
+
+        SetVelocity(dir * dashForce);
         if (sr) sr.color = dashColor;
         if (showDashTrail) StartCoroutine(SpawnDashTrail(duration));
-        yield return new WaitForSeconds(duration);
-        isDashing = false; SetVelocity(rb.linearVelocity.x * 0.5f);
+
+        float elapsed = 0f;
+        while (elapsed < duration && isDashing)
+        {
+            if (IsGoingToHitWall(dir)) break;
+            if (!canDashThroughPlayer && player)
+            {
+                float distToPlayer = Vector2.Distance(transform.position, player.position);
+                if (distToPlayer <= attackRange) { if (attackTimer <= 0) { EnterState(EnemyState.Attack); break; } }
+            }
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+        SetVelocity(rb.linearVelocity.x * 0.3f);
+        isDashing = false; isDashingToPlayer = false;
         if (sr && currentState == EnemyState.Guard) sr.color = guardColor;
         else if (sr && !isInvincible && !isCritical) sr.color = originalColor;
+        if (player && Vector2.Distance(transform.position, player.position) <= detectionRange) EnterState(EnemyState.Chase);
+        else EnterState(EnemyState.Guard);
+    }
+
+    bool IsGoingToHitWall(float dir)
+    {
+        Vector2 origin = transform.position;
+        RaycastHit2D hit = Physics2D.Raycast(origin, Vector2.right * dir, 1f, wallLayer);
+        return hit.collider != null;
     }
 
     IEnumerator SpawnDashTrail(float duration)
@@ -358,17 +476,22 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         while (elapsed < duration && isDashing)
         {
             GameObject ghost = new GameObject("Ghost");
-            ghost.transform.position = transform.position; ghost.transform.localScale = transform.localScale;
+            ghost.transform.position = transform.position;
+            ghost.transform.localScale = transform.localScale;
             SpriteRenderer gSr = ghost.AddComponent<SpriteRenderer>();
-            gSr.sprite = sr.sprite; gSr.color = new Color(dashColor.r, dashColor.g, dashColor.b, 0.5f);
-            gSr.sortingOrder = sr.sortingOrder - 1; Destroy(ghost, 0.4f);
-            yield return new WaitForSeconds(0.05f); elapsed += 0.05f;
+            gSr.sprite = sr.sprite;
+            gSr.color = new Color(dashColor.r, dashColor.g, dashColor.b, 0.5f);
+            gSr.sortingOrder = sr.sortingOrder - 1;
+            Destroy(ghost, 0.4f);
+            yield return new WaitForSeconds(0.05f);
+            elapsed += 0.05f;
         }
     }
 
     void CheckCriticalHealth()
     {
-        bool wasCritical = isCritical; isCritical = (health <= criticalHealthThreshold && health > 0);
+        bool wasCritical = isCritical;
+        isCritical = (health <= criticalHealthThreshold && health > 0);
         if (isCritical && !wasCritical) StartCoroutine(CriticalHealthSequence());
         else if (!isCritical && wasCritical)
         {
@@ -389,7 +512,8 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             elapsed += 0.3f;
         }
         if (!isCritical) yield break;
-        isCriticalStunned = false; if (healthBar) healthBar.ForceShow();
+        isCriticalStunned = false;
+        if (healthBar) healthBar.ForceShow();
         if (player && Vector2.Distance(transform.position, player.position) <= detectionRange) EnterState(EnemyState.Chase);
         else ReturnToPatrol();
         while (isCritical)
@@ -402,7 +526,11 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     IEnumerator RecoverAndChase()
     {
         isInvincible = true;
-        for (int i = 0; i < 5; i++) { if (sr) sr.color = Color.red; yield return new WaitForSeconds(invincibilityTime / 10f); if (sr) sr.color = originalColor; yield return new WaitForSeconds(invincibilityTime / 10f); }
+        for (int i = 0; i < 5; i++)
+        {
+            if (sr) sr.color = Color.red; yield return new WaitForSeconds(invincibilityTime / 10f);
+            if (sr) sr.color = originalColor; yield return new WaitForSeconds(invincibilityTime / 10f);
+        }
         isInvincible = false; EnterState(player ? EnemyState.Chase : EnemyState.Idle);
     }
 
@@ -418,10 +546,26 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         if (guardEffect) guardEffect.SetActive(newState == EnemyState.Guard);
         if (sr && !isInvincible && !isCritical) sr.color = (newState == EnemyState.Guard) ? guardColor : originalColor;
     }
+
     void ReturnToPatrol() => EnterState(shouldPatrol ? EnemyState.Patrol : EnemyState.Idle);
-    void TurnAroundAndPatrol() { movingRight = !isFacingRight; Flip(); waitTimer = waitTimeAtPatrolPoint; playerIgnoreTimer = waitTimeAtPatrolPoint + 2f; EnterState(EnemyState.Patrol); }
-    void LookAtPlayer() { if (!player) return; bool playerRight = player.position.x > transform.position.x; if ((playerRight && !isFacingRight) || (!playerRight && isFacingRight)) Flip(); }
-    void Flip() { isFacingRight = !isFacingRight; transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z); }
+
+    void TurnAroundAndPatrol()
+    {
+        movingRight = !isFacingRight; Flip(); waitTimer = waitTimeAtPatrolPoint; playerIgnoreTimer = waitTimeAtPatrolPoint + 2f; EnterState(EnemyState.Patrol);
+    }
+
+    void LookAtPlayer()
+    {
+        if (!player) return;
+        bool playerRight = player.position.x > transform.position.x;
+        if ((playerRight && !isFacingRight) || (!playerRight && isFacingRight)) Flip();
+    }
+
+    void Flip()
+    {
+        isFacingRight = !isFacingRight; transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
+    }
+
     bool CanSeePlayer()
     {
         if (!player || Vector2.Distance(transform.position, player.position) > detectionRange) return false;
@@ -429,22 +573,51 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         RaycastHit2D hit = Physics2D.Raycast(detectionPoint.position, dir, detectionRange, wallLayer | PlayerLayer);
         return hit.collider != null && hit.collider.CompareTag("Player");
     }
+
     void CheckEdge()
     {
         if (!edgeCheckPoint) return;
         Vector2 origin = new Vector2(transform.position.x + (0.8f * (isFacingRight ? 1 : -1)), edgeCheckPoint.position.y);
         isAtEdge = !Physics2D.Raycast(origin, Vector2.down, 0.5f, groundLayer);
     }
+
     void CreateEdgeCheck()
     {
         GameObject obj = new GameObject("EdgeCheckPoint"); obj.transform.SetParent(transform); obj.transform.localPosition = new Vector3(0.8f, -0.5f, 0); edgeCheckPoint = obj.transform;
     }
-    void SetVelocity(float x) => rb.linearVelocity = new Vector2(x, rb.linearVelocity.y);
 
+    void SetVelocity(float x) => rb.linearVelocity = new Vector2(x, rb.linearVelocity.y);
+    public void RestoreFullHealth()
+    {
+        health = maxHealth; Debug.Log($"{gameObject.name} vida restaurada: {health}/{maxHealth}");
+    }
+
+    // === AQUÍ ESTÁ EL CAMBIO CLAVE ===
     void Die()
     {
-        if (healthBar) healthBar.gameObject.SetActive(false);
-        gameObject.SetActive(false);
+        Debug.Log($"{gameObject.name} murió");
+
+        // APAGAR LA BARRA DE VIDA AL MORIR
+        if (healthBar != null)
+        {
+            healthBar.gameObject.SetActive(false);
+        }
+
+        if (EnemyManager.Instance != null)
+        {
+            EnemyManager.Instance.OnEnemyDeath(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+    // ==================================
+
+    IEnumerator DeathSequence()
+    {
+        rb.linearVelocity = Vector2.zero; enabled = false;
+        yield return new WaitForSeconds(0.5f); gameObject.SetActive(false);
     }
 
     void UpdateTimers()
@@ -456,11 +629,16 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         if (currentState == EnemyState.Guard) guardTimer += Time.deltaTime;
         if (currentState == EnemyState.Chase) chaseTimer += Time.deltaTime;
     }
+
     void ResetTimers() { chaseTimer = 0; guardTimer = 0; edgeWaitTimer = 0; totalEdgeTime = 0; }
+
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow; Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.color = Color.green; Gizmos.DrawWireSphere(transform.position, extendedChaseRange);
         Gizmos.color = Color.red; Gizmos.DrawWireSphere(transform.position, attackRange);
         if (attackPoint) Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
+        Gizmos.color = Color.cyan; Gizmos.DrawWireSphere(transform.position, dashMinDistance);
+        Gizmos.color = Color.blue; Gizmos.DrawWireSphere(transform.position, dashMaxDistance);
     }
 }
