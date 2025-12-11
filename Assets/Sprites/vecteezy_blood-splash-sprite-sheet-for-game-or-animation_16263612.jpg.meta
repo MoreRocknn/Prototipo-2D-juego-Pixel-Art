@@ -1,0 +1,488 @@
+fileFormatVersion: 2
+guid: 4dd0bfbdedad93b408e710a6675050f0
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -3306937357417256393
+    second: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_0
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_0
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 73aecac8ef56b12d0800000000000000
+      internalID: -3306937357417256393
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_1
+      rect:
+        serializedVersion: 2
+        x: 239
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: e008ae1476e215d4fb438f7b0bd109b6
+      internalID: -1824941174
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_2
+      rect:
+        serializedVersion: 2
+        x: 478
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: bd5669e1d96a49a48ac9d92c71b8b9ef
+      internalID: 782047773
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_3
+      rect:
+        serializedVersion: 2
+        x: 717
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c13907cdfe15fdd4aa382d909763d22f
+      internalID: -1431850544
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_4
+      rect:
+        serializedVersion: 2
+        x: 956
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6b6be1180d359104293abe2ad8c9bcb1
+      internalID: -1936748743
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_5
+      rect:
+        serializedVersion: 2
+        x: 1195
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c710413d1866ba94094d15da6ff4aff8
+      internalID: -286598061
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_6
+      rect:
+        serializedVersion: 2
+        x: 1434
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f79cb07aec3834246915765105104e03
+      internalID: -573315821
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_7
+      rect:
+        serializedVersion: 2
+        x: 1673
+        y: 201
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 8cea45afd9d7c7d429ae65a5afcc8fc6
+      internalID: -581851715
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_8
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c10e52a04528a6343bba57b3b345c570
+      internalID: 687690196
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_9
+      rect:
+        serializedVersion: 2
+        x: 239
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ee9c61f062fa5f844a8dadd8e73dc398
+      internalID: -1789275974
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_10
+      rect:
+        serializedVersion: 2
+        x: 478
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fc3bc433a8b98c0458c95b826f6dee23
+      internalID: 1393441222
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_11
+      rect:
+        serializedVersion: 2
+        x: 717
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7b70f1ca77d120040bc5da44f15d9a64
+      internalID: 931792403
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_12
+      rect:
+        serializedVersion: 2
+        x: 956
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 979b463eaae2b244e8479175e469e954
+      internalID: -1759759193
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_13
+      rect:
+        serializedVersion: 2
+        x: 1195
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 38861380dbaf26a4d81744043eb5aef1
+      internalID: -1421654352
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_14
+      rect:
+        serializedVersion: 2
+        x: 1434
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f4cd866e3559b4649908c0646b018e20
+      internalID: 1893892675
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_15
+      rect:
+        serializedVersion: 2
+        x: 1673
+        y: 11
+        width: 239
+        height: 190
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a1a7229629322804e89c9131ba564624
+      internalID: -1572129187
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: cff08db02e1de89419cd0404d3641b18
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_0: -3306937357417256393
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_1: -1824941174
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_10: 1393441222
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_11: 931792403
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_12: -1759759193
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_13: -1421654352
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_14: 1893892675
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_15: -1572129187
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_2: 782047773
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_3: -1431850544
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_4: -1936748743
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_5: -286598061
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_6: -573315821
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_7: -581851715
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_8: 687690196
+      vecteezy_blood-splash-sprite-sheet-for-game-or-animation_16263612_9: -1789275974
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

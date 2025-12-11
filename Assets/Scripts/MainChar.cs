@@ -98,7 +98,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private float jumpBufferCounter;
     private bool jumpReleased = true;
 
-    // NUEVA VARIABLE: Bloqueo de Input (para curación, etc.)
     private bool isInputLocked = false;
 
     void Start()
@@ -118,7 +117,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
             abilityHolder = gameObject.AddComponent<AbilityHolder>();
         }
 
-        // Inicializar Healing System si no existe
         HealingSystem healingSystem = GetComponent<HealingSystem>();
         if (healingSystem == null)
         {
@@ -133,9 +131,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
     {
         if (isDashing) return;
 
-        // --- CORRECCIÓN: Si el input está bloqueado, no hacer nada ---
         if (isInputLocked) return;
-        // ------------------------------------------------------------
 
         HandleInput();
         UpdatePhysicsChecks();
@@ -159,14 +155,11 @@ public class MainChar : MonoBehaviour, IDashExecutor
     {
         if (isDashing) return;
 
-        // --- CORRECCIÓN: Si el input está bloqueado, no aplicar fuerzas de movimiento ---
         if (isInputLocked)
         {
-            // Mantenemos la velocidad Y (gravedad) pero matamos la X
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
             return;
         }
-        // --------------------------------------------------------------------------------
 
         if (isWallGrabbing)
         {
@@ -201,18 +194,16 @@ public class MainChar : MonoBehaviour, IDashExecutor
         LimitFallSpeed();
     }
 
-    // === NUEVOS MÉTODOS PÚBLICOS DE CONTROL ===
     public void SetInputLock(bool locked)
     {
         isInputLocked = locked;
-        if (locked) moveInput = 0; // Resetear input
+        if (locked) moveInput = 0;
     }
 
     public void StopPhysics()
     {
         if (rb != null) rb.linearVelocity = Vector2.zero;
     }
-    // ===========================================
 
     private void HandleInput()
     {
@@ -407,6 +398,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
         }
 
         rb.linearVelocity = new Vector2(dashDirection * force, 0f);
+        rb.gravityScale = 0f;
 
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         Color originalColor = sr != null ? sr.color : Color.white;
@@ -423,13 +415,19 @@ public class MainChar : MonoBehaviour, IDashExecutor
             StartCoroutine(SpawnGhostTrail(duration, sr));
         }
 
-        yield return new WaitForSeconds(duration);
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, 0f);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
 
         isDashing = false;
         rb.gravityScale = defaultGravityScale;
         if (sr != null) sr.color = originalColor;
 
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.5f, rb.linearVelocity.y);
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.5f, 0f);
     }
 
     private IEnumerator SpawnGhostTrail(float duration, SpriteRenderer originalSr)
@@ -524,13 +522,17 @@ public class MainChar : MonoBehaviour, IDashExecutor
             AbilityAbsorptionManager.Instance.OnPlayerDeath();
         }
 
-        // --- CORRECCIÓN: Resetear viales al morir ---
         HealingSystem healingSystem = GetComponent<HealingSystem>();
         if (healingSystem != null)
         {
             healingSystem.OnPlayerDeath();
         }
-        // --------------------------------------------
+
+        BloodPoolTransform poolTransform = GetComponent<BloodPoolTransform>();
+        if (poolTransform != null)
+        {
+            poolTransform.ResetUses();
+        }
 
         if (GameManager.Instance != null)
             StartCoroutine(RespawnAfterDeath());
@@ -632,14 +634,26 @@ public class MainChar : MonoBehaviour, IDashExecutor
         }
     }
 
+    // CORREGIDO: Ahora busca tanto Enemigo normal como BossController
     private bool TryDealDamage(Collider2D enemyCollider, int knockbackDir)
     {
+        Debug.Log("he intentado hacer daño");
+        // 1. Intentar hacer daño a un enemigo normal
         var enemy = enemyCollider.GetComponent<Enemigo>();
         if (enemy != null)
         {
             enemy.TakeDamage(attackDamage, knockbackDir);
             return true;
         }
+
+        // 2. Intentar hacer daño al BOSS (Aquí estaba el fallo)
+        var boss = enemyCollider.GetComponent<BossController>();
+        if (boss != null)
+        {
+            boss.TakeDamage(attackDamage, knockbackDir);
+            return true;
+        }
+
         return false;
     }
 

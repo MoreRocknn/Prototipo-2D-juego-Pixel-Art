@@ -26,32 +26,40 @@ public class EnemigoVolador : MonoBehaviour
     public float fleeSpeed = 7f;
     public float guardTime = 0.8f;
     public float attackCooldown = 1.5f;
-    public float repositionTime = 2f; // Tiempo que huye antes de volver a atacar
-    public float repositionDistance = 5f; // Distancia mínima de reposición
+    public float repositionTime = 2f;
+    public float repositionDistance = 5f;
 
     [Header("=== MOVIMIENTO VERTICAL ===")]
-    public float hoverHeight = 0.5f; // Altura adicional sobre el jugador
+    public float hoverHeight = 0.5f;
     public float verticalSpeed = 4f;
-    public float smoothTime = 0.3f; // Suavizado del movimiento
+    public float smoothTime = 0.3f;
 
     [Header("=== PATRULLA AÉREA ===")]
     public bool shouldPatrol = true;
-    public Vector2 patrolAreaSize = new Vector2(8f, 4f); // Área de patrulla
+    public Vector2 patrolAreaSize = new Vector2(8f, 4f);
     public float waitTimeAtPatrolPoint = 2f;
-    public float patrolPointRadius = 0.5f; // Qué tan cerca debe estar del punto para considerarlo alcanzado
+    public float patrolPointRadius = 0.5f;
 
-    [Header("=== ATAQUE ===")]
+    [Header("=== ATAQUE DIAGONAL ===")]
     public Transform attackPoint;
     public float attackRadius = 1f;
     public int attackDamage = 1;
     public float attackDuration = 0.3f;
+    [Tooltip("Velocidad del dash diagonal hacia el jugador")]
+    public float diagonalAttackSpeed = 12f;
+    [Tooltip("Duración del movimiento diagonal antes de golpear")]
+    public float diagonalDashTime = 0.25f;
+    [Tooltip("Tiempo de reposición después del ataque")]
+    public float attackRepositionTime = 0.4f;
+    [Tooltip("Distancia de reposición después del ataque")]
+    public float attackRepositionDistance = 3f;
 
     [Header("=== EFECTOS VISUALES ===")]
     public GameObject guardEffect;
     public GameObject attackEffect;
     public Color guardColor = Color.yellow;
     public Color attackColor = Color.red;
-    public Color fleeColor = new Color(1f, 0.5f, 0f); // Naranja
+    public Color fleeColor = new Color(1f, 0.5f, 0f);
 
     [Header("=== DEBUG ===")]
     public bool showDebugGizmos = true;
@@ -70,14 +78,12 @@ public class EnemigoVolador : MonoBehaviour
 
     private EnemyState currentState = EnemyState.Idle;
 
-    // Componentes cacheados
     private SpriteRenderer spriteRenderer;
     private Rigidbody2D rb;
     private Transform player;
     private Animator animator;
     private Color originalColor;
 
-    // Estado
     private bool isFacingRight = true;
     private float attackTimer = 0f;
     private float guardTimer = 0f;
@@ -92,7 +98,6 @@ public class EnemigoVolador : MonoBehaviour
 
     void Start()
     {
-        // Cachear componentes
         spriteRenderer = GetComponent<SpriteRenderer>();
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
@@ -102,13 +107,11 @@ public class EnemigoVolador : MonoBehaviour
             originalColor = spriteRenderer.color;
         }
 
-        // Configurar Rigidbody2D para vuelo
         if (rb != null)
         {
-            rb.gravityScale = 0f; // Sin gravedad
+            rb.gravityScale = 0f;
         }
 
-        // Buscar jugador
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
         {
@@ -120,17 +123,14 @@ public class EnemigoVolador : MonoBehaviour
             Debug.LogError("¡No se encontró GameObject con Tag 'Player'!");
         }
 
-        // Inicializar patrulla
         startPosition = transform.position;
         GenerateNewPatrolPoint();
 
-        // Crear detection point si no existe
         if (detectionPoint == null)
         {
             detectionPoint = transform;
         }
 
-        // Crear attack point si no existe
         if (attackPoint == null)
         {
             GameObject attackPt = new GameObject("AttackPoint");
@@ -139,36 +139,30 @@ public class EnemigoVolador : MonoBehaviour
             attackPoint = attackPt.transform;
         }
 
-        // Estado inicial
         currentState = shouldPatrol ? EnemyState.Patrol : EnemyState.Idle;
     }
 
     void Update()
     {
-        // No hacer nada si está invencible en ciertas condiciones
         if (isInvincible && currentState != EnemyState.Flee && currentState != EnemyState.Reposition)
         {
             return;
         }
 
-        // Actualizar timers
         attackTimer -= Time.deltaTime;
 
-        // Calcular detección del jugador
         Vector3 detectionPos = detectionPoint.position;
         float distanceToPlayer = player != null ? Vector2.Distance(detectionPos, player.position) : Mathf.Infinity;
 
         bool canSeePlayer = CanSeePlayer(detectionPos, distanceToPlayer);
         bool playerInAttackRange = canSeePlayer && distanceToPlayer <= attackRange;
 
-        // Mirar al jugador si está detectado (excepto en estados especiales)
         if (canSeePlayer && player != null && currentState != EnemyState.Attack &&
             currentState != EnemyState.Flee && currentState != EnemyState.Reposition)
         {
             LookAtPlayer();
         }
 
-        // Máquina de estados
         switch (currentState)
         {
             case EnemyState.Idle:
@@ -257,7 +251,6 @@ public class EnemigoVolador : MonoBehaviour
             return;
         }
 
-        // Evitar quedarse muy bajo
         float minHeight = startPosition.y - patrolAreaSize.y / 2f;
         if (transform.position.y < minHeight)
         {
@@ -266,18 +259,15 @@ public class EnemigoVolador : MonoBehaviour
             return;
         }
 
-        // Moverse hacia el punto de patrulla
         Vector2 direction = (currentPatrolTarget - (Vector2)transform.position).normalized;
         Vector2 targetVelocity = direction * moveSpeed;
         rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime);
 
-        // Voltear según dirección
         if ((direction.x > 0 && !isFacingRight) || (direction.x < 0 && isFacingRight))
         {
             Flip();
         }
 
-        // Verificar si alcanzó el punto de patrulla
         if (Vector2.Distance(transform.position, currentPatrolTarget) < patrolPointRadius)
         {
             waitTimer = waitTimeAtPatrolPoint;
@@ -287,7 +277,6 @@ public class EnemigoVolador : MonoBehaviour
 
     void HandleGuard(bool playerDetected, bool inAttackRange)
     {
-        // Mantenerse a la altura del jugador mientras vigila
         if (player != null)
         {
             float targetY = player.position.y + hoverHeight;
@@ -325,7 +314,6 @@ public class EnemigoVolador : MonoBehaviour
 
     void HandleAlert(bool playerDetected, bool inAttackRange)
     {
-        // Estado de alerta - se acerca al jugador ajustando altura
         if (!playerDetected)
         {
             ReturnToPatrol();
@@ -334,18 +322,15 @@ public class EnemigoVolador : MonoBehaviour
 
         if (player != null)
         {
-            // Moverse hacia el jugador y ajustar altura simultáneamente
             float targetY = player.position.y + hoverHeight;
             Vector2 targetPosition = new Vector2(player.position.x, targetY);
             Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
 
-            // Velocidad más rápida en alerta para acercarse
             Vector2 targetVelocity = direction * (chaseSpeed * 0.8f);
             rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime * 0.5f);
 
             LookAtPlayer();
 
-            // Cambiar a guardia cuando esté más cerca
             float distanceToPlayer = Vector2.Distance(transform.position, player.position);
             if (distanceToPlayer <= detectionRange * 0.6f)
             {
@@ -365,7 +350,6 @@ public class EnemigoVolador : MonoBehaviour
 
         if (player != null)
         {
-            // Calcular posición objetivo a la altura del jugador
             float targetY = player.position.y + hoverHeight;
             Vector2 targetPosition = new Vector2(player.position.x, targetY);
 
@@ -386,7 +370,7 @@ public class EnemigoVolador : MonoBehaviour
     {
         if (!isAttacking)
         {
-            StartCoroutine(PerformAttack());
+            StartCoroutine(PerformDiagonalAttack());
         }
     }
 
@@ -394,11 +378,9 @@ public class EnemigoVolador : MonoBehaviour
     {
         fleeTimer += Time.deltaTime;
 
-        // Huir en dirección opuesta al jugador
         Vector2 targetVelocity = fleeDirection * fleeSpeed;
         rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime * 0.5f);
 
-        // Verificar si alcanzó distancia segura
         if (player != null)
         {
             float distanceToPlayer = Vector2.Distance(transform.position, player.position);
@@ -408,7 +390,6 @@ public class EnemigoVolador : MonoBehaviour
             }
         }
 
-        // Después del tiempo de huida y alcanzó distancia segura, reposicionarse
         if (fleeTimer >= repositionTime && hasReachedRepositionDistance)
         {
             EnterRepositionState();
@@ -417,7 +398,6 @@ public class EnemigoVolador : MonoBehaviour
 
     void HandleReposition(bool playerDetected)
     {
-        // Detenerse y prepararse para volver a atacar
         rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, Vector2.zero, Time.deltaTime * 3f);
 
         if (rb.linearVelocity.magnitude < 0.1f)
@@ -480,7 +460,6 @@ public class EnemigoVolador : MonoBehaviour
     void EnterAttackState()
     {
         currentState = EnemyState.Attack;
-        rb.linearVelocity = Vector2.zero;
 
         if (spriteRenderer != null && !isInvincible)
         {
@@ -496,7 +475,6 @@ public class EnemigoVolador : MonoBehaviour
         fleeTimer = 0f;
         hasReachedRepositionDistance = false;
 
-        // Calcular dirección de huida (opuesta al jugador)
         if (player != null)
         {
             fleeDirection = ((Vector2)transform.position - (Vector2)player.position).normalized;
@@ -526,11 +504,32 @@ public class EnemigoVolador : MonoBehaviour
         Debug.Log($"{gameObject.name}: Reposicionándose");
     }
 
-    IEnumerator PerformAttack()
+    IEnumerator PerformDiagonalAttack()
     {
         isAttacking = true;
 
-        // Instanciar efecto de ataque
+        if (player == null)
+        {
+            isAttacking = false;
+            EnterGuardState();
+            yield break;
+        }
+
+        // Calcular dirección diagonal hacia el jugador
+        Vector2 startPos = transform.position;
+        Vector2 targetPos = player.position;
+        Vector2 diagonalDirection = (targetPos - startPos).normalized;
+
+        // FASE 1: Dash diagonal hacia el jugador
+        float dashTimer = 0f;
+        while (dashTimer < diagonalDashTime)
+        {
+            rb.linearVelocity = diagonalDirection * diagonalAttackSpeed;
+            dashTimer += Time.deltaTime;
+            yield return null;
+        }
+
+        // FASE 2: Realizar el golpe
         if (attackEffect != null && attackPoint != null)
         {
             GameObject effect = Instantiate(attackEffect, attackPoint);
@@ -560,7 +559,6 @@ public class EnemigoVolador : MonoBehaviour
             Destroy(effect, attackDuration + 0.5f);
         }
 
-        // Realizar el ataque
         if (attackPoint != null)
         {
             Collider2D[] hits = Physics2D.OverlapCircleAll(attackPoint.position, attackRadius);
@@ -580,6 +578,32 @@ public class EnemigoVolador : MonoBehaviour
         }
 
         yield return new WaitForSeconds(attackDuration);
+
+        // FASE 3: Reposicionarse después del ataque
+        Vector2 repositionDirection = -diagonalDirection; // Dirección opuesta al ataque
+        float repositionTimer = 0f;
+
+        while (repositionTimer < attackRepositionTime)
+        {
+            rb.linearVelocity = repositionDirection * (diagonalAttackSpeed * 0.8f);
+            repositionTimer += Time.deltaTime;
+            yield return null;
+        }
+
+        // Frenar gradualmente
+        float slowDownTimer = 0f;
+        float slowDownDuration = 0.2f;
+        Vector2 currentVel = rb.linearVelocity;
+
+        while (slowDownTimer < slowDownDuration)
+        {
+            slowDownTimer += Time.deltaTime;
+            float t = slowDownTimer / slowDownDuration;
+            rb.linearVelocity = Vector2.Lerp(currentVel, Vector2.zero, t);
+            yield return null;
+        }
+
+        rb.linearVelocity = Vector2.zero;
 
         isAttacking = false;
         attackTimer = attackCooldown;
@@ -621,10 +645,8 @@ public class EnemigoVolador : MonoBehaviour
 
     void GenerateNewPatrolPoint()
     {
-        // Generar punto aleatorio dentro del área de patrulla
         float randomX = startPosition.x + Random.Range(-patrolAreaSize.x / 2f, patrolAreaSize.x / 2f);
-        // Asegurar que el punto no esté muy bajo
-        float minY = startPosition.y - patrolAreaSize.y / 4f; // Solo la parte superior del área
+        float minY = startPosition.y - patrolAreaSize.y / 4f;
         float maxY = startPosition.y + patrolAreaSize.y / 2f;
         float randomY = Random.Range(minY, maxY);
         currentPatrolTarget = new Vector2(randomX, randomY);
@@ -643,7 +665,6 @@ public class EnemigoVolador : MonoBehaviour
         health -= damage;
         Debug.Log($"{gameObject.name}: Recibió {damage} de daño. Vida: {health}");
 
-        // Aplicar knockback
         if (rb != null)
         {
             rb.linearVelocity = Vector2.zero;
@@ -661,7 +682,6 @@ public class EnemigoVolador : MonoBehaviour
         }
         else
         {
-            // Después del daño, huir para reposicionarse
             StartCoroutine(FlashAndFlee());
             StartCoroutine(KnockbackInvincibility());
         }
@@ -670,7 +690,6 @@ public class EnemigoVolador : MonoBehaviour
     void Die()
     {
         Debug.Log($"{gameObject.name}: Murió");
-        // Aquí puedes añadir efectos de muerte, puntuación, etc.
         Destroy(gameObject);
     }
 
@@ -680,7 +699,6 @@ public class EnemigoVolador : MonoBehaviour
 
         float flashDuration = invincibilityTime / 10f;
 
-        // Efecto visual de parpadeo en rojo
         for (int i = 0; i < 5; i++)
         {
             if (spriteRenderer != null) spriteRenderer.color = Color.red;
@@ -691,7 +709,6 @@ public class EnemigoVolador : MonoBehaviour
 
         isInvincible = false;
 
-        // Entrar en modo huida
         EnterFleeState();
     }
 
@@ -719,29 +736,24 @@ public class EnemigoVolador : MonoBehaviour
 
         Vector3 detectionPos = detectionPoint != null ? detectionPoint.position : transform.position;
 
-        // Rango de detección
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(detectionPos, detectionRange);
 
-        // Rango de ataque
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(detectionPos, attackRange);
 
-        // Punto de ataque
         if (attackPoint != null)
         {
             Gizmos.color = Color.magenta;
             Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
         }
 
-        // Área de patrulla
         if (shouldPatrol)
         {
             Vector2 center = Application.isPlaying ? startPosition : (Vector2)transform.position;
             Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
             Gizmos.DrawWireCube(center, new Vector3(patrolAreaSize.x, patrolAreaSize.y, 0f));
 
-            // Punto de patrulla actual
             if (Application.isPlaying)
             {
                 Gizmos.color = Color.cyan;
@@ -750,11 +762,9 @@ public class EnemigoVolador : MonoBehaviour
             }
         }
 
-        // Distancia de reposición
         Gizmos.color = Color.blue;
         Gizmos.DrawWireSphere(detectionPos, repositionDistance);
 
-        // Raycast de detección del jugador
         if (Application.isPlaying && player != null)
         {
             Vector2 directionToPlayer = (player.position - detectionPos).normalized;

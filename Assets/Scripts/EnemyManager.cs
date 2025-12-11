@@ -138,6 +138,16 @@ public class EnemyManager : MonoBehaviour
                 respawnedCount++;
             }
         }
+        BossController[] bosses = FindObjectsOfType<BossController>();
+        foreach (BossController boss in bosses)
+        {
+            if (boss != null)
+            {
+                boss.ResetState();
+                respawnedCount++;
+                Debug.Log("Boss reseteado por EnemyManager");
+            }
+        }
 
         Debug.Log($"EnemyManager: {respawnedCount} enemigos reaparecidos");
     }
