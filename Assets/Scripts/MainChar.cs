@@ -45,6 +45,12 @@ public class MainChar : MonoBehaviour, IDashExecutor
     public float playerKnockbackForce = 3f;
     public GameObject sideAttackEffect;
 
+    // --- NUEVO: Variables para controlar la cadencia de ataque (Anti-Spam) ---
+    [Header("Control de Ataque (Anti-Spam)")]
+    public float attackRate = 0.4f; // Tiempo de espera entre ataques
+    private float nextAttackTime = 0f; // Rastreador de tiempo interno
+    // ------------------------------------------------------------------------
+
     [Header("Down Attack (DESHABILITADO)")]
     public bool enableDownAttack = false;
     public Transform downAttackPoint;
@@ -229,11 +235,20 @@ public class MainChar : MonoBehaviour, IDashExecutor
         }
 
         isAttackingDown = false;
+
         if (Input.GetKeyDown(KeyCode.X))
         {
-            if (enableDownAttack && verticalInput < 0 && !isGrounded)
-                isAttackingDown = true;
-            Attack();
+            // --- NUEVO: Verificamos el Cooldown antes de atacar ---
+            if (Time.time >= nextAttackTime)
+            {
+                if (enableDownAttack && verticalInput < 0 && !isGrounded)
+                    isAttackingDown = true;
+
+                Attack();
+
+                // Reseteamos el contador para el siguiente ataque
+                nextAttackTime = Time.time + attackRate;
+            }
         }
     }
 
@@ -534,6 +549,11 @@ public class MainChar : MonoBehaviour, IDashExecutor
             poolTransform.ResetUses();
         }
 
+        if (EnemyManager.Instance != null)
+        {
+            EnemyManager.Instance.RespawnAllEnemies();
+        }
+
         if (GameManager.Instance != null)
             StartCoroutine(RespawnAfterDeath());
         else
@@ -634,11 +654,10 @@ public class MainChar : MonoBehaviour, IDashExecutor
         }
     }
 
-    // CORREGIDO: Ahora busca tanto Enemigo normal como BossController
     private bool TryDealDamage(Collider2D enemyCollider, int knockbackDir)
     {
         Debug.Log("he intentado hacer daño");
-        // 1. Intentar hacer daño a un enemigo normal
+
         var enemy = enemyCollider.GetComponent<Enemigo>();
         if (enemy != null)
         {
@@ -646,7 +665,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
             return true;
         }
 
-        // 2. Intentar hacer daño al BOSS (Aquí estaba el fallo)
         var boss = enemyCollider.GetComponent<BossController>();
         if (boss != null)
         {

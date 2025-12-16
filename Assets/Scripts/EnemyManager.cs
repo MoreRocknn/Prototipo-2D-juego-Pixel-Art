@@ -6,7 +6,7 @@ public class EnemyManager : MonoBehaviour
     public static EnemyManager Instance;
 
     [Header("Sistema de Respawn")]
-    public bool autoRegisterEnemies = true; // Registrar enemigos automáticamente al inicio
+    public bool autoRegisterEnemies = true;
 
     [System.Serializable]
     public class EnemyData
@@ -14,7 +14,7 @@ public class EnemyManager : MonoBehaviour
         public GameObject enemyPrefab;
         public Vector3 spawnPosition;
         public Quaternion spawnRotation;
-        public GameObject currentInstance; // Referencia a la instancia actual
+        public GameObject currentInstance;
 
         public EnemyData(GameObject prefab, Vector3 pos, Quaternion rot)
         {
@@ -36,6 +36,7 @@ public class EnemyManager : MonoBehaviour
         else
         {
             Destroy(gameObject);
+            return;
         }
     }
 
@@ -47,7 +48,6 @@ public class EnemyManager : MonoBehaviour
         }
     }
 
-    // Registrar todos los enemigos de la escena al inicio
     public void RegisterAllEnemiesInScene()
     {
         registeredEnemies.Clear();
@@ -56,9 +56,8 @@ public class EnemyManager : MonoBehaviour
 
         foreach (GameObject enemy in enemies)
         {
-            // Crear un "prefab virtual" guardando los componentes del enemigo
             EnemyData data = new EnemyData(
-                enemy, // Guardaremos referencia al objeto original
+                enemy,
                 enemy.transform.position,
                 enemy.transform.rotation
             );
@@ -67,10 +66,9 @@ public class EnemyManager : MonoBehaviour
             registeredEnemies.Add(data);
         }
 
-        Debug.Log($"EnemyManager: {registeredEnemies.Count} enemigos registrados");
+        Debug.Log($"[EnemyManager] {registeredEnemies.Count} enemigos registrados");
     }
 
-    // Registrar un enemigo manualmente
     public void RegisterEnemy(GameObject enemy)
     {
         if (enemy == null) return;
@@ -83,109 +81,132 @@ public class EnemyManager : MonoBehaviour
 
         data.currentInstance = enemy;
         registeredEnemies.Add(data);
-
-        Debug.Log($"Enemigo registrado: {enemy.name}");
     }
 
-    // Reaparecen TODOS los enemigos
     public void RespawnAllEnemies()
     {
+        Debug.Log("========== RESPAWN DE ENEMIGOS INICIADO ==========");
+
         int respawnedCount = 0;
 
-        foreach (EnemyData data in registeredEnemies)
-        {
-            // Si el enemigo actual existe y está vivo, no hacer nada
-            if (data.currentInstance != null && data.currentInstance.activeInHierarchy)
-            {
-                // Restaurar vida completa usando método público
-                Enemigo enemyScript = data.currentInstance.GetComponent<Enemigo>();
-                if (enemyScript != null)
-                {
-                    enemyScript.RestoreFullHealth();
-                }
+        // PASO 1: Resetear TODOS los bosses primero
+        respawnedCount += RespawnAllBosses();
 
-                // Resetear posición
-                data.currentInstance.transform.position = data.spawnPosition;
-                data.currentInstance.transform.rotation = data.spawnRotation;
+        // PASO 2: Resetear enemigos normales
+        respawnedCount += RespawnNormalEnemies();
 
-                respawnedCount++;
-            }
-            // Si el enemigo fue destruido, reactivarlo
-            else if (data.currentInstance != null && !data.currentInstance.activeInHierarchy)
-            {
-                data.currentInstance.SetActive(true);
-                data.currentInstance.transform.position = data.spawnPosition;
-                data.currentInstance.transform.rotation = data.spawnRotation;
+        Debug.Log($"========== {respawnedCount} ENEMIGOS RESETEADOS ==========");
+    }
 
-                // Restaurar vida completa usando método público
-                Enemigo enemyScript = data.currentInstance.GetComponent<Enemigo>();
-                if (enemyScript != null)
-                {
-                    enemyScript.RestoreFullHealth();
-                    enemyScript.enabled = true;
-                }
+    int RespawnAllBosses()
+    {
+        int count = 0;
 
-                respawnedCount++;
-            }
-            // Si la instancia fue completamente destruida, crear una nueva
-            else
-            {
-                // Instantiate del prefab original
-                GameObject newEnemy = Instantiate(data.enemyPrefab, data.spawnPosition, data.spawnRotation);
-                newEnemy.tag = "Enemy";
-                data.currentInstance = newEnemy;
+        BossController[] bosses = FindObjectsOfType<BossController>(true);
 
-                respawnedCount++;
-            }
-        }
-        BossController[] bosses = FindObjectsOfType<BossController>();
         foreach (BossController boss in bosses)
         {
             if (boss != null)
             {
+                Debug.Log($"[Boss] Reseteando: {boss.gameObject.name}");
                 boss.ResetState();
-                respawnedCount++;
-                Debug.Log("Boss reseteado por EnemyManager");
+                count++;
             }
         }
 
-        Debug.Log($"EnemyManager: {respawnedCount} enemigos reaparecidos");
+        return count;
     }
 
-    // Opcional: Reaparece solo enemigos en un radio
+    int RespawnNormalEnemies()
+    {
+        int count = 0;
+
+        foreach (EnemyData data in registeredEnemies)
+        {
+            if (data.currentInstance != null && data.currentInstance.GetComponent<BossController>() != null)
+                continue;
+
+            if (RespawnEnemy(data))
+                count++;
+        }
+
+        return count;
+    }
+
+    bool RespawnEnemy(EnemyData data)
+    {
+        if (data.currentInstance != null && data.currentInstance.activeInHierarchy)
+        {
+            ResetActiveEnemy(data);
+            return true;
+        }
+
+        if (data.currentInstance != null && !data.currentInstance.activeInHierarchy)
+        {
+            ReactivateEnemy(data);
+            return true;
+        }
+
+        if (data.enemyPrefab != null)
+        {
+            RecreateEnemy(data);
+            return true;
+        }
+
+        return false;
+    }
+
+    void ResetActiveEnemy(EnemyData data)
+    {
+        Enemigo enemyScript = data.currentInstance.GetComponent<Enemigo>();
+        if (enemyScript != null)
+        {
+            enemyScript.RestoreFullHealth();
+        }
+
+        data.currentInstance.transform.position = data.spawnPosition;
+        data.currentInstance.transform.rotation = data.spawnRotation;
+    }
+
+    void ReactivateEnemy(EnemyData data)
+    {
+        data.currentInstance.SetActive(true);
+        data.currentInstance.transform.position = data.spawnPosition;
+        data.currentInstance.transform.rotation = data.spawnRotation;
+
+        Enemigo enemyScript = data.currentInstance.GetComponent<Enemigo>();
+        if (enemyScript != null)
+        {
+            enemyScript.RestoreFullHealth();
+            enemyScript.enabled = true;
+        }
+    }
+
+    void RecreateEnemy(EnemyData data)
+    {
+        GameObject newEnemy = Instantiate(data.enemyPrefab, data.spawnPosition, data.spawnRotation);
+        newEnemy.tag = "Enemy";
+        data.currentInstance = newEnemy;
+    }
+
     public void RespawnEnemiesInRadius(Vector3 center, float radius)
     {
         foreach (EnemyData data in registeredEnemies)
         {
             if (Vector3.Distance(data.spawnPosition, center) <= radius)
             {
-                if (data.currentInstance != null)
-                {
-                    data.currentInstance.SetActive(true);
-                    data.currentInstance.transform.position = data.spawnPosition;
-                    data.currentInstance.transform.rotation = data.spawnRotation;
-
-                    Enemigo enemyScript = data.currentInstance.GetComponent<Enemigo>();
-                    if (enemyScript != null)
-                    {
-                        enemyScript.health = enemyScript.maxHealth;
-                    }
-                }
+                RespawnEnemy(data);
             }
         }
     }
 
-    // Llamar esto cuando un enemigo muera para desactivarlo en lugar de destruirlo
     public void OnEnemyDeath(GameObject enemy)
     {
-        // Encontrar el enemigo en la lista
         foreach (EnemyData data in registeredEnemies)
         {
             if (data.currentInstance == enemy)
             {
-                // Desactivar en lugar de destruir
                 enemy.SetActive(false);
-                Debug.Log($"Enemigo {enemy.name} desactivado (puede reaparecen)");
                 return;
             }
         }

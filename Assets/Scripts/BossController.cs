@@ -1,724 +1,559 @@
 using UnityEngine;
 using System.Collections;
-using System.Collections.Generic;
+using UnityEngine.UI; // Necesario para manejar UI
 
 public class BossController : MonoBehaviour, IAbsorbable, IResettable
 {
-    [Header("Estadísticas del Boss")]
-    public int maxHealth = 20;
+    [Header("=== EL REY INFECTADO (AGRESIVO) ===")]
+    public int maxHealth = 50;
     private int currentHealth;
-    public float moveSpeed = 3f;
-    public float detectionRange = 15f;
-    public float attackRange = 8f;
+    public float moveSpeed = 8f;
+    public float detectionRange = 30f;
 
-    [Header("Sistema de Combate")]
-    public float minAttackCooldown = 3f;
-    public float maxAttackCooldown = 5f;
+    [Header("=== IA DEPREDADORA ===")]
+    public float repositionSpeed = 12f;
+
+    [Header("=== MOVIMIENTO: PASO VIRAL ===")]
+    public int hitsToTriggerTeleport = 3;
+    public float teleportDelay = 0.5f;
+    private int currentHitCounter = 0;
+    private bool isTeleporting = false;
+
+    [Header("=== SISTEMA DE COMBATE ===")]
+    public float minAttackCooldown = 0.6f;
+    public float maxAttackCooldown = 1.2f;
     private float attackCooldownTimer;
-    public float meleeAttackRange = 2f;
-    public int meleeDamage = 1;
-    public float meleeKnockback = 8f;
 
-    [Header("Ataque Cuerpo a Cuerpo")]
+    [Header("Da�o por Contacto")]
+    public int bodyContactDamage = 1;
+    public float bodyDamageCooldown = 1.0f;
+    private float lastBodyDamageTime;
+
+    [Header("Ataques")]
     public Transform meleeAttackPoint;
-    public float meleeAttackRadius = 2f;
+    public Vector2 meleeAttackBoxSize = new Vector2(6f, 4f);
     public int meleeAttackDamage = 2;
-    public float meleeAttackDuration = 0.5f;
-    public float meleeAttackWindup = 0.3f;
-    public Color meleeAttackColor = new Color(1f, 0.3f, 0f);
+    public float meleeWindup = 0.4f;
+    public float meleeDashForce = 50f;
+    public float meleeKnockback = 20f;
 
-    [Header("Ataque: Espadas del Cielo")]
-    public GameObject swordPrefab;
-    public int swordsPerAttack = 5;
-    public float swordWarningTime = 1f;
-    public float swordDamage = 1;
-    public float swordFallSpeed = 15f;
-    public float swordSpacing = 2f;
+    public int swordsCount = 10;
+    public float swordSpeed = 22f;
 
-    [Header("Ataque: Pinchos del Suelo")]
-    public GameObject spikePrefab;
-    public int spikesPerWave = 3;
-    public float spikeWarningTime = 0.8f;
-    public int spikeDamage = 1;
-    public float spikeSpacing = 2.5f;
+    public int geysersCount = 6;
+    public float geyserWarningTime = 0.6f;
+    public int geyserDamage = 1;
 
-    [Header("Sistema de Daño Visual")]
-    public Color normalColor = Color.white;
-    public Color damageColor = Color.red;
-    public float damageFeedbackDuration = 0.15f;
+    public int bloodProjectiles = 20;
+    public float bloodSpeed = 11f;
 
-    [Header("Arena del Boss")]
+    [Header("Referencias")]
     public GameObject leftDoor;
     public GameObject rightDoor;
-    public float doorCloseDistance = 2f;
-    private bool arenaSealed = false;
+    public float doorCloseDistance = 15f;
 
-    [Header("Barra de Vida (Dark Souls Style)")]
-    public GameObject bossHealthBarPrefab;
+    [Header("UI BOSS (Importante)")]
+    public GameObject bossHealthBarPrefab; // Arrastra el PREFAB de la barra
+    public string bossName = "EL REY PACIENTE";
     private BossHealthBar bossHealthBarUI;
-    public string bossName = "Guardian Corrupto";
-    public float healthBarActivationDistance = 12f;
+    private bool arenaSealed = false;
     private bool healthBarActivated = false;
 
-    [Header("Habilidad Absorbible")]
-    public BloodPoolAbility bloodPoolAbility;
+    [Header("PREFABS DE ATAQUE")]
+    public GameObject FallingSwords;
+    public GameObject GroundSpikes;
 
-    [Header("Daño por Contacto")]
-    public int contactDamage = 1;
-    public float contactDamageCooldown = 1f;
-    private float lastContactDamageTime = -999f;
+    // L�mites
+    private float minArenaX;
+    private float maxArenaX;
 
+    // Internas
     private Transform player;
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
+    private Collider2D bossCollider;
     private bool isAttacking = false;
     private bool isDead = false;
+    private bool isInvulnerable = false;
     private Vector3 initialPosition;
-    private int initialHealth;
+    private float defaultGravity;
 
-    // Fases del boss
     private enum BossPhase { Phase1, Phase2, Phase3 }
     private BossPhase currentPhase = BossPhase.Phase1;
+    private Sprite bloodSprite;
 
-    void Start()
+    void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        player = GameObject.FindGameObjectWithTag("Player")?.transform;
-
-        currentHealth = maxHealth;
-        initialHealth = maxHealth;
+        bossCollider = GetComponent<Collider2D>();
         initialPosition = transform.position;
-        attackCooldownTimer = minAttackCooldown;
+    }
 
-        // CORREGIDO: Boss es Dynamic pero con masa muy alta para no ser empujado fácilmente
+    void Start()
+    {
+        player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        currentHealth = maxHealth;
+        attackCooldownTimer = 1f;
+
+        GenerateBloodSprite();
+        ConfigurePhysics();
+        SetupMeleeAttackPoint();
+        CalculateArenaBounds();
+
+        if (AbilityAbsorptionManager.Instance != null)
+            AbilityAbsorptionManager.Instance.RegisterResettable(this);
+
+        SetDoorsState(false);
+    }
+
+    void CalculateArenaBounds()
+    {
+        if (leftDoor != null && rightDoor != null)
+        {
+            minArenaX = leftDoor.transform.position.x + 2f;
+            maxArenaX = rightDoor.transform.position.x - 2f;
+        }
+        else
+        {
+            // Fallback si no hay puertas asignadas
+            minArenaX = initialPosition.x - 12f;
+            maxArenaX = initialPosition.x + 12f;
+        }
+    }
+
+    void GenerateBloodSprite()
+    {
+        int res = 32;
+        Texture2D tex = new Texture2D(res, res);
+        for (int y = 0; y < res; y++) for (int x = 0; x < res; x++) tex.SetPixel(x, y, Color.red);
+        tex.Apply();
+        bloodSprite = Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f));
+    }
+
+    void ConfigurePhysics()
+    {
         if (rb != null)
         {
             rb.bodyType = RigidbodyType2D.Dynamic;
-            rb.mass = 1000f; // Masa muy alta = difícil de empujar
-            rb.linearDamping = 10f; // Alta resistencia al movimiento
-            rb.gravityScale = 1f;
+            rb.mass = 5000f;
+            rb.linearDamping = 2f;
+            rb.gravityScale = 3f;
+            defaultGravity = rb.gravityScale;
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
             rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         }
+    }
 
-        // Crear punto de ataque cuerpo a cuerpo si no existe
+    void SetupMeleeAttackPoint()
+    {
         if (meleeAttackPoint == null)
         {
-            GameObject attackPt = new GameObject("MeleeAttackPoint");
+            GameObject attackPt = new GameObject("MeleePt");
             attackPt.transform.SetParent(transform);
-            attackPt.transform.localPosition = Vector3.zero; // Centro del boss
+            attackPt.transform.localPosition = new Vector3(2f, 0, 0);
             meleeAttackPoint = attackPt.transform;
         }
-
-        // Registrar en el sistema de reset
-        if (AbilityAbsorptionManager.Instance != null)
-        {
-            AbilityAbsorptionManager.Instance.RegisterResettable(this);
-        }
-
-        // Mantener puertas abiertas al inicio
-        if (leftDoor != null) leftDoor.SetActive(false);
-        if (rightDoor != null) rightDoor.SetActive(false);
     }
 
     void Update()
     {
         if (isDead || player == null) return;
 
-        float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-
-        // Activar barra de vida
-        if (!healthBarActivated && distanceToPlayer <= healthBarActivationDistance)
+        // --- SEGURIDAD ANTI-DESPAWN VISUAL ---
+        // Si no estamos teletransport�ndonos, asegurar que el sprite es visible
+        if (!isTeleporting && spriteRenderer != null && !spriteRenderer.enabled)
         {
-            ActivateBossHealthBar();
+            spriteRenderer.enabled = true;
+            if (bossCollider) bossCollider.enabled = true;
+            rb.gravityScale = defaultGravity;
         }
 
-        // Sellar arena cuando el jugador entra
-        if (!arenaSealed && distanceToPlayer <= doorCloseDistance)
+        // Clamp de posici�n (Evitar que salga de la arena)
+        float clampedX = Mathf.Clamp(transform.position.x, minArenaX, maxArenaX);
+        if (Mathf.Abs(transform.position.x - clampedX) > 0.5f) // Margen de error
         {
-            SealArena();
+            transform.position = new Vector3(clampedX, transform.position.y, transform.position.z);
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
 
-        // Comportamiento del boss
-        if (distanceToPlayer <= detectionRange)
+        float dist = Vector2.Distance(transform.position, player.position);
+
+        // Activar barra de vida si estamos cerca
+        if (!healthBarActivated && dist <= 20f) ActivateBossHealthBar();
+        if (!arenaSealed && dist <= doorCloseDistance) SealArena();
+
+        if (dist <= detectionRange)
         {
-            if (!isAttacking)
-            {
-                // Movimiento hacia el jugador (pero mantiene distancia)
-                if (distanceToPlayer > meleeAttackRange * 1.5f)
-                {
-                    MoveTowardsPlayer();
-                }
-
-                // Sistema de ataques
-                attackCooldownTimer -= Time.deltaTime;
-                if (attackCooldownTimer <= 0f && distanceToPlayer <= attackRange)
-                {
-                    StartCoroutine(PerformRandomAttack());
-                    attackCooldownTimer = Random.Range(minAttackCooldown, maxAttackCooldown);
-                }
-            }
-
-            // Voltear hacia el jugador
-            if (player.position.x < transform.position.x && transform.localScale.x > 0)
-            {
-                Flip();
-            }
-            else if (player.position.x > transform.position.x && transform.localScale.x < 0)
-            {
-                Flip();
-            }
+            HandleCombat(dist);
+            if (!isAttacking && !isTeleporting) FlipTowardsPlayer();
         }
 
-        // Actualizar fase según vida
         UpdatePhase();
     }
 
-    void MoveTowardsPlayer()
+    // --- CORRECCI�N BARRA DE VIDA ---
+    void ActivateBossHealthBar()
     {
-        Vector2 direction = (player.position - transform.position).normalized;
-        // CORREGIDO: Usar velocity normal ya que es Dynamic
-        rb.linearVelocity = new Vector2(direction.x * moveSpeed, rb.linearVelocity.y);
-    }
-
-    void UpdatePhase()
-    {
-        float healthPercent = (float)currentHealth / maxHealth;
-
-        if (healthPercent > 0.66f)
-            currentPhase = BossPhase.Phase1;
-        else if (healthPercent > 0.33f)
-            currentPhase = BossPhase.Phase2;
-        else
-            currentPhase = BossPhase.Phase3;
-    }
-
-    IEnumerator DamageFlash()
-    {
-        if (spriteRenderer != null)
+        if (!healthBarActivated && bossHealthBarPrefab)
         {
-            spriteRenderer.color = damageColor;
-            yield return new WaitForSeconds(damageFeedbackDuration);
+            // 1. Instanciamos la barra
+            GameObject barObj = Instantiate(bossHealthBarPrefab);
 
-            // Solo restaurar color si no está muerto
-            if (!isDead && spriteRenderer != null)
+            // 2. Buscamos el Canvas en la escena
+            Canvas canvas = FindAnyObjectByType<Canvas>();
+            if (canvas != null)
             {
-                spriteRenderer.color = normalColor;
+                // 3. Hacemos que la barra sea hija del Canvas para que se vea
+                barObj.transform.SetParent(canvas.transform, false);
+            }
+            else
+            {
+                Debug.LogError("�NO HAY CANVAS EN LA ESCENA! La barra de vida no se puede mostrar.");
+            }
+
+            bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
+            if (bossHealthBarUI)
+            {
+                bossHealthBarUI.Initialize(bossName, maxHealth);
+                healthBarActivated = true;
             }
         }
     }
 
-    IEnumerator PerformRandomAttack()
+    // --- DA�O POR CONTACTO ---
+    private void OnCollisionStay2D(Collision2D collision)
     {
-        isAttacking = true;
-        rb.linearVelocity = Vector2.zero; // Detener movimiento durante ataque
+        if (isDead || isTeleporting) return;
 
-        // El boss NO puede ser atacado cuerpo a cuerpo durante habilidades
-        gameObject.layer = LayerMask.NameToLayer("Ignore Raycast");
-
-        // Decidir tipo de ataque según distancia
-        float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-        int attackType;
-
-        if (distanceToPlayer <= meleeAttackRange * 1.5f)
+        if (collision.gameObject.CompareTag("Player"))
         {
-            // Si está cerca, 70% probabilidad de ataque cuerpo a cuerpo
-            attackType = Random.Range(0, 10) < 7 ? 0 : Random.Range(1, 3);
+            if (Time.time > lastBodyDamageTime + bodyDamageCooldown)
+            {
+                collision.gameObject.GetComponent<MainChar>()?.TakeDamage(bodyContactDamage);
+                lastBodyDamageTime = Time.time;
+            }
+        }
+    }
+
+    void HandleCombat(float dist)
+    {
+        if (isAttacking || isTeleporting) return;
+
+        attackCooldownTimer -= Time.deltaTime;
+
+        if (attackCooldownTimer <= 0f)
+        {
+            StartCoroutine(PerformAggressiveAttack());
+            float mod = (currentPhase == BossPhase.Phase3) ? 0.5f : 1f;
+            attackCooldownTimer = Random.Range(minAttackCooldown, maxAttackCooldown) * mod;
         }
         else
         {
-            // Si está lejos, solo ataques a distancia
-            attackType = Random.Range(1, 3);
+            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            Vector2 dir = (player.position - transform.position).normalized;
+
+            if (dist > 5f)
+                rb.linearVelocity = new Vector2(dir.x * moveSpeed, rb.linearVelocity.y);
+            else
+                rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        }
+    }
+
+    IEnumerator PerformAggressiveAttack()
+    {
+        isAttacking = true;
+        rb.linearVelocity = Vector2.zero;
+
+        float roll = Random.Range(0f, 100f);
+        int attackType = 0;
+
+        if (currentPhase == BossPhase.Phase1) attackType = (roll < 50) ? 0 : 1;
+        else if (currentPhase == BossPhase.Phase2)
+        {
+            if (roll < 40) attackType = 0;
+            else if (roll < 70) attackType = 1;
+            else attackType = 2;
+        }
+        else
+        {
+            if (roll < 25) attackType = 3;
+            else if (roll < 55) attackType = 0;
+            else if (roll < 80) attackType = 1;
+            else attackType = 2;
         }
 
         switch (attackType)
         {
-            case 0:
-                yield return StartCoroutine(MeleeAttack());
-                break;
-            case 1:
-                yield return StartCoroutine(SwordRainAttack());
-                break;
-            case 2:
-                yield return StartCoroutine(SpikesAttack());
-                break;
+            case 0: yield return StartCoroutine(MeleeDashAttack()); break;
+            case 1: yield return StartCoroutine(SwordBarrage()); break;
+            case 2: yield return StartCoroutine(GroundSpikesAttack()); break;
+            case 3: yield return StartCoroutine(UltimateAttack()); break;
         }
-
-        // Restaurar capa normal
-        gameObject.layer = LayerMask.NameToLayer("Enemy");
 
         isAttacking = false;
-
-        // Reducir cooldown en fases avanzadas
-        if (currentPhase == BossPhase.Phase2)
-            attackCooldownTimer *= 0.8f;
-        else if (currentPhase == BossPhase.Phase3)
-            attackCooldownTimer *= 0.6f;
+        if (spriteRenderer) spriteRenderer.color = Color.white;
     }
 
-    IEnumerator MeleeAttack()
+    // --- ATAQUES ---
+    IEnumerator MeleeDashAttack()
     {
-        Debug.Log("Boss: Ataque Cuerpo a Cuerpo");
+        if (spriteRenderer) spriteRenderer.color = Color.yellow;
+        FlipTowardsPlayer();
+        yield return new WaitForSeconds(meleeWindup);
 
-        // Fase de preparación (windup)
-        if (spriteRenderer != null)
+        if (spriteRenderer) spriteRenderer.color = Color.red;
+        Vector2 dir = (player.position - transform.position).normalized;
+        dir.y = 0;
+        rb.AddForce(dir * meleeDashForce, ForceMode2D.Impulse);
+
+        yield return new WaitForSeconds(0.25f);
+        rb.linearVelocity = Vector2.zero;
+
+        Collider2D[] hits = Physics2D.OverlapBoxAll(meleeAttackPoint.position, meleeAttackBoxSize, 0f);
+        foreach (var hit in hits)
         {
-            spriteRenderer.color = meleeAttackColor;
-        }
-
-        // Crear indicador circular de ataque
-        GameObject warningCircle = CreateWarningIndicator(transform.position, new Color(1f, 0.5f, 0f));
-        if (warningCircle != null)
-        {
-            warningCircle.transform.localScale = Vector3.one * meleeAttackRadius * 2f;
-        }
-
-        yield return new WaitForSeconds(meleeAttackWindup);
-
-        if (warningCircle != null)
-        {
-            Destroy(warningCircle);
-        }
-
-        // Ejecutar el golpe
-        if (meleeAttackPoint != null)
-        {
-            Collider2D[] hits = Physics2D.OverlapCircleAll(meleeAttackPoint.position, meleeAttackRadius);
-
-            foreach (Collider2D hit in hits)
+            if (hit.CompareTag("Player"))
             {
-                if (hit.CompareTag("Player"))
-                {
-                    MainChar playerScript = hit.GetComponent<MainChar>();
-                    if (playerScript != null)
-                    {
-                        playerScript.TakeDamage(meleeAttackDamage);
-                        Debug.Log($"Boss golpeó al jugador con ataque cuerpo a cuerpo por {meleeAttackDamage} de daño");
-                    }
-                }
+                hit.GetComponent<MainChar>()?.TakeDamage(meleeAttackDamage);
+                Rigidbody2D prb = hit.GetComponent<Rigidbody2D>();
+                if (prb) prb.AddForce(dir * meleeKnockback, ForceMode2D.Impulse);
             }
         }
+        yield return new WaitForSeconds(0.2f);
+    }
 
-        // Efecto visual del golpe
-        if (spriteRenderer != null)
+    IEnumerator SwordBarrage()
+    {
+        if (spriteRenderer) spriteRenderer.color = Color.cyan;
+        yield return new WaitForSeconds(0.3f);
+        if (spriteRenderer) spriteRenderer.color = Color.white;
+
+        if (FallingSwords != null)
         {
-            spriteRenderer.color = Color.red;
-        }
+            for (int i = 0; i < swordsCount; i++)
+            {
+                if (player == null) break;
+                Vector3 spawnPos = transform.position + new Vector3(Random.Range(-2f, 2f), 4f, 0);
+                Vector2 dir = (player.position - spawnPos).normalized;
+                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                Quaternion rotation = Quaternion.AngleAxis(angle - 90, Vector3.forward);
 
-        yield return new WaitForSeconds(meleeAttackDuration);
+                GameObject sword = Instantiate(FallingSwords, spawnPos, rotation);
+                BossProjectile bp = sword.GetComponent<BossProjectile>();
+                if (bp == null) bp = sword.AddComponent<BossProjectile>();
+                bp.Initialize(dir, swordSpeed, 1, false);
 
-        // Restaurar color
-        if (spriteRenderer != null && !isDead)
-        {
-            spriteRenderer.color = normalColor;
+                yield return new WaitForSeconds(0.08f);
+            }
         }
     }
 
-    IEnumerator SwordRainAttack()
+    IEnumerator GroundSpikesAttack()
     {
-        Debug.Log("Boss: Ataque de Lluvia de Espadas");
+        if (spriteRenderer) spriteRenderer.color = new Color(0.5f, 0f, 0f);
+        yield return new WaitForSeconds(0.5f);
 
-        int swordCount = swordsPerAttack;
-        if (currentPhase == BossPhase.Phase3) swordCount += 2;
-
-        List<Vector3> swordPositions = new List<Vector3>();
-        List<GameObject> warnings = new List<GameObject>();
-
-        // Generar posiciones de espadas centradas en el jugador
-        for (int i = 0; i < swordCount; i++)
+        if (GroundSpikes != null)
         {
-            float offsetX = (i - swordCount / 2f) * swordSpacing;
-            Vector3 targetPos = player.position + new Vector3(offsetX, 0, 0);
-            swordPositions.Add(targetPos);
-
-            // Crear indicador de advertencia
-            GameObject warning = CreateWarningIndicator(targetPos, Color.yellow);
-            warnings.Add(warning);
-        }
-
-        // Esperar tiempo de advertencia
-        yield return new WaitForSeconds(swordWarningTime);
-
-        // Destruir indicadores y lanzar espadas
-        foreach (GameObject warning in warnings)
-        {
-            if (warning != null) Destroy(warning);
-        }
-
-        foreach (Vector3 pos in swordPositions)
-        {
-            if (swordPrefab != null)
+            for (int i = 0; i < geysersCount; i++)
             {
-                Vector3 spawnPos = pos + new Vector3(0, 10f, 0);
-                GameObject sword = Instantiate(swordPrefab, spawnPos, Quaternion.Euler(0, 0, 180));
+                if (player == null) break;
+                Vector3 target = player.position;
+                if (player.GetComponent<Rigidbody2D>().linearVelocity.x != 0)
+                    target += new Vector3(player.GetComponent<Rigidbody2D>().linearVelocity.x * 0.5f, 0, 0);
 
-                FallingSword swordScript = sword.GetComponent<FallingSword>();
-                if (swordScript == null)
-                {
-                    swordScript = sword.AddComponent<FallingSword>();
-                }
-                swordScript.Initialize(swordFallSpeed, swordDamage);
+                target.y = initialPosition.y - 1.5f;
+                target.x = Mathf.Clamp(target.x, minArenaX, maxArenaX);
+
+                StartCoroutine(SpawnSpike(target));
+                yield return new WaitForSeconds(0.1f);
             }
-
-            yield return new WaitForSeconds(0.1f);
         }
     }
 
-    IEnumerator SpikesAttack()
+    IEnumerator SpawnSpike(Vector3 pos)
     {
-        Debug.Log("Boss: Ataque de Pinchos");
-
-        int waveCount = spikesPerWave;
-        if (currentPhase == BossPhase.Phase3) waveCount += 1;
-
-        for (int wave = 0; wave < waveCount; wave++)
+        GameObject spike = Instantiate(GroundSpikes, pos, Quaternion.identity);
+        yield return new WaitForSeconds(geyserWarningTime);
+        Collider2D[] hits = Physics2D.OverlapBoxAll(pos + Vector3.up * 1f, new Vector2(1.5f, 2f), 0f);
+        foreach (var h in hits)
         {
-            List<Vector3> spikePositions = new List<Vector3>();
-            List<GameObject> warnings = new List<GameObject>();
-
-            // CORREGIDO: Línea recta a la ALTURA DEL BOSS (no del suelo)
-            Vector3 startPos = transform.position; // Posición del boss
-            Vector3 direction = (player.position - transform.position).normalized;
-
-            // Crear línea de pinchos a la misma altura que el boss
-            int spikeCount = 4;
-            if (currentPhase == BossPhase.Phase3) spikeCount = 5;
-
-            for (int i = 1; i <= spikeCount; i++)
-            {
-                // Mantener la Y del boss, solo avanzar en X hacia el jugador
-                Vector3 spikePos = startPos + direction * (i * spikeSpacing);
-                // CLAVE: Mantener altura del boss
-                spikePos.y = startPos.y;
-
-                spikePositions.Add(spikePos);
-
-                GameObject warning = CreateWarningIndicator(spikePos, Color.red);
-                warnings.Add(warning);
-            }
-
-            yield return new WaitForSeconds(spikeWarningTime);
-
-            foreach (GameObject warning in warnings)
-            {
-                if (warning != null) Destroy(warning);
-            }
-
-            // Spawnar pinchos uno tras otro en línea recta horizontal
-            foreach (Vector3 pos in spikePositions)
-            {
-                if (spikePrefab != null)
-                {
-                    GameObject spike = Instantiate(spikePrefab, pos, Quaternion.identity);
-
-                    GroundSpike spikeScript = spike.GetComponent<GroundSpike>();
-                    if (spikeScript == null)
-                    {
-                        spikeScript = spike.AddComponent<GroundSpike>();
-                    }
-                    spikeScript.Initialize(spikeDamage);
-                }
-                yield return new WaitForSeconds(0.15f);
-            }
-
-            yield return new WaitForSeconds(0.5f);
+            if (h.CompareTag("Player")) h.GetComponent<MainChar>()?.TakeDamage(geyserDamage);
         }
+        yield return new WaitForSeconds(0.5f);
+        Destroy(spike);
     }
 
-    GameObject CreateWarningIndicator(Vector3 position, Color color)
+    IEnumerator UltimateAttack()
     {
-        GameObject indicator = new GameObject("WarningIndicator");
-        indicator.transform.position = position;
+        isInvulnerable = true;
+        float t = 0;
+        Vector3 startPos = transform.position;
+        Vector3 centerPos = new Vector3((minArenaX + maxArenaX) / 2, initialPosition.y + 3f, 0);
 
-        SpriteRenderer sr = indicator.AddComponent<SpriteRenderer>();
-        sr.sprite = CreateCircleSprite();
-        sr.color = new Color(color.r, color.g, color.b, 0.5f);
-        sr.sortingOrder = 10;
+        rb.gravityScale = 0;
+        rb.linearVelocity = Vector2.zero; // Frenar al flotar
 
-        indicator.transform.localScale = Vector3.one * 1.5f;
-
-        // Animación de pulso
-        StartCoroutine(PulseWarning(indicator));
-
-        return indicator;
-    }
-
-    Sprite CreateCircleSprite()
-    {
-        Texture2D tex = new Texture2D(64, 64);
-        Color[] pixels = new Color[64 * 64];
-
-        for (int y = 0; y < 64; y++)
+        while (t < 1f)
         {
-            for (int x = 0; x < 64; x++)
-            {
-                float dist = Vector2.Distance(new Vector2(x, y), new Vector2(32, 32));
-                pixels[y * 64 + x] = dist < 30 ? Color.white : Color.clear;
-            }
-        }
-
-        tex.SetPixels(pixels);
-        tex.Apply();
-
-        return Sprite.Create(tex, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f));
-    }
-
-    IEnumerator PulseWarning(GameObject indicator)
-    {
-        Vector3 baseScale = indicator.transform.localScale;
-        float elapsed = 0f;
-
-        while (indicator != null)
-        {
-            elapsed += Time.deltaTime * 3f;
-            float scale = 1f + Mathf.Sin(elapsed) * 0.2f;
-            indicator.transform.localScale = baseScale * scale;
+            transform.position = Vector3.Lerp(startPos, centerPos, t);
+            t += Time.deltaTime * 2f;
             yield return null;
         }
-    }
 
-    void SealArena()
-    {
-        arenaSealed = true;
-        if (leftDoor != null) leftDoor.SetActive(true);
-        if (rightDoor != null) rightDoor.SetActive(true);
-        Debug.Log("¡Arena sellada! No hay escapatoria.");
-    }
-
-    void UnsealArena()
-    {
-        arenaSealed = false;
-        if (leftDoor != null) leftDoor.SetActive(false);
-        if (rightDoor != null) rightDoor.SetActive(false);
-        Debug.Log("Arena desbloqueada.");
-    }
-
-    void ActivateBossHealthBar()
-    {
-        healthBarActivated = true;
-
-        if (bossHealthBarPrefab != null)
+        int waves = 3;
+        for (int w = 0; w < waves; w++)
         {
-            GameObject barObj = Instantiate(bossHealthBarPrefab);
-            bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
-
-            if (bossHealthBarUI != null)
+            for (int i = 0; i < bloodProjectiles; i++)
             {
-                bossHealthBarUI.Initialize(bossName, maxHealth);
+                float angle = i * (360f / bloodProjectiles) + (w * 15f);
+                Vector2 dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
+                GameObject p = CreateBloodProjectile(transform.position);
+                BossProjectile bp = p.AddComponent<BossProjectile>();
+                bp.Initialize(dir, bloodSpeed, 1, true);
             }
+            yield return new WaitForSeconds(0.4f);
+        }
+
+        rb.gravityScale = defaultGravity;
+
+        while (transform.position.y > initialPosition.y)
+        {
+            transform.position += Vector3.down * Time.deltaTime * 5f;
+            yield return null;
+        }
+        isInvulnerable = false;
+    }
+
+    GameObject CreateBloodProjectile(Vector3 pos)
+    {
+        GameObject go = new GameObject("BloodFX");
+        go.transform.position = pos;
+        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = bloodSprite;
+        sr.color = Color.red;
+        sr.sortingOrder = 10;
+        return go;
+    }
+
+    void FlipTowardsPlayer()
+    {
+        if (player == null) return;
+        float x = transform.localScale.x;
+        if (player.position.x < transform.position.x && x > 0) transform.localScale = new Vector3(-x, transform.localScale.y, 1);
+        else if (player.position.x > transform.position.x && x < 0) transform.localScale = new Vector3(-x, transform.localScale.y, 1);
+    }
+
+    // --- TELETRANSPORTE SEGURO ---
+    IEnumerator DefensiveTeleport()
+    {
+        isTeleporting = true;
+        isAttacking = false;
+        StopAllCoroutines(); // Cancela ataques en curso
+
+        // 1. Apagar visuales y gravedad (para que no caiga al infinito)
+        if (bossCollider) bossCollider.enabled = false;
+        if (spriteRenderer) spriteRenderer.enabled = false;
+        rb.gravityScale = 0;
+        rb.linearVelocity = Vector2.zero;
+
+        yield return new WaitForSeconds(teleportDelay);
+
+        // 2. Calcular nueva posici�n
+        float randomX = Random.Range(minArenaX + 2f, maxArenaX - 2f);
+
+        // Evitar aparecer encima del jugador
+        if (Vector2.Distance(player.position, new Vector2(randomX, initialPosition.y)) < 5f)
+            randomX = (player.position.x > (minArenaX + maxArenaX) / 2) ? minArenaX + 3f : maxArenaX - 3f;
+
+        // 3. Set Position con Z=0 estricto para evitar problemas de visualizaci�n
+        transform.position = new Vector3(randomX, initialPosition.y, 0);
+
+        // 4. Reactivar
+        if (spriteRenderer) spriteRenderer.enabled = true;
+        if (bossCollider) bossCollider.enabled = true;
+        rb.gravityScale = defaultGravity;
+
+        isTeleporting = false;
+        currentHitCounter = 0;
+        attackCooldownTimer = 0.5f;
+    }
+
+    public void TakeDamage(int dmg, int dir)
+    {
+        if (isDead || isTeleporting || isInvulnerable) return;
+
+        currentHealth -= dmg;
+        currentHitCounter++;
+        if (bossHealthBarUI) bossHealthBarUI.UpdateHealth(currentHealth);
+
+        if (currentHitCounter >= hitsToTriggerTeleport && !isAttacking)
+        {
+            StartCoroutine(DefensiveTeleport());
         }
         else
         {
-            Debug.LogWarning("No hay prefab de barra de vida asignado");
+            StartCoroutine(FlashDamage());
         }
+
+        if (currentHealth <= 0) Die();
     }
 
-    public void TakeDamage(int damage, int knockbackDir)
+    IEnumerator FlashDamage()
     {
-        if (isDead) return;
-
-        currentHealth -= damage;
-        Debug.Log($"Boss recibió {damage} daño. Vida: {currentHealth}/{maxHealth}");
-
-        // Feedback visual de daño (NO detener otras corrutinas, solo la de flash)
-        StopCoroutine("DamageFlash");
-        StartCoroutine(DamageFlash());
-
-        // Actualizar barra de vida
-        if (bossHealthBarUI != null)
-        {
-            bossHealthBarUI.UpdateHealth(currentHealth);
-        }
-
-        if (currentHealth <= 0)
-        {
-            Die();
-        }
+        if (spriteRenderer) spriteRenderer.color = Color.red;
+        yield return new WaitForSeconds(0.1f);
+        if (!isDead && !isAttacking) spriteRenderer.color = Color.white;
     }
 
     void Die()
     {
-        if (isDead) return;
-
         isDead = true;
-        Debug.Log("¡Boss derrotado!");
-
-        // Ocultar barra de vida
-        if (bossHealthBarUI != null)
-        {
-            bossHealthBarUI.Hide();
-        }
-
-        // IMPORTANTE: Desbloquear arena inmediatamente
         UnsealArena();
-
-        // Detener movimiento
-        if (rb != null) rb.linearVelocity = Vector2.zero;
-
-        StartCoroutine(DeathSequence());
+        if (bossHealthBarUI) bossHealthBarUI.Hide();
+        StopAllCoroutines();
+        gameObject.SetActive(false);
     }
 
-    IEnumerator DeathSequence()
+    void UpdatePhase()
     {
-        // Animación de muerte
-        for (int i = 0; i < 5; i++)
-        {
-            if (spriteRenderer != null)
-            {
-                spriteRenderer.color = Color.red;
-                yield return new WaitForSeconds(0.1f);
-                spriteRenderer.color = Color.white;
-                yield return new WaitForSeconds(0.1f);
-            }
-        }
-
-        // El boss se vuelve absorbible
-        gameObject.layer = LayerMask.NameToLayer("Default");
-
-        Debug.Log("Boss ahora puede ser absorbido (presiona E cerca)");
+        float p = (float)currentHealth / maxHealth;
+        if (p > 0.60f) currentPhase = BossPhase.Phase1;
+        else if (p > 0.30f) currentPhase = BossPhase.Phase2;
+        else currentPhase = BossPhase.Phase3;
     }
 
-    void Flip()
-    {
-        Vector3 scale = transform.localScale;
-        scale.x *= -1;
-        transform.localScale = scale;
-    }
-
-    // Implementación de IAbsorbable
-    public bool CanBeAbsorbed()
-    {
-        return isDead;
-    }
-
-    public void OnAbsorbed()
-    {
-        Debug.Log("Habilidad de Charco de Sangre absorbida");
-
-        // Dar la habilidad al jugador
-        if (player != null)
-        {
-            MainChar mainChar = player.GetComponent<MainChar>();
-            if (mainChar != null)
-            {
-                // Crear nueva instancia de la habilidad
-                BloodPoolAbility newAbility = new BloodPoolAbility();
-
-                // Dar la habilidad al jugador directamente
-                BloodPoolTransform poolTransform = mainChar.GetComponent<BloodPoolTransform>();
-                if (poolTransform == null)
-                {
-                    poolTransform = mainChar.gameObject.AddComponent<BloodPoolTransform>();
-                }
-
-                Debug.Log("¡Habilidad de Charco de Sangre otorgada al jugador!");
-            }
-        }
-
-        Destroy(gameObject);
-    }
-
-    // Implementación de IResettable
     public void ResetState()
     {
-        currentHealth = initialHealth;
+        StopAllCoroutines();
+        currentHealth = maxHealth;
+        transform.position = initialPosition;
+        gameObject.SetActive(true);
         isDead = false;
         isAttacking = false;
-        arenaSealed = false;
-        healthBarActivated = false;
-        transform.position = initialPosition;
+        isTeleporting = false;
 
-        if (spriteRenderer != null)
-            spriteRenderer.color = normalColor;
+        // Reset vitales
+        if (spriteRenderer) spriteRenderer.enabled = true;
+        if (bossCollider) bossCollider.enabled = true;
+        if (rb) rb.gravityScale = defaultGravity;
 
-        // CORREGIDO: Desbloquear puertas al resetear
-        UnsealArena();
-
-        if (bossHealthBarUI != null)
-        {
-            Destroy(bossHealthBarUI.gameObject);
-            bossHealthBarUI = null;
-        }
-
-        attackCooldownTimer = minAttackCooldown;
-        currentPhase = BossPhase.Phase1;
-
-        // Hacer visible el boss de nuevo
-        gameObject.SetActive(true);
-
-        // Restaurar física
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector2.zero;
-        }
-
-        Debug.Log("Boss reseteado al estado inicial - Arena desbloqueada");
+        SetDoorsState(false);
     }
-
+    public bool CanBeAbsorbed() => isDead;
+    public void OnAbsorbed() { Destroy(gameObject); }
     public bool IsBoss => true;
-
-    // Método público para resetear desde EnemyManager
-    public void ForceReset()
-    {
-        ResetState();
-    }
-
-    void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (isDead) return;
-
-        if (collision.gameObject.CompareTag("Player"))
-        {
-            if (Time.time - lastContactDamageTime >= contactDamageCooldown)
-            {
-                MainChar playerScript = collision.gameObject.GetComponent<MainChar>();
-                if (playerScript != null)
-                {
-                    playerScript.TakeDamage(contactDamage);
-                    lastContactDamageTime = Time.time;
-                    Debug.Log("Boss hizo daño por contacto al jugador");
-                }
-            }
-        }
-    }
-
-    void OnCollisionStay2D(Collision2D collision)
-    {
-        if (isDead) return;
-
-        if (collision.gameObject.CompareTag("Player"))
-        {
-            if (Time.time - lastContactDamageTime >= contactDamageCooldown)
-            {
-                MainChar playerScript = collision.gameObject.GetComponent<MainChar>();
-                if (playerScript != null)
-                {
-                    playerScript.TakeDamage(contactDamage);
-                    lastContactDamageTime = Time.time;
-                    Debug.Log("Boss hizo daño por contacto al jugador");
-                }
-            }
-        }
-    }
-
-    void OnDestroy()
-    {
-        if (AbilityAbsorptionManager.Instance != null)
-        {
-            AbilityAbsorptionManager.Instance.UnregisterResettable(this);
-        }
-    }
+    void SetDoorsState(bool a) { if (leftDoor) leftDoor.SetActive(a); if (rightDoor) rightDoor.SetActive(a); }
+    void SealArena() { arenaSealed = true; SetDoorsState(true); }
+    void UnsealArena() { arenaSealed = false; SetDoorsState(false); }
 
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
-
-        Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(transform.position, meleeAttackRange);
+        Gizmos.DrawWireCube(meleeAttackPoint != null ? meleeAttackPoint.position : transform.position, meleeAttackBoxSize);
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawWireCube(transform.position + Vector3.down * 1.5f, new Vector2(1.5f, 2f));
     }
 }

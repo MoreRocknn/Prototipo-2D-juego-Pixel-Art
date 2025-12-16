@@ -1100,50 +1100,36 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 93bf3f24dd2b3444e9aabe61762229c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 30
-  moveSpeed: 2
+  maxHealth: 60
+  moveSpeed: 5
   detectionRange: 18.9
-  attackRange: 8
-  minAttackCooldown: 3
-  maxAttackCooldown: 5
-  meleeAttackRange: 2
-  meleeDamage: 2
-  meleeKnockback: 8
-  meleeAttackPoint: {fileID: 1024458571}
-  meleeAttackRadius: 1.28
+  repositionSpeed: 12
+  hitsToTriggerTeleport: 3
+  teleportDelay: 0.15
+  minAttackCooldown: 0.6
+  maxAttackCooldown: 1.2
+  bodyContactDamage: 1
+  bodyDamageCooldown: 1
+  meleeAttackPoint: {fileID: 0}
+  meleeAttackBoxSize: {x: 4.88, y: 2.26}
   meleeAttackDamage: 2
-  meleeAttackDuration: 0.5
-  meleeAttackWindup: 0.3
-  meleeAttackColor: {r: 1, g: 0.3, b: 0, a: 1}
-  swordPrefab: {fileID: 2838053733939832622, guid: 6e1340d69a37823439072a4c01f83291, type: 3}
-  swordsPerAttack: 5
-  swordWarningTime: 1
-  swordDamage: 2
-  swordFallSpeed: 10
-  swordSpacing: 2
-  spikePrefab: {fileID: 4607953794918522256, guid: f2a267290e9b3f44499dff8b1e49153e, type: 3}
-  spikesPerWave: 3
-  spikeWarningTime: 0.8
-  spikeDamage: 1
-  spikeSpacing: 3
-  normalColor: {r: 1, g: 1, b: 1, a: 1}
-  damageColor: {r: 1, g: 0, b: 0, a: 1}
-  damageFeedbackDuration: 0.15
+  meleeWindup: 0.4
+  meleeDashForce: 50
+  meleeKnockback: 20
+  swordsCount: 10
+  swordSpeed: 22
+  geysersCount: 6
+  geyserWarningTime: 0.6
+  geyserDamage: 1
+  bloodProjectiles: 20
+  bloodSpeed: 11
   leftDoor: {fileID: 316258986}
   rightDoor: {fileID: 1152376265}
-  doorCloseDistance: 4
-  bossHealthBarPrefab: {fileID: 1530732374279662711, guid: 019bd4d12e1891c45bd87846120e8e79, type: 3}
-  bossName: Paco Manzanos
-  healthBarActivationDistance: 12
-  bloodPoolAbility:
-    poolDuration: 3
-    poolCooldown: 5
-    poolMoveSpeed: 4
-    poolSize: {x: 0.5, y: 0.2}
-    abilityName: Charco de Sangre
-    abilityColor: {r: 0.8, g: 0.1, b: 0.1, a: 1}
-  contactDamage: 1
-  contactDamageCooldown: 1
+  doorCloseDistance: 15
+  bossHealthBarPrefab: {fileID: 8470190603193729950, guid: 36bc94b2ef887b04fb2b161d1729095f, type: 3}
+  bossName: EL REY PACIENTE
+  FallingSwords: {fileID: 0}
+  GroundSpikes: {fileID: 0}
 --- !u!70 &451731774
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -1193,7 +1179,7 @@ Rigidbody2D:
   m_Simulated: 1
   m_UseFullKinematicContacts: 0
   m_UseAutoMass: 0
-  m_Mass: 1
+  m_Mass: 60000
   m_LinearDamping: 0
   m_AngularDamping: 0.05
   m_GravityScale: 1
@@ -3502,7 +3488,7 @@ GameObject:
   - component: {fileID: 996095315}
   - component: {fileID: 996095314}
   - component: {fileID: 996095313}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Floor (3)
   m_TagString: ground
   m_Icon: {fileID: 0}
@@ -4908,6 +4894,7 @@ MonoBehaviour:
   attackDamage: 1
   playerKnockbackForce: 3
   sideAttackEffect: {fileID: 6262776865070091550}
+  attackRate: 0.6
   enableDownAttack: 0
   downAttackPoint: {fileID: 0}
   downAttackEffect: {fileID: 0}
@@ -4931,7 +4918,7 @@ MonoBehaviour:
   damageColor: {r: 1, g: 0.3, b: 0.3, a: 1}
   abilityUseKey: 113
   dashTrailEffect: {fileID: 0}
-  dashColor: {r: 0.3, g: 0.8, b: 1, a: 1}
+  dashColor: {r: 0.4056604, g: 0.4056604, b: 0.4056604, a: 1}
   showGhostTrail: 1
   ghostTrailFrequency: 0.05
 --- !u!114 &1229963983
@@ -7057,7 +7044,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d00cdd611462fbd4fa4bba39bbb1e11e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  health: 3
+  health: 2
   invincibilityTime: 1
   knockbackForce: {x: 2, y: 5}
   knockbackInvincibilityTime: 1.23
@@ -7074,13 +7061,12 @@ MonoBehaviour:
   chaseSpeed: 5
   fleeSpeed: 7
   guardTime: 0.8
-  attackCooldown: 1.5
-  repositionTime: 2
+  attackCooldown: 3
+  repositionTime: 1
   repositionDistance: 5
-  hoverHeight: 2
-  verticalSpeed: 4
-  smoothTime: 0.3
-  shouldPatrol: 1
+  hoverHeight: 1.5
+  verticalSpeed: 6
+  smoothTime: 0.5
   patrolAreaSize: {x: 21.79, y: 6.18}
   waitTimeAtPatrolPoint: 2
   patrolPointRadius: 0.5

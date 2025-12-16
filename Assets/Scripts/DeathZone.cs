@@ -43,6 +43,7 @@ public class DeathZone : MonoBehaviour
     {
         isRespawning = true;
 
+        // Notificar al sistema de absorción
         if (AbilityAbsorptionManager.Instance != null)
         {
             AbilityAbsorptionManager.Instance.OnPlayerDeath();
@@ -53,6 +54,7 @@ public class DeathZone : MonoBehaviour
         SpriteRenderer spriteRenderer = player.GetComponent<SpriteRenderer>();
         Collider2D playerCollider = player.GetComponent<Collider2D>();
 
+        // Desactivar controles y físicas
         if (playerController) playerController.enabled = false;
         if (playerCollider) playerCollider.enabled = false;
 
@@ -62,12 +64,15 @@ public class DeathZone : MonoBehaviour
             rb.gravityScale = 0;
         }
 
+        // Efectos de muerte
         if (deathEffect) Instantiate(deathEffect, player.transform.position, Quaternion.identity);
         if (audioSource && deathSound) audioSource.PlayOneShot(deathSound);
         if (spriteRenderer) spriteRenderer.enabled = false;
 
+        // Esperar tiempo de respawn
         yield return new WaitForSeconds(respawnDelay);
 
+        // 1. Mover al jugador a la posición de guardado
         Vector2 respawnPos = Vector2.zero;
         if (GameManager.Instance != null)
         {
@@ -76,7 +81,20 @@ public class DeathZone : MonoBehaviour
 
         player.transform.position = respawnPos;
 
-        // --- CORRECCIÓN: RESETEAR VIDA Y VIALES AL RESPAWNEAR ---
+        // ====================================================================
+        // --- CORRECCIÓN NUEVA: RESETEAR EL MUNDO (BOSSES Y ENEMIGOS) ---
+        // Esto busca a todos los enemigos y Bosses y les dice que vuelvan a su estado inicial
+        if (EnemyManager.Instance != null)
+        {
+            EnemyManager.Instance.RespawnAllEnemies();
+        }
+        else
+        {
+            Debug.LogWarning("EnemyManager no encontrado en la escena. Los enemigos no se resetearán.");
+        }
+        // ====================================================================
+
+        // 2. Restaurar Vida y Viales
         if (playerController != null)
         {
             playerController.currentHealth = playerController.maxHealth; // Vida a tope
@@ -87,8 +105,8 @@ public class DeathZone : MonoBehaviour
         {
             healing.RefillVials(); // Viales a tope
         }
-        // --------------------------------------------------------
 
+        // 3. Reactivar físicas y controles
         if (rb != null)
         {
             rb.gravityScale = 3.5f;

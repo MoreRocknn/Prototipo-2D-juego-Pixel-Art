@@ -35,7 +35,7 @@ public class EnemigoVolador : MonoBehaviour
     public float smoothTime = 0.3f;
 
     [Header("=== PATRULLA AÉREA ===")]
-    public bool shouldPatrol = true;
+    private bool shouldPatrol = true;
     public Vector2 patrolAreaSize = new Vector2(8f, 4f);
     public float waitTimeAtPatrolPoint = 2f;
     public float patrolPointRadius = 0.5f;
