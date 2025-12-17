@@ -22,9 +22,13 @@ public abstract class Ability
     public Color abilityColor = Color.cyan;
 
     // SISTEMA DE USOS LIMITADOS
-    public int maxUses = 3;
-    public int currentUses = 3;
-    public bool limitedUses = true;
+    public int maxUses;
+    public int currentUses;
+    public bool limitedUses = false;
+
+    // NUEVO: Sistema de cooldown post-absorción
+    public float postAbsorptionCooldown = 0f;
+    public float timeAbsorbed = -999f;
 
     public abstract void Execute(GameObject owner);
     public abstract bool CanUse(GameObject owner);
@@ -53,6 +57,9 @@ public class DashAbility : Ability
         maxUses = 3;
         currentUses = 3;
         limitedUses = true;
+
+        // NUEVO: Cooldown de 3 segundos después de absorber
+        postAbsorptionCooldown = 3f;
     }
 
     public override bool CanUse(GameObject owner)
@@ -60,7 +67,10 @@ public class DashAbility : Ability
         bool cooldownOK = Time.time - lastDashTime >= dashCooldown;
         bool usesOK = !limitedUses || currentUses > 0;
 
-        return cooldownOK && usesOK;
+        // NUEVO: Verificar cooldown post-absorción
+        bool absorptionCooldownOK = Time.time - timeAbsorbed >= postAbsorptionCooldown;
+
+        return cooldownOK && usesOK && absorptionCooldownOK;
     }
 
     public override void Execute(GameObject owner)
@@ -92,7 +102,8 @@ public class DashAbility : Ability
             abilityColor = this.abilityColor,
             maxUses = this.maxUses,
             currentUses = this.maxUses,
-            limitedUses = this.limitedUses
+            limitedUses = this.limitedUses,
+            postAbsorptionCooldown = this.postAbsorptionCooldown
         };
     }
 }
@@ -209,6 +220,15 @@ public class AbilityHolder : MonoBehaviour
         {
             spriteRenderer.color = originalColor;
         }
+    }
+
+    // NUEVO: Método para obtener tiempo restante de cooldown
+    public float GetAbsorptionCooldownRemaining()
+    {
+        if (currentAbility == null) return 0f;
+
+        float remaining = currentAbility.postAbsorptionCooldown - (Time.time - currentAbility.timeAbsorbed);
+        return Mathf.Max(0f, remaining);
     }
 }
 
@@ -448,17 +468,18 @@ public class AbilityAbsorptionManager : MonoBehaviour
         // 1. Asignar habilidad al jugador
         playerAbilityHolder.SetAbility(targetAbility);
 
-        // --- CORRECCIÓN CLAVE ---
-        // Forzar que el jugador SIEMPRE tenga usos limitados (3),
-        // sin importar si el enemigo los tenía infinitos.
+        // Forzar que el jugador SIEMPRE tenga usos limitados (3)
         if (playerAbilityHolder.currentAbility != null)
         {
             playerAbilityHolder.currentAbility.limitedUses = true;
             playerAbilityHolder.currentAbility.maxUses = 3;
             playerAbilityHolder.currentAbility.currentUses = 3;
-            Debug.Log("Habilidad absorbida: Se han limitado los usos a 3 para el jugador.");
+
+            // NUEVO: Establecer el tiempo de absorción para activar el cooldown de 3 segundos
+            playerAbilityHolder.currentAbility.timeAbsorbed = Time.time;
+
+            Debug.Log("Habilidad absorbida: Se han limitado los usos a 3 para el jugador. Cooldown de 3s activado.");
         }
-        // -----------------------
 
         targetAbilityHolder.SetAbility(playerAbility);
 

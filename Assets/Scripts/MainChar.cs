@@ -63,6 +63,17 @@ public class MainChar : MonoBehaviour, IDashExecutor
     public Color combo2Color = new Color(1f, 0.8f, 0f);
     public Color combo3Color = new Color(1f, 0f, 0f);
 
+    [Header("Camera Shake - Combo 3")]
+    public bool enableCombo3Shake = true;
+    [Range(0.05f, 0.5f)]
+    public float combo3ShakeDuration = 0.25f;
+    [Range(0.1f, 2f)]
+    public float combo3ShakeMagnitude = 0.5f;
+    [Range(10f, 50f)]
+    public float combo3ShakeFrequency = 30f;
+    [Tooltip("Si está activado, usa un shake de impacto rápido e intenso")]
+    public bool useImpactShake = false;
+
     [Header("Down Attack (DESHABILITADO)")]
     public bool enableDownAttack = false;
     public Transform downAttackPoint;
@@ -202,14 +213,12 @@ public class MainChar : MonoBehaviour, IDashExecutor
                 rb.linearVelocity.y
             );
         }
-        // CAMBIO 1: Solo aplicar movimiento horizontal si NO está atacando
         else if (!isWallSliding && !isAttacking)
         {
             float targetX = moveInput * moveSpeed;
             float appliedX = isGrounded ? targetX : targetX * airControlMultiplier;
             rb.linearVelocity = new Vector2(appliedX, rb.linearVelocity.y);
         }
-        // CAMBIO 2: Mantener velocidad X en 0 durante ataques en el suelo
         else if (isAttacking && isGrounded)
         {
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
@@ -232,7 +241,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
     private void HandleInput()
     {
-        // CAMBIO 3: Resetear completamente el input durante ataque
         if (isAttacking)
         {
             moveInput = 0;
@@ -286,7 +294,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
         isAttacking = true;
         lastAttackTime = Time.time;
 
-        // CAMBIO 4: Detener completamente el movimiento horizontal al iniciar ataque
         if (isGrounded)
         {
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
@@ -319,6 +326,19 @@ public class MainChar : MonoBehaviour, IDashExecutor
                 flashColor = combo3Color;
                 knockbackMultiplier = 2f;
                 Debug.Log("💥⚔️⚔️⚔️ COMBO 3 - GOLPE FINAL!");
+
+                // NUEVO: Activar Camera Shake en el Combo 3
+                if (enableCombo3Shake && CameraShake.Instance != null)
+                {
+                    if (useImpactShake)
+                    {
+                        CameraShake.Instance.ShakeImpact(combo3ShakeMagnitude);
+                    }
+                    else
+                    {
+                        CameraShake.Instance.Shake(combo3ShakeDuration, combo3ShakeMagnitude, combo3ShakeFrequency);
+                    }
+                }
                 break;
         }
 
@@ -332,7 +352,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
             if (ps != null) ps.Play();
         }
 
-        // CAMBIO 5: Reducir knockback del jugador o eliminarlo en suelo
         if (!isAttackingDown && !isGrounded)
         {
             float knockbackDir = isFacingRight ? -1 : 1;
@@ -755,7 +774,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
             return true;
         }
 
-        // CAMBIO 6: Buscar también el componente EnemigoVolador
         var flyingEnemy = enemyCollider.GetComponent<EnemigoVolador>();
         if (flyingEnemy != null)
         {

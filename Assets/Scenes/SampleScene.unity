@@ -1288,6 +1288,7 @@ GameObject:
   - component: {fileID: 519420031}
   - component: {fileID: 519420029}
   - component: {fileID: 519420033}
+  - component: {fileID: 519420034}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -1385,6 +1386,18 @@ MonoBehaviour:
   VelocidadCamara: 15
   verticalDeadzone: 1.5
   offset: {x: 0, y: 1, z: -1.7}
+--- !u!114 &519420034
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 519420028}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4f02bbd6ba67c14cb2c914fee37f3bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &525078323
 GameObject:
   m_ObjectHideFlags: 0
@@ -4916,6 +4929,11 @@ MonoBehaviour:
   combo1Color: {r: 1, g: 1, b: 1, a: 1}
   combo2Color: {r: 1, g: 0.8, b: 0, a: 1}
   combo3Color: {r: 1, g: 0, b: 0, a: 1}
+  enableCombo3Shake: 1
+  combo3ShakeDuration: 0.25
+  combo3ShakeMagnitude: 0.5
+  combo3ShakeFrequency: 30
+  useImpactShake: 1
   enableDownAttack: 0
   downAttackPoint: {fileID: 0}
   downAttackEffect: {fileID: 0}
