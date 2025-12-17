@@ -1,9 +1,6 @@
 using UnityEngine;
 using System.Collections;
 
-// ============================================
-// ESPADA CAYENDO
-// ============================================
 public class FallingSword : MonoBehaviour
 {
     private float fallSpeed;
@@ -14,14 +11,23 @@ public class FallingSword : MonoBehaviour
     {
         fallSpeed = speed;
         damage = dmg;
+
+        // NO ROTAR - El prefab ya está en la orientación correcta
+        // transform.rotation ya está bien configurado en el prefab
     }
 
     void Update()
     {
         if (!hasHit)
         {
-            // CORREGIDO: Caer hacia ABAJO
+            // Caer hacia ABAJO
             transform.position += Vector3.down * fallSpeed * Time.deltaTime;
+
+            // Auto-destruir si cae fuera del mundo
+            if (transform.position.y < -50f)
+            {
+                Destroy(gameObject);
+            }
         }
     }
 
@@ -43,20 +49,18 @@ public class FallingSword : MonoBehaviour
         else if (collision.CompareTag("ground") || collision.gameObject.layer == LayerMask.NameToLayer("ground"))
         {
             hasHit = true;
-            // Clavar espada en el suelo
             StartCoroutine(StickAndDestroy());
         }
     }
 
     IEnumerator StickAndDestroy()
     {
-        // Detener movimiento
         fallSpeed = 0;
 
-        // Efecto visual de impacto
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         if (sr != null)
         {
+            // Efecto de impacto
             for (int i = 0; i < 3; i++)
             {
                 sr.color = Color.white;

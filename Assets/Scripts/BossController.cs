@@ -1,6 +1,6 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 using System.Collections;
-using UnityEngine.UI; // Necesario para manejar UI
+using UnityEngine.UI;
 
 public class BossController : MonoBehaviour, IAbsorbable, IResettable
 {
@@ -12,19 +12,23 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
     [Header("=== IA DEPREDADORA ===")]
     public float repositionSpeed = 12f;
+    public float optimalDistance = 7f;
+    public float retreatDistance = 3f;
 
     [Header("=== MOVIMIENTO: PASO VIRAL ===")]
-    public int hitsToTriggerTeleport = 3;
+    public int hitsToTriggerTeleport = 4;
     public float teleportDelay = 0.5f;
     private int currentHitCounter = 0;
     private bool isTeleporting = false;
+    private float lastTeleportTime = -999f;
+    private float minTeleportInterval = 3f;
 
     [Header("=== SISTEMA DE COMBATE ===")]
-    public float minAttackCooldown = 0.6f;
-    public float maxAttackCooldown = 1.2f;
+    public float minAttackCooldown = 1.2f;
+    public float maxAttackCooldown = 2.0f;
     private float attackCooldownTimer;
 
-    [Header("DaÒo por Contacto")]
+    [Header("Da√±o por Contacto")]
     public int bodyContactDamage = 1;
     public float bodyDamageCooldown = 1.0f;
     private float lastBodyDamageTime;
@@ -52,8 +56,8 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     public GameObject rightDoor;
     public float doorCloseDistance = 15f;
 
-    [Header("UI BOSS (Importante)")]
-    public GameObject bossHealthBarPrefab; // Arrastra el PREFAB de la barra
+    [Header("UI BOSS")]
+    public GameObject bossHealthBarPrefab;
     public string bossName = "EL REY PACIENTE";
     private BossHealthBar bossHealthBarUI;
     private bool arenaSealed = false;
@@ -63,11 +67,9 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     public GameObject FallingSwords;
     public GameObject GroundSpikes;
 
-    // LÌmites
     private float minArenaX;
     private float maxArenaX;
 
-    // Internas
     private Transform player;
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
@@ -81,6 +83,14 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     private enum BossPhase { Phase1, Phase2, Phase3 }
     private BossPhase currentPhase = BossPhase.Phase1;
     private Sprite bloodSprite;
+
+    private int lastAttackType = -1;
+    private int consecutiveMeleeAttacks = 0;
+    private int consecutiveRangedAttacks = 0;
+    private Vector2 preferredPosition;
+    private float repositionTimer = 0f;
+    private bool isCircling = false;
+    private float circleDirection = 1f;
 
     void Awake()
     {
@@ -116,7 +126,6 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         }
         else
         {
-            // Fallback si no hay puertas asignadas
             minArenaX = initialPosition.x - 12f;
             maxArenaX = initialPosition.x + 12f;
         }
@@ -160,27 +169,20 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     {
         if (isDead || player == null) return;
 
-        // --- SEGURIDAD ANTI-DESPAWN VISUAL ---
-        // Si no estamos teletransport·ndonos, asegurar que el sprite es visible
-        if (!isTeleporting && spriteRenderer != null && !spriteRenderer.enabled)
+        if (!isTeleporting && !isAttacking)
         {
-            spriteRenderer.enabled = true;
-            if (bossCollider) bossCollider.enabled = true;
-            rb.gravityScale = defaultGravity;
+            EnsureVisibility();
         }
 
-        // Clamp de posiciÛn (Evitar que salga de la arena)
-        float clampedX = Mathf.Clamp(transform.position.x, minArenaX, maxArenaX);
-        if (Mathf.Abs(transform.position.x - clampedX) > 0.5f) // Margen de error
-        {
-            transform.position = new Vector3(clampedX, transform.position.y, transform.position.z);
-            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
-        }
+        ClampToArena();
 
         float dist = Vector2.Distance(transform.position, player.position);
 
-        // Activar barra de vida si estamos cerca
-        if (!healthBarActivated && dist <= 20f) ActivateBossHealthBar();
+        if (!healthBarActivated && dist <= detectionRange)
+        {
+            ActivateBossHealthBar();
+        }
+
         if (!arenaSealed && dist <= doorCloseDistance) SealArena();
 
         if (dist <= detectionRange)
@@ -192,36 +194,54 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         UpdatePhase();
     }
 
-    // --- CORRECCI”N BARRA DE VIDA ---
-    void ActivateBossHealthBar()
+    void EnsureVisibility()
     {
-        if (!healthBarActivated && bossHealthBarPrefab)
+        if (spriteRenderer != null && !spriteRenderer.enabled)
         {
-            // 1. Instanciamos la barra
-            GameObject barObj = Instantiate(bossHealthBarPrefab);
-
-            // 2. Buscamos el Canvas en la escena
-            Canvas canvas = FindAnyObjectByType<Canvas>();
-            if (canvas != null)
-            {
-                // 3. Hacemos que la barra sea hija del Canvas para que se vea
-                barObj.transform.SetParent(canvas.transform, false);
-            }
-            else
-            {
-                Debug.LogError("°NO HAY CANVAS EN LA ESCENA! La barra de vida no se puede mostrar.");
-            }
-
-            bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
-            if (bossHealthBarUI)
-            {
-                bossHealthBarUI.Initialize(bossName, maxHealth);
-                healthBarActivated = true;
-            }
+            spriteRenderer.enabled = true;
+        }
+        if (bossCollider != null && !bossCollider.enabled)
+        {
+            bossCollider.enabled = true;
+        }
+        if (rb.gravityScale == 0 && !isInvulnerable)
+        {
+            rb.gravityScale = defaultGravity;
         }
     }
 
-    // --- DA—O POR CONTACTO ---
+    void ClampToArena()
+    {
+        float clampedX = Mathf.Clamp(transform.position.x, minArenaX, maxArenaX);
+        if (Mathf.Abs(transform.position.x - clampedX) > 0.1f)
+        {
+            transform.position = new Vector3(clampedX, transform.position.y, transform.position.z);
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        }
+    }
+
+    void ActivateBossHealthBar()
+    {
+        if (healthBarActivated || bossHealthBarPrefab == null) return;
+
+        Debug.Log("Activando barra de vida del boss...");
+
+        GameObject barObj = Instantiate(bossHealthBarPrefab);
+
+        bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
+        if (bossHealthBarUI != null)
+        {
+            bossHealthBarUI.Initialize(bossName, maxHealth);
+            healthBarActivated = true;
+            Debug.Log("‚úÖ Barra de vida inicializada correctamente");
+        }
+        else
+        {
+            Debug.LogError("‚ùå El prefab no tiene componente BossHealthBar");
+            Destroy(barObj);
+        }
+    }
+
     private void OnCollisionStay2D(Collision2D collision)
     {
         if (isDead || isTeleporting) return;
@@ -244,58 +264,211 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
         if (attackCooldownTimer <= 0f)
         {
-            StartCoroutine(PerformAggressiveAttack());
-            float mod = (currentPhase == BossPhase.Phase3) ? 0.5f : 1f;
-            attackCooldownTimer = Random.Range(minAttackCooldown, maxAttackCooldown) * mod;
+            StartCoroutine(PerformDarkSoulsAttack(dist));
+
+            float phaseMod = (currentPhase == BossPhase.Phase3) ? 0.5f :
+                            (currentPhase == BossPhase.Phase2) ? 0.7f : 1f;
+            attackCooldownTimer = Random.Range(minAttackCooldown, maxAttackCooldown) * phaseMod;
         }
         else
         {
-            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-            Vector2 dir = (player.position - transform.position).normalized;
-
-            if (dist > 5f)
-                rb.linearVelocity = new Vector2(dir.x * moveSpeed, rb.linearVelocity.y);
-            else
-                rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+            HandleAggressiveMovement(dist);
         }
     }
 
-    IEnumerator PerformAggressiveAttack()
+    void HandleAggressiveMovement(float dist)
     {
-        isAttacking = true;
-        rb.linearVelocity = Vector2.zero;
+        rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+        float dirX = Mathf.Sign(player.position.x - transform.position.x);
 
-        float roll = Random.Range(0f, 100f);
-        int attackType = 0;
-
-        if (currentPhase == BossPhase.Phase1) attackType = (roll < 50) ? 0 : 1;
-        else if (currentPhase == BossPhase.Phase2)
+        if (dist < retreatDistance)
         {
-            if (roll < 40) attackType = 0;
-            else if (roll < 70) attackType = 1;
-            else attackType = 2;
+            rb.linearVelocity = new Vector2(-dirX * repositionSpeed * 1.2f, rb.linearVelocity.y);
+        }
+        else if (dist > optimalDistance + 3f && dist <= detectionRange)
+        {
+            float dashMod = (currentPhase == BossPhase.Phase3 && Random.value < 0.3f) ? 1.8f : 1f;
+            rb.linearVelocity = new Vector2(dirX * moveSpeed * dashMod, rb.linearVelocity.y);
+        }
+        else if (dist > detectionRange)
+        {
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
         else
         {
-            if (roll < 25) attackType = 3;
-            else if (roll < 55) attackType = 0;
-            else if (roll < 80) attackType = 1;
-            else attackType = 2;
+            repositionTimer += Time.deltaTime;
+            if (repositionTimer > 1.5f)
+            {
+                circleDirection *= -1f;
+                repositionTimer = 0f;
+            }
+
+            float moveMod = (circleDirection > 0) ? 0.5f : -0.3f;
+            rb.linearVelocity = new Vector2(dirX * repositionSpeed * moveMod, rb.linearVelocity.y);
         }
+    }
+
+    IEnumerator PerformDarkSoulsAttack(float dist)
+    {
+        isAttacking = true;
+        rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+
+        int attackType = ChooseDarkSoulsAttack(dist);
 
         switch (attackType)
         {
-            case 0: yield return StartCoroutine(MeleeDashAttack()); break;
-            case 1: yield return StartCoroutine(SwordBarrage()); break;
-            case 2: yield return StartCoroutine(GroundSpikesAttack()); break;
-            case 3: yield return StartCoroutine(UltimateAttack()); break;
+            case 0:
+                consecutiveMeleeAttacks++;
+                consecutiveRangedAttacks = 0;
+                yield return StartCoroutine(MeleeDashAttack());
+                break;
+            case 1:
+                consecutiveMeleeAttacks = 0;
+                consecutiveRangedAttacks++;
+                yield return StartCoroutine(SwordBarrage());
+                break;
+            case 2:
+                consecutiveMeleeAttacks = 0;
+                consecutiveRangedAttacks++;
+                yield return StartCoroutine(GroundSpikesAttack());
+                break;
+            case 3:
+                consecutiveMeleeAttacks = 0;
+                consecutiveRangedAttacks = 0;
+                yield return StartCoroutine(UltimateAttack());
+                break;
+            case 4:
+                consecutiveMeleeAttacks++;
+                consecutiveRangedAttacks = 0;
+                yield return StartCoroutine(TripleSlashCombo());
+                break;
+            case 5:
+                consecutiveMeleeAttacks = 0;
+                consecutiveRangedAttacks++;
+                yield return StartCoroutine(CrossPatternAttack());
+                break;
         }
 
+        lastAttackType = attackType;
         isAttacking = false;
         if (spriteRenderer) spriteRenderer.color = Color.white;
     }
 
-    // --- ATAQUES ---
+    int ChooseDarkSoulsAttack(float dist)
+    {
+        if (consecutiveMeleeAttacks >= 2)
+        {
+            consecutiveMeleeAttacks = 0;
+            float r = Random.Range(0f, 100f);
+            if (r < 35) return 2;
+            else if (r < 70) return 1;
+            else return 5;
+        }
+
+        if (consecutiveRangedAttacks >= 3)
+        {
+            consecutiveRangedAttacks = 0;
+            return Random.Range(0f, 1f) < 0.6f ? 0 : 4;
+        }
+
+        if (currentPhase == BossPhase.Phase3)
+        {
+            if (dist < 5f)
+            {
+                float r = Random.Range(0f, 100f);
+                if (r < 40) return 4;
+                else if (r < 70) return 0;
+                else return 3;
+            }
+            else
+            {
+                float r = Random.Range(0f, 100f);
+                if (r < 25) return 5;
+                else if (r < 50) return 2;
+                else if (r < 75) return 1;
+                else return 3;
+            }
+        }
+        else if (currentPhase == BossPhase.Phase2)
+        {
+            if (dist < 6f)
+            {
+                float r = Random.Range(0f, 100f);
+                if (r < 50) return 0;
+                else if (r < 75) return 4;
+                else return 2;
+            }
+            else
+            {
+                float r = Random.Range(0f, 100f);
+                if (r < 40) return 1;
+                else if (r < 70) return 2;
+                else return 5;
+            }
+        }
+        else
+        {
+            if (dist < 7f)
+            {
+                return Random.Range(0f, 1f) < 0.7f ? 0 : 2;
+            }
+            else
+            {
+                return Random.Range(0f, 1f) < 0.6f ? 1 : 2;
+            }
+        }
+    }
+
+    IEnumerator TripleSlashCombo()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            if (spriteRenderer) spriteRenderer.color = new Color(1f, 0.5f, 0f);
+            FlipTowardsPlayer();
+            yield return new WaitForSeconds(0.2f);
+
+            if (spriteRenderer) spriteRenderer.color = Color.red;
+            Vector2 dir = (player.position - transform.position).normalized;
+            dir.y = 0;
+            rb.AddForce(dir * (meleeDashForce * 0.7f), ForceMode2D.Impulse);
+
+            yield return new WaitForSeconds(0.15f);
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+
+            Collider2D[] hits = Physics2D.OverlapBoxAll(meleeAttackPoint.position, meleeAttackBoxSize, 0f);
+            foreach (var hit in hits)
+            {
+                if (hit.CompareTag("Player"))
+                {
+                    hit.GetComponent<MainChar>()?.TakeDamage(1);
+                    Rigidbody2D prb = hit.GetComponent<Rigidbody2D>();
+                    if (prb) prb.AddForce(dir * meleeKnockback * 0.5f, ForceMode2D.Impulse);
+                }
+            }
+            yield return new WaitForSeconds(0.15f);
+        }
+    }
+
+    IEnumerator CrossPatternAttack()
+    {
+        if (spriteRenderer) spriteRenderer.color = new Color(1f, 0f, 1f);
+        yield return new WaitForSeconds(0.5f);
+
+        if (GroundSpikes != null)
+        {
+            Vector3 center = player.position;
+            center.y = initialPosition.y - 1.5f;
+
+            for (int i = -4; i <= 4; i++)
+            {
+                Vector3 pos = center + new Vector3(i * 2f, 0, 0);
+                pos.x = Mathf.Clamp(pos.x, minArenaX, maxArenaX);
+                StartCoroutine(SpawnSpike(pos));
+                yield return new WaitForSeconds(0.08f);
+            }
+        }
+    }
+
     IEnumerator MeleeDashAttack()
     {
         if (spriteRenderer) spriteRenderer.color = Color.yellow;
@@ -308,7 +481,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         rb.AddForce(dir * meleeDashForce, ForceMode2D.Impulse);
 
         yield return new WaitForSeconds(0.25f);
-        rb.linearVelocity = Vector2.zero;
+        rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
 
         Collider2D[] hits = Physics2D.OverlapBoxAll(meleeAttackPoint.position, meleeAttackBoxSize, 0f);
         foreach (var hit in hits)
@@ -327,26 +500,93 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     {
         if (spriteRenderer) spriteRenderer.color = Color.cyan;
         yield return new WaitForSeconds(0.3f);
-        if (spriteRenderer) spriteRenderer.color = Color.white;
 
         if (FallingSwords != null)
         {
-            for (int i = 0; i < swordsCount; i++)
+            int swordsMod = currentPhase == BossPhase.Phase3 ? swordsCount + 5 : swordsCount;
+
+            for (int i = 0; i < swordsMod; i++)
             {
                 if (player == null) break;
-                Vector3 spawnPos = transform.position + new Vector3(Random.Range(-2f, 2f), 4f, 0);
-                Vector2 dir = (player.position - spawnPos).normalized;
-                float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-                Quaternion rotation = Quaternion.AngleAxis(angle - 90, Vector3.forward);
 
-                GameObject sword = Instantiate(FallingSwords, spawnPos, rotation);
-                BossProjectile bp = sword.GetComponent<BossProjectile>();
-                if (bp == null) bp = sword.AddComponent<BossProjectile>();
-                bp.Initialize(dir, swordSpeed, 1, false);
+                Vector3 targetPos = player.position;
+                if (i > 0) targetPos += new Vector3(Random.Range(-4f, 4f), 0, 0);
+                targetPos.y = initialPosition.y - 1.5f;
+                targetPos.x = Mathf.Clamp(targetPos.x, minArenaX, maxArenaX);
 
-                yield return new WaitForSeconds(0.08f);
+                StartCoroutine(SpawnSwordWithWarning(targetPos));
+                yield return new WaitForSeconds(0.12f);
             }
         }
+
+        if (spriteRenderer) spriteRenderer.color = Color.white;
+    }
+
+    IEnumerator SpawnSwordWithWarning(Vector3 groundPos)
+    {
+        GameObject warning = CreateWarningIndicator(groundPos);
+
+        yield return new WaitForSeconds(0.6f);
+
+        Vector3 spawnPos = groundPos + Vector3.up * 8f;
+        GameObject sword = Instantiate(FallingSwords, spawnPos, Quaternion.identity);
+
+        FallingSword fs = sword.GetComponent<FallingSword>();
+        if (fs == null) fs = sword.AddComponent<FallingSword>();
+        fs.Initialize(swordSpeed, 1);
+
+        if (warning != null) Destroy(warning);
+    }
+
+    GameObject CreateWarningIndicator(Vector3 pos)
+    {
+        GameObject warning = new GameObject("SwordWarning");
+        warning.transform.position = pos;
+
+        SpriteRenderer sr = warning.AddComponent<SpriteRenderer>();
+        sr.sprite = CreateCircleSprite();
+        sr.color = new Color(1f, 0f, 0f, 0.5f);
+        sr.sortingOrder = 5;
+
+        StartCoroutine(BlinkWarning(sr));
+
+        return warning;
+    }
+
+    IEnumerator BlinkWarning(SpriteRenderer sr)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            if (sr == null) yield break;
+            sr.enabled = !sr.enabled;
+            yield return new WaitForSeconds(0.1f);
+        }
+    }
+
+    Sprite CreateCircleSprite()
+    {
+        int res = 64;
+        Texture2D tex = new Texture2D(res, res);
+        Vector2 center = new Vector2(res / 2, res / 2);
+        float radius = res / 2;
+
+        for (int y = 0; y < res; y++)
+        {
+            for (int x = 0; x < res; x++)
+            {
+                float dist = Vector2.Distance(new Vector2(x, y), center);
+                if (dist < radius && dist > radius - 4)
+                {
+                    tex.SetPixel(x, y, Color.red);
+                }
+                else
+                {
+                    tex.SetPixel(x, y, Color.clear);
+                }
+            }
+        }
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f));
     }
 
     IEnumerator GroundSpikesAttack()
@@ -356,18 +596,25 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
         if (GroundSpikes != null)
         {
-            for (int i = 0; i < geysersCount; i++)
+            int geysersMod = currentPhase == BossPhase.Phase3 ? geysersCount + 3 : geysersCount;
+
+            for (int i = 0; i < geysersMod; i++)
             {
                 if (player == null) break;
                 Vector3 target = player.position;
-                if (player.GetComponent<Rigidbody2D>().linearVelocity.x != 0)
-                    target += new Vector3(player.GetComponent<Rigidbody2D>().linearVelocity.x * 0.5f, 0, 0);
+
+                Rigidbody2D playerRb = player.GetComponent<Rigidbody2D>();
+                if (playerRb && playerRb.linearVelocity.x != 0)
+                {
+                    float prediction = currentPhase == BossPhase.Phase3 ? 0.7f : 0.5f;
+                    target += new Vector3(playerRb.linearVelocity.x * prediction, 0, 0);
+                }
 
                 target.y = initialPosition.y - 1.5f;
                 target.x = Mathf.Clamp(target.x, minArenaX, maxArenaX);
 
                 StartCoroutine(SpawnSpike(target));
-                yield return new WaitForSeconds(0.1f);
+                yield return new WaitForSeconds(0.12f);
             }
         }
     }
@@ -375,14 +622,17 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     IEnumerator SpawnSpike(Vector3 pos)
     {
         GameObject spike = Instantiate(GroundSpikes, pos, Quaternion.identity);
+        GroundSpike gs = spike.GetComponent<GroundSpike>();
+        if (gs == null) gs = spike.AddComponent<GroundSpike>();
+        gs.Initialize(geyserDamage);
+
         yield return new WaitForSeconds(geyserWarningTime);
+
         Collider2D[] hits = Physics2D.OverlapBoxAll(pos + Vector3.up * 1f, new Vector2(1.5f, 2f), 0f);
         foreach (var h in hits)
         {
             if (h.CompareTag("Player")) h.GetComponent<MainChar>()?.TakeDamage(geyserDamage);
         }
-        yield return new WaitForSeconds(0.5f);
-        Destroy(spike);
     }
 
     IEnumerator UltimateAttack()
@@ -393,7 +643,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         Vector3 centerPos = new Vector3((minArenaX + maxArenaX) / 2, initialPosition.y + 3f, 0);
 
         rb.gravityScale = 0;
-        rb.linearVelocity = Vector2.zero; // Frenar al flotar
+        rb.linearVelocity = Vector2.zero;
 
         while (t < 1f)
         {
@@ -402,7 +652,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
             yield return null;
         }
 
-        int waves = 3;
+        int waves = currentPhase == BossPhase.Phase3 ? 4 : 3;
         for (int w = 0; w < waves; w++)
         {
             for (int i = 0; i < bloodProjectiles; i++)
@@ -418,11 +668,12 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
         rb.gravityScale = defaultGravity;
 
-        while (transform.position.y > initialPosition.y)
+        while (transform.position.y > initialPosition.y + 0.5f)
         {
-            transform.position += Vector3.down * Time.deltaTime * 5f;
+            transform.position += Vector3.down * Time.deltaTime * 6f;
             yield return null;
         }
+
         isInvulnerable = false;
     }
 
@@ -440,55 +691,61 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     void FlipTowardsPlayer()
     {
         if (player == null) return;
-        float x = transform.localScale.x;
-        if (player.position.x < transform.position.x && x > 0) transform.localScale = new Vector3(-x, transform.localScale.y, 1);
-        else if (player.position.x > transform.position.x && x < 0) transform.localScale = new Vector3(-x, transform.localScale.y, 1);
+        float x = Mathf.Abs(transform.localScale.x);
+        if (player.position.x < transform.position.x)
+            transform.localScale = new Vector3(-x, transform.localScale.y, 1);
+        else
+            transform.localScale = new Vector3(x, transform.localScale.y, 1);
     }
 
-    // --- TELETRANSPORTE SEGURO ---
     IEnumerator DefensiveTeleport()
     {
         isTeleporting = true;
-        isAttacking = false;
-        StopAllCoroutines(); // Cancela ataques en curso
+        rb.linearVelocity = Vector2.zero;
 
-        // 1. Apagar visuales y gravedad (para que no caiga al infinito)
         if (bossCollider) bossCollider.enabled = false;
         if (spriteRenderer) spriteRenderer.enabled = false;
         rb.gravityScale = 0;
-        rb.linearVelocity = Vector2.zero;
 
         yield return new WaitForSeconds(teleportDelay);
 
-        // 2. Calcular nueva posiciÛn
         float randomX = Random.Range(minArenaX + 2f, maxArenaX - 2f);
 
-        // Evitar aparecer encima del jugador
-        if (Vector2.Distance(player.position, new Vector2(randomX, initialPosition.y)) < 5f)
-            randomX = (player.position.x > (minArenaX + maxArenaX) / 2) ? minArenaX + 3f : maxArenaX - 3f;
+        if (player != null)
+        {
+            float distToPlayer = Mathf.Abs(randomX - player.position.x);
+            if (distToPlayer < 5f)
+            {
+                randomX = (player.position.x > (minArenaX + maxArenaX) / 2) ? minArenaX + 3f : maxArenaX - 3f;
+            }
+        }
 
-        // 3. Set Position con Z=0 estricto para evitar problemas de visualizaciÛn
         transform.position = new Vector3(randomX, initialPosition.y, 0);
 
-        // 4. Reactivar
         if (spriteRenderer) spriteRenderer.enabled = true;
         if (bossCollider) bossCollider.enabled = true;
         rb.gravityScale = defaultGravity;
 
         isTeleporting = false;
         currentHitCounter = 0;
-        attackCooldownTimer = 0.5f;
+        lastTeleportTime = Time.time;
+        attackCooldownTimer = 0.8f;
     }
 
     public void TakeDamage(int dmg, int dir)
     {
-        if (isDead || isTeleporting || isInvulnerable) return;
+        if (isDead || isInvulnerable || isTeleporting) return;
 
         currentHealth -= dmg;
         currentHitCounter++;
+
         if (bossHealthBarUI) bossHealthBarUI.UpdateHealth(currentHealth);
 
-        if (currentHitCounter >= hitsToTriggerTeleport && !isAttacking)
+        bool canTeleport = !isAttacking &&
+                          (Time.time - lastTeleportTime) > minTeleportInterval &&
+                          currentHitCounter >= hitsToTriggerTeleport;
+
+        if (canTeleport)
         {
             StartCoroutine(DefensiveTeleport());
         }
@@ -504,7 +761,8 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     {
         if (spriteRenderer) spriteRenderer.color = Color.red;
         yield return new WaitForSeconds(0.1f);
-        if (!isDead && !isAttacking) spriteRenderer.color = Color.white;
+        if (!isDead && !isAttacking && spriteRenderer)
+            spriteRenderer.color = Color.white;
     }
 
     void Die()
@@ -529,31 +787,75 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         StopAllCoroutines();
         currentHealth = maxHealth;
         transform.position = initialPosition;
+        transform.localScale = new Vector3(Mathf.Abs(transform.localScale.x), transform.localScale.y, 1);
         gameObject.SetActive(true);
+
         isDead = false;
         isAttacking = false;
         isTeleporting = false;
+        isInvulnerable = false;
+        currentHitCounter = 0;
+        consecutiveMeleeAttacks = 0;
+        consecutiveRangedAttacks = 0;
+        lastTeleportTime = -999f;
+        arenaSealed = false;
+        healthBarActivated = false;
 
-        // Reset vitales
-        if (spriteRenderer) spriteRenderer.enabled = true;
+        if (spriteRenderer)
+        {
+            spriteRenderer.enabled = true;
+            spriteRenderer.color = Color.white;
+        }
         if (bossCollider) bossCollider.enabled = true;
-        if (rb) rb.gravityScale = defaultGravity;
+
+        if (rb)
+        {
+            rb.gravityScale = defaultGravity;
+            rb.linearVelocity = Vector2.zero;
+        }
+
+        if (bossHealthBarUI)
+        {
+            Destroy(bossHealthBarUI.gameObject);
+            bossHealthBarUI = null;
+        }
 
         SetDoorsState(false);
     }
+
     public bool CanBeAbsorbed() => isDead;
     public void OnAbsorbed() { Destroy(gameObject); }
     public bool IsBoss => true;
-    void SetDoorsState(bool a) { if (leftDoor) leftDoor.SetActive(a); if (rightDoor) rightDoor.SetActive(a); }
-    void SealArena() { arenaSealed = true; SetDoorsState(true); }
-    void UnsealArena() { arenaSealed = false; SetDoorsState(false); }
+
+    void SetDoorsState(bool active)
+    {
+        if (leftDoor) leftDoor.SetActive(active);
+        if (rightDoor) rightDoor.SetActive(active);
+    }
+
+    void SealArena()
+    {
+        arenaSealed = true;
+        SetDoorsState(true);
+    }
+
+    void UnsealArena()
+    {
+        arenaSealed = false;
+        SetDoorsState(false);
+    }
 
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
-        Gizmos.DrawWireCube(meleeAttackPoint != null ? meleeAttackPoint.position : transform.position, meleeAttackBoxSize);
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawWireCube(transform.position + Vector3.down * 1.5f, new Vector2(1.5f, 2f));
+        if (meleeAttackPoint != null)
+            Gizmos.DrawWireCube(meleeAttackPoint.position, meleeAttackBoxSize);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, optimalDistance);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, retreatDistance);
     }
 }

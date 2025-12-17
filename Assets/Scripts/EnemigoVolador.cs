@@ -5,12 +5,14 @@ public class EnemigoVolador : MonoBehaviour
 {
     [Header("=== SALUD ===")]
     public int health = 3;
-    public float invincibilityTime = 0.5f;
+    // CAMBIO 1: Reducir invencibilidad para que sea más fácil de golpear
+    public float invincibilityTime = 0.25f; // Era 0.5f
     private bool isInvincible = false;
     public Vector2 knockbackForce = new Vector2(4f, 3f);
 
     [Header("=== PROTECCIÓN ANTI-VUELO ===")]
-    public float knockbackInvincibilityTime = 0.3f;
+    // CAMBIO 2: Reducir tiempo de invencibilidad por knockback
+    public float knockbackInvincibilityTime = 0.15f; // Era 0.3f
     private bool isKnockbackInvincible = false;
 
     [Header("=== DETECCIÓN ===")]
@@ -21,17 +23,20 @@ public class EnemigoVolador : MonoBehaviour
     public Transform detectionPoint;
 
     [Header("=== COMPORTAMIENTO DE VUELO ===")]
-    public float moveSpeed = 3f;
-    public float chaseSpeed = 5f;
-    public float fleeSpeed = 7f;
+    // CAMBIO 3: Reducir velocidad de movimiento para hacerlo más predecible
+    public float moveSpeed = 2f; // Era 3f
+    public float chaseSpeed = 3.5f; // Era 5f
+    public float fleeSpeed = 5f; // Era 7f
     public float guardTime = 0.8f;
     public float attackCooldown = 1.5f;
-    public float repositionTime = 2f;
-    public float repositionDistance = 5f;
+    // CAMBIO 4: Reducir tiempo de huida
+    public float repositionTime = 1.2f; // Era 2f
+    public float repositionDistance = 3f; // Era 5f
 
     [Header("=== MOVIMIENTO VERTICAL ===")]
     public float hoverHeight = 0.5f;
-    public float verticalSpeed = 4f;
+    // CAMBIO 5: Reducir velocidad vertical
+    public float verticalSpeed = 2.5f; // Era 4f
     public float smoothTime = 0.3f;
 
     [Header("=== PATRULLA AÉREA ===")]
@@ -45,13 +50,10 @@ public class EnemigoVolador : MonoBehaviour
     public float attackRadius = 1f;
     public int attackDamage = 1;
     public float attackDuration = 0.3f;
-    [Tooltip("Velocidad del dash diagonal hacia el jugador")]
-    public float diagonalAttackSpeed = 12f;
-    [Tooltip("Duración del movimiento diagonal antes de golpear")]
+    // CAMBIO 6: Reducir velocidad de ataque para que sea más esquivable
+    public float diagonalAttackSpeed = 8f; // Era 12f
     public float diagonalDashTime = 0.25f;
-    [Tooltip("Tiempo de reposición después del ataque")]
     public float attackRepositionTime = 0.4f;
-    [Tooltip("Distancia de reposición después del ataque")]
     public float attackRepositionDistance = 3f;
 
     [Header("=== EFECTOS VISUALES ===")]
@@ -73,7 +75,8 @@ public class EnemigoVolador : MonoBehaviour
         Chase,
         Attack,
         Flee,
-        Reposition
+        Reposition,
+        Stunned // CAMBIO 7: Nuevo estado para cuando recibe daño
     }
 
     private EnemyState currentState = EnemyState.Idle;
@@ -144,11 +147,7 @@ public class EnemigoVolador : MonoBehaviour
 
     void Update()
     {
-        if (isInvincible && currentState != EnemyState.Flee && currentState != EnemyState.Reposition)
-        {
-            return;
-        }
-
+        // CAMBIO 8: No bloquear Update durante invencibilidad
         attackTimer -= Time.deltaTime;
 
         Vector3 detectionPos = detectionPoint.position;
@@ -158,7 +157,8 @@ public class EnemigoVolador : MonoBehaviour
         bool playerInAttackRange = canSeePlayer && distanceToPlayer <= attackRange;
 
         if (canSeePlayer && player != null && currentState != EnemyState.Attack &&
-            currentState != EnemyState.Flee && currentState != EnemyState.Reposition)
+            currentState != EnemyState.Flee && currentState != EnemyState.Reposition &&
+            currentState != EnemyState.Stunned)
         {
             LookAtPlayer();
         }
@@ -195,6 +195,10 @@ public class EnemigoVolador : MonoBehaviour
 
             case EnemyState.Reposition:
                 HandleReposition(canSeePlayer);
+                break;
+
+            case EnemyState.Stunned:
+                // Durante stunned, solo esperar a que termine la invencibilidad
                 break;
         }
 
@@ -515,12 +519,10 @@ public class EnemigoVolador : MonoBehaviour
             yield break;
         }
 
-        // Calcular dirección diagonal hacia el jugador
         Vector2 startPos = transform.position;
         Vector2 targetPos = player.position;
         Vector2 diagonalDirection = (targetPos - startPos).normalized;
 
-        // FASE 1: Dash diagonal hacia el jugador
         float dashTimer = 0f;
         while (dashTimer < diagonalDashTime)
         {
@@ -529,7 +531,6 @@ public class EnemigoVolador : MonoBehaviour
             yield return null;
         }
 
-        // FASE 2: Realizar el golpe
         if (attackEffect != null && attackPoint != null)
         {
             GameObject effect = Instantiate(attackEffect, attackPoint);
@@ -579,8 +580,7 @@ public class EnemigoVolador : MonoBehaviour
 
         yield return new WaitForSeconds(attackDuration);
 
-        // FASE 3: Reposicionarse después del ataque
-        Vector2 repositionDirection = -diagonalDirection; // Dirección opuesta al ataque
+        Vector2 repositionDirection = -diagonalDirection;
         float repositionTimer = 0f;
 
         while (repositionTimer < attackRepositionTime)
@@ -590,7 +590,6 @@ public class EnemigoVolador : MonoBehaviour
             yield return null;
         }
 
-        // Frenar gradualmente
         float slowDownTimer = 0f;
         float slowDownDuration = 0.2f;
         Vector2 currentVel = rb.linearVelocity;
@@ -654,9 +653,10 @@ public class EnemigoVolador : MonoBehaviour
         Debug.Log($"{gameObject.name}: Nuevo punto de patrulla en {currentPatrolTarget}");
     }
 
+    // CAMBIO 9: Método TakeDamage mejorado
     public void TakeDamage(int damage, float knockbackDirection)
     {
-        if (isInvincible || isKnockbackInvincible)
+        if (isInvincible)
         {
             Debug.Log($"{gameObject.name}: Invencible - Daño ignorado");
             return;
@@ -665,12 +665,13 @@ public class EnemigoVolador : MonoBehaviour
         health -= damage;
         Debug.Log($"{gameObject.name}: Recibió {damage} de daño. Vida: {health}");
 
+        // CAMBIO 10: Aplicar knockback más fuerte
         if (rb != null)
         {
             rb.linearVelocity = Vector2.zero;
             rb.linearVelocity = new Vector2(
-                knockbackForce.x * knockbackDirection,
-                knockbackForce.y
+                knockbackForce.x * knockbackDirection * 1.5f, // Más knockback horizontal
+                knockbackForce.y * 1.2f // Más knockback vertical
             );
         }
 
@@ -682,8 +683,9 @@ public class EnemigoVolador : MonoBehaviour
         }
         else
         {
-            StartCoroutine(FlashAndFlee());
-            StartCoroutine(KnockbackInvincibility());
+            // CAMBIO 11: Entrar en estado Stunned al recibir daño
+            currentState = EnemyState.Stunned;
+            StartCoroutine(StunAndRecover());
         }
     }
 
@@ -693,13 +695,15 @@ public class EnemigoVolador : MonoBehaviour
         Destroy(gameObject);
     }
 
-    IEnumerator FlashAndFlee()
+    // CAMBIO 12: Nueva corrutina de stun simplificada
+    IEnumerator StunAndRecover()
     {
         isInvincible = true;
 
-        float flashDuration = invincibilityTime / 10f;
+        float flashDuration = invincibilityTime / 8f;
 
-        for (int i = 0; i < 5; i++)
+        // Flash visual
+        for (int i = 0; i < 4; i++)
         {
             if (spriteRenderer != null) spriteRenderer.color = Color.red;
             yield return new WaitForSeconds(flashDuration);
@@ -709,14 +713,23 @@ public class EnemigoVolador : MonoBehaviour
 
         isInvincible = false;
 
-        EnterFleeState();
-    }
-
-    IEnumerator KnockbackInvincibility()
-    {
-        isKnockbackInvincible = true;
-        yield return new WaitForSeconds(knockbackInvincibilityTime);
-        isKnockbackInvincible = false;
+        // Después del stun, entrar en estado de alerta para buscar al jugador
+        if (player != null)
+        {
+            float distanceToPlayer = Vector2.Distance(transform.position, player.position);
+            if (distanceToPlayer <= detectionRange)
+            {
+                EnterAlertState();
+            }
+            else
+            {
+                ReturnToPatrol();
+            }
+        }
+        else
+        {
+            ReturnToPatrol();
+        }
     }
 
     void UpdateAnimations()

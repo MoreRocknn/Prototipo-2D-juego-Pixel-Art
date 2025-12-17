@@ -11,28 +11,32 @@ public class GroundSpike : MonoBehaviour
     {
         damage = dmg;
 
-        // CORRECCIÓN DEFINITIVA: 
-        // Tu sprite apunta HACIA ARRIBA (↑)
-        // Para que quede HORIZONTAL (→), necesitamos rotar -90°
-        transform.rotation = Quaternion.Euler(0, 0, 0);
-        // Si apunta al lado contrario, cambia a 90f
+        // Rotación correcta para que el spike apunte hacia arriba
+        transform.rotation = Quaternion.identity;
 
         StartCoroutine(SpikeLifecycle());
     }
 
     IEnumerator SpikeLifecycle()
     {
-        // Aparece instantáneamente (como las espadas)
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
+
+        // Efecto de advertencia parpadeante
         if (sr != null)
         {
-            for (int i = 0; i < 3; i++)
+            Color originalColor = sr.color;
+            Color warningColor = new Color(1f, 0f, 0f, 0.5f); // Rojo semi-transparente
+
+            for (int i = 0; i < 6; i++)
             {
-                sr.enabled = false;
-                yield return new WaitForSeconds(0.05f);
-                sr.enabled = true;
-                yield return new WaitForSeconds(0.05f);
+                sr.color = warningColor;
+                yield return new WaitForSeconds(0.1f);
+                sr.color = originalColor;
+                yield return new WaitForSeconds(0.1f);
             }
+
+            // Restaurar color original
+            sr.color = originalColor;
         }
 
         // Esperar antes de destruir

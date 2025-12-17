@@ -149,15 +149,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 640a38c0acdc0934588a4f4b4eccb2ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  healthSlider: {fileID: 8400130456817952944}
   bossNameText: {fileID: 5728783025992431142}
-  healthBarFill: {fileID: 1511637993541457942}
-  healthBarBackground: {fileID: 8288828803553497147}
-  canvasGroup: {fileID: 8998980200650000379}
-  fadeInDuration: 1
-  fadeOutDuration: 0.5
-  healthBarColor: {r: 1, g: 0, b: 0, a: 1}
+  fillImage: {fileID: 1511637993541457942}
+  highHealthColor: {r: 1, g: 0, b: 0, a: 1}
+  midHealthColor: {r: 1, g: 0.5, b: 0, a: 1}
   lowHealthColor: {r: 0.8, g: 0.1, b: 0.1, a: 1}
-  fontAsset: {fileID: 0}
 --- !u!225 &8998980200650000379
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -464,7 +461,7 @@ MonoBehaviour:
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 0
-  m_FillAmount: 1
+  m_FillAmount: 0
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0

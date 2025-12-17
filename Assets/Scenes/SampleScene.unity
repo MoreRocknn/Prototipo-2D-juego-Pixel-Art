@@ -1058,7 +1058,6 @@ GameObject:
   - component: {fileID: 451731775}
   - component: {fileID: 451731774}
   - component: {fileID: 451731773}
-  - component: {fileID: 451731772}
   m_Layer: 7
   m_Name: r
   m_TagString: Enemy
@@ -1066,28 +1065,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &451731772
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 451731771}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 130e9c6aba36f7943a6cd23366ec2829, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  absorbKey: 101
-  absorptionRange: 2
-  absorptionTargetLayer:
-    serializedVersion: 2
-    m_Bits: 0
-  absorptionEffectPrefab: {fileID: 0}
-  absorptionBeamColor: {r: 0, g: 1, b: 1, a: 1}
-  absorptionPromptUI: {fileID: 0}
-  absorptionText: {fileID: 0}
-  absorptionIndicatorPrefab: {fileID: 0}
 --- !u!114 &451731773
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1104,14 +1081,16 @@ MonoBehaviour:
   moveSpeed: 5
   detectionRange: 18.9
   repositionSpeed: 12
+  optimalDistance: 7
+  retreatDistance: 3
   hitsToTriggerTeleport: 3
   teleportDelay: 0.15
   minAttackCooldown: 0.6
   maxAttackCooldown: 1.2
   bodyContactDamage: 1
   bodyDamageCooldown: 1
-  meleeAttackPoint: {fileID: 0}
-  meleeAttackBoxSize: {x: 4.88, y: 2.26}
+  meleeAttackPoint: {fileID: 972853156}
+  meleeAttackBoxSize: {x: 1.31, y: 2.22}
   meleeAttackDamage: 2
   meleeWindup: 0.4
   meleeDashForce: 50
@@ -1126,10 +1105,10 @@ MonoBehaviour:
   leftDoor: {fileID: 316258986}
   rightDoor: {fileID: 1152376265}
   doorCloseDistance: 15
-  bossHealthBarPrefab: {fileID: 8470190603193729950, guid: 36bc94b2ef887b04fb2b161d1729095f, type: 3}
+  bossHealthBarPrefab: {fileID: 1530732374279662711, guid: 019bd4d12e1891c45bd87846120e8e79, type: 3}
   bossName: EL REY PACIENTE
-  FallingSwords: {fileID: 0}
-  GroundSpikes: {fileID: 0}
+  FallingSwords: {fileID: 2838053733939832622, guid: 6e1340d69a37823439072a4c01f83291, type: 3}
+  GroundSpikes: {fileID: 4607953794918522256, guid: f2a267290e9b3f44499dff8b1e49153e, type: 3}
 --- !u!70 &451731774
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -1258,11 +1237,12 @@ Transform:
   m_GameObject: {fileID: 451731771}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 102.59, y: -6.95, z: 0}
+  m_LocalPosition: {x: 102.56, y: -6.95, z: 0}
   m_LocalScale: {x: 1.4066, y: 1.4066, z: 1.4066}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1024458571}
+  - {fileID: 972853156}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &500623607
@@ -2986,6 +2966,37 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!1 &972853155
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 972853156}
+  m_Layer: 7
+  m_Name: MeleeAttack
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &972853156
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 972853155}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.79, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 451731777}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &973469673
 GameObject:
   m_ObjectHideFlags: 0
@@ -3770,7 +3781,7 @@ Transform:
   m_GameObject: {fileID: 1024458570}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.34, y: 0, z: 0}
+  m_LocalPosition: {x: -0.69, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4702,6 +4713,7 @@ GameObject:
   - component: {fileID: 1229963978}
   - component: {fileID: 1229963982}
   - component: {fileID: 1229963983}
+  - component: {fileID: 1229963984}
   m_Layer: 9
   m_Name: MainChar
   m_TagString: Player
@@ -4886,15 +4898,24 @@ MonoBehaviour:
   canWallGrab: 1
   wallGrabKey: 324
   wallGrabStaminaMax: 3
+  combo1Damage: 2
+  combo2Damage: 2
+  combo3Damage: 4
+  comboResetTime: 1
+  attackAnimationDuration: 0.3
   attackPoint: {fileID: 251638998}
   attackRange: 0.5
   enemyLayer:
     serializedVersion: 2
     m_Bits: 128
-  attackDamage: 1
   playerKnockbackForce: 3
   sideAttackEffect: {fileID: 6262776865070091550}
-  attackRate: 0.6
+  combo1Effect: {fileID: 0}
+  combo2Effect: {fileID: 0}
+  combo3Effect: {fileID: 0}
+  combo1Color: {r: 1, g: 1, b: 1, a: 1}
+  combo2Color: {r: 1, g: 0.8, b: 0, a: 1}
+  combo3Color: {r: 1, g: 0, b: 0, a: 1}
   enableDownAttack: 0
   downAttackPoint: {fileID: 0}
   downAttackEffect: {fileID: 0}
@@ -4942,6 +4963,28 @@ MonoBehaviour:
   healSound: {fileID: 0}
   healFlashColor: {r: 0.3, g: 1, b: 0.3, a: 1}
   healFlashDuration: 0.5
+--- !u!114 &1229963984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229963976}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 130e9c6aba36f7943a6cd23366ec2829, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  absorbKey: 101
+  absorptionRange: 2
+  absorptionTargetLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  absorptionEffectPrefab: {fileID: 0}
+  absorptionBeamColor: {r: 0, g: 1, b: 1, a: 1}
+  absorptionPromptUI: {fileID: 0}
+  absorptionText: {fileID: 0}
+  absorptionIndicatorPrefab: {fileID: 0}
 --- !u!1 &1245978745
 GameObject:
   m_ObjectHideFlags: 0

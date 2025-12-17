@@ -1,45 +1,50 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.UI;
-using TMPro; // Necesario para TextMeshPro
+using TMPro;
 
 public class BossHealthBar : MonoBehaviour
 {
     [Header("Referencias UI")]
-    public TextMeshProUGUI bossNameText; // Cambiado de Text a TextMeshProUGUI
-    public Image healthBarFill;
-    public Image healthBarBackground;
-    public CanvasGroup canvasGroup;
+    public Slider healthSlider;
+    public TextMeshProUGUI bossNameText;
+    public Image fillImage;
 
-    [Header("Configuración")]
-    public float fadeInDuration = 1f;
-    public float fadeOutDuration = 0.5f;
-    public Color healthBarColor = Color.red;
-    public Color lowHealthColor = new Color(0.8f, 0.1f, 0.1f);
-
-    // Asigna aquí tu fuente SDF (ej. LiberationSans SDF) si se crea por código
-    public TMP_FontAsset fontAsset;
+    [Header("Colores")]
+    public Color highHealthColor = Color.red;
+    public Color midHealthColor = new Color(1f, 0.5f, 0f); // Naranja
+    public Color lowHealthColor = new Color(0.5f, 0f, 0f); // Rojo oscuro
 
     private int maxHealth;
-    private int currentHealth;
-    private bool isVisible = false;
+    private CanvasGroup canvasGroup;
 
     void Awake()
     {
-        // Si no hay referencias asignadas, crear la UI dinámicamente
-        if (bossNameText == null || healthBarFill == null)
+        canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
         {
-            CreateHealthBarUI();
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
         }
 
-        if (canvasGroup != null)
+        // Buscar referencias automÃ¡ticamente si no estÃ¡n asignadas
+        if (healthSlider == null)
+            healthSlider = GetComponentInChildren<Slider>();
+
+        if (bossNameText == null)
+            bossNameText = GetComponentInChildren<TextMeshProUGUI>();
+
+        if (fillImage == null && healthSlider != null)
+            fillImage = healthSlider.fillRect.GetComponent<Image>();
+
+        // Si NO encuentra nada, crear UI dinÃ¡micamente
+        if (bossNameText == null || healthSlider == null)
         {
-            canvasGroup.alpha = 0f;
+            CreateHealthBarUI();
         }
     }
 
     void CreateHealthBarUI()
     {
-        // Crear Canvas
+        // Crear Canvas si no existe
         Canvas canvas = GetComponent<Canvas>();
         if (canvas == null)
         {
@@ -56,9 +61,10 @@ public class BossHealthBar : MonoBehaviour
             scaler.referenceResolution = new Vector2(1920, 1080);
         }
 
-        if (canvasGroup == null)
+        GraphicRaycaster raycaster = GetComponent<GraphicRaycaster>();
+        if (raycaster == null)
         {
-            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+            gameObject.AddComponent<GraphicRaycaster>();
         }
 
         // Panel contenedor
@@ -72,18 +78,15 @@ public class BossHealthBar : MonoBehaviour
         panelRect.anchoredPosition = new Vector2(0, -50);
         panelRect.sizeDelta = new Vector2(800, 100);
 
-        // Nombre del Boss (TMP)
+        // Nombre del Boss (TextMeshProUGUI)
         GameObject nameObj = new GameObject("BossName");
         nameObj.transform.SetParent(panel.transform, false);
 
         bossNameText = nameObj.AddComponent<TextMeshProUGUI>();
-
-        // Configuración específica de TMP
-        if (fontAsset != null) bossNameText.font = fontAsset;
         bossNameText.text = "BOSS";
         bossNameText.fontSize = 36;
-        bossNameText.fontStyle = FontStyles.Bold; // Enum de TMP
-        bossNameText.alignment = TextAlignmentOptions.Center; // Enum de TMP
+        bossNameText.fontStyle = FontStyles.Bold;
+        bossNameText.alignment = TextAlignmentOptions.Center;
         bossNameText.color = Color.white;
 
         RectTransform nameRect = nameObj.GetComponent<RectTransform>();
@@ -97,7 +100,7 @@ public class BossHealthBar : MonoBehaviour
         GameObject bgObj = new GameObject("HealthBarBackground");
         bgObj.transform.SetParent(panel.transform, false);
 
-        healthBarBackground = bgObj.AddComponent<Image>();
+        Image healthBarBackground = bgObj.AddComponent<Image>();
         healthBarBackground.color = new Color(0.2f, 0.2f, 0.2f, 0.8f);
 
         RectTransform bgRect = bgObj.GetComponent<RectTransform>();
@@ -107,131 +110,115 @@ public class BossHealthBar : MonoBehaviour
         bgRect.anchoredPosition = Vector2.zero;
         bgRect.sizeDelta = new Vector2(-40, -10);
 
-        // Barra de vida
-        GameObject fillObj = new GameObject("HealthBarFill");
-        fillObj.transform.SetParent(bgObj.transform, false);
+        // Crear Slider
+        GameObject sliderObj = new GameObject("HealthSlider");
+        sliderObj.transform.SetParent(bgObj.transform, false);
 
-        healthBarFill = fillObj.AddComponent<Image>();
-        healthBarFill.color = healthBarColor;
-        healthBarFill.type = Image.Type.Filled;
-        healthBarFill.fillMethod = Image.FillMethod.Horizontal;
-        healthBarFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        healthSlider = sliderObj.AddComponent<Slider>();
+
+        RectTransform sliderRect = sliderObj.GetComponent<RectTransform>();
+        sliderRect.anchorMin = Vector2.zero;
+        sliderRect.anchorMax = Vector2.one;
+        sliderRect.sizeDelta = Vector2.zero;
+
+        // Fill Area
+        GameObject fillArea = new GameObject("Fill Area");
+        fillArea.transform.SetParent(sliderObj.transform, false);
+        RectTransform fillAreaRect = fillArea.AddComponent<RectTransform>();
+        fillAreaRect.anchorMin = Vector2.zero;
+        fillAreaRect.anchorMax = Vector2.one;
+        fillAreaRect.sizeDelta = Vector2.zero;
+
+        // Barra de vida (Fill)
+        GameObject fillObj = new GameObject("Fill");
+        fillObj.transform.SetParent(fillArea.transform, false);
+
+        fillImage = fillObj.AddComponent<Image>();
+        fillImage.color = highHealthColor;
+        fillImage.type = Image.Type.Filled;
+        fillImage.fillMethod = Image.FillMethod.Horizontal;
+        fillImage.fillOrigin = (int)Image.OriginHorizontal.Left;
 
         RectTransform fillRect = fillObj.GetComponent<RectTransform>();
-        fillRect.anchorMin = new Vector2(0f, 0f);
-        fillRect.anchorMax = new Vector2(1f, 1f);
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = Vector2.one;
         fillRect.pivot = new Vector2(0.5f, 0.5f);
         fillRect.anchoredPosition = Vector2.zero;
         fillRect.sizeDelta = Vector2.zero;
+
+        // Configurar slider
+        healthSlider.fillRect = fillRect;
+        healthSlider.minValue = 0;
+        healthSlider.maxValue = 100;
+        healthSlider.value = 100;
+        healthSlider.interactable = false;
+
+        Debug.Log("âœ… UI de BossHealthBar creada dinÃ¡micamente con TextMeshProUGUI");
     }
 
-    public void Initialize(string bossName, int maxHp)
+    public void Initialize(string name, int maxHp)
     {
         maxHealth = maxHp;
-        currentHealth = maxHp;
 
         if (bossNameText != null)
+            bossNameText.text = name;
+
+        if (healthSlider != null)
         {
-            bossNameText.text = bossName.ToUpper();
+            healthSlider.maxValue = maxHp;
+            healthSlider.value = maxHp;
         }
 
-        if (healthBarFill != null)
-        {
-            healthBarFill.fillAmount = 1f;
-        }
-
+        UpdateHealthColor(maxHp);
         Show();
+
+        Debug.Log($"âœ… BossHealthBar inicializada: {name} ({maxHp} HP)");
     }
 
-    public void UpdateHealth(int newHealth)
+    public void UpdateHealth(int currentHp)
     {
-        currentHealth = Mathf.Clamp(newHealth, 0, maxHealth);
-
-        if (healthBarFill != null)
+        if (healthSlider != null)
         {
-            float targetFill = (float)currentHealth / maxHealth;
-            StopAllCoroutines();
-            StartCoroutine(SmoothUpdateHealthBar(targetFill));
-        }
-
-        // Cambiar color en vida baja
-        if (healthBarFill != null && currentHealth <= maxHealth * 0.3f)
-        {
-            healthBarFill.color = lowHealthColor;
+            healthSlider.value = currentHp;
+            UpdateHealthColor(currentHp);
         }
     }
 
-    System.Collections.IEnumerator SmoothUpdateHealthBar(float targetFill)
+    void UpdateHealthColor(int currentHp)
     {
-        float currentFill = healthBarFill.fillAmount;
-        float elapsed = 0f;
-        float duration = 0.5f;
+        if (fillImage == null || maxHealth == 0) return;
 
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            healthBarFill.fillAmount = Mathf.Lerp(currentFill, targetFill, elapsed / duration);
-            yield return null;
-        }
+        float healthPercent = (float)currentHp / maxHealth;
 
-        healthBarFill.fillAmount = targetFill;
+        if (healthPercent > 0.6f)
+            fillImage.color = highHealthColor;
+        else if (healthPercent > 0.3f)
+            fillImage.color = midHealthColor;
+        else
+            fillImage.color = lowHealthColor;
     }
 
     public void Show()
     {
-        if (isVisible) return;
-        isVisible = true;
-        StopAllCoroutines();
-        StartCoroutine(FadeIn());
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 1f;
+            canvasGroup.interactable = true;
+            canvasGroup.blocksRaycasts = true;
+        }
+        gameObject.SetActive(true);
     }
 
     public void Hide()
     {
-        if (!isVisible) return;
-        isVisible = false;
-        StopAllCoroutines();
-        StartCoroutine(FadeOut());
-    }
-
-    System.Collections.IEnumerator FadeIn()
-    {
-        float elapsed = 0f;
-
-        while (elapsed < fadeInDuration)
-        {
-            elapsed += Time.deltaTime;
-            if (canvasGroup != null)
-            {
-                canvasGroup.alpha = Mathf.Lerp(0f, 1f, elapsed / fadeInDuration);
-            }
-            yield return null;
-        }
-
-        if (canvasGroup != null)
-        {
-            canvasGroup.alpha = 1f;
-        }
-    }
-
-    System.Collections.IEnumerator FadeOut()
-    {
-        float elapsed = 0f;
-
-        while (elapsed < fadeOutDuration)
-        {
-            elapsed += Time.deltaTime;
-            if (canvasGroup != null)
-            {
-                canvasGroup.alpha = Mathf.Lerp(1f, 0f, elapsed / fadeOutDuration);
-            }
-            yield return null;
-        }
-
         if (canvasGroup != null)
         {
             canvasGroup.alpha = 0f;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
         }
 
-        Destroy(gameObject);
+        // Destruir despuÃ©s de un delay
+        Destroy(gameObject, 0.5f);
     }
 }

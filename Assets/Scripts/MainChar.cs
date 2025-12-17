@@ -37,19 +37,31 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private bool isFacingRight = true;
     private int wallSide = 1;
 
+    [Header("Sistema de Combos (Tipo Blasphemous)")]
+    public int combo1Damage = 1;
+    public int combo2Damage = 1;
+    public int combo3Damage = 3;
+    public float comboResetTime = 1.0f;
+    public float attackAnimationDuration = 0.3f;
+
+    private int currentComboStep = 0;
+    private float lastAttackTime = -999f;
+    private bool isAttacking = false;
+
     [Header("Ataque")]
     public Transform attackPoint;
     public float attackRange = 0.5f;
     public LayerMask enemyLayer;
-    public int attackDamage = 1;
     public float playerKnockbackForce = 3f;
     public GameObject sideAttackEffect;
 
-    // --- NUEVO: Variables para controlar la cadencia de ataque (Anti-Spam) ---
-    [Header("Control de Ataque (Anti-Spam)")]
-    public float attackRate = 0.4f; // Tiempo de espera entre ataques
-    private float nextAttackTime = 0f; // Rastreador de tiempo interno
-    // ------------------------------------------------------------------------
+    [Header("Efectos de Combo")]
+    public GameObject combo1Effect;
+    public GameObject combo2Effect;
+    public GameObject combo3Effect;
+    public Color combo1Color = Color.white;
+    public Color combo2Color = new Color(1f, 0.8f, 0f);
+    public Color combo3Color = new Color(1f, 0f, 0f);
 
     [Header("Down Attack (DESHABILITADO)")]
     public bool enableDownAttack = false;
@@ -146,6 +158,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
         HandleFlip();
         HandleBounceReset();
         HandleAbilityInput();
+        HandleComboReset();
 
         if (Input.GetKeyDown(KeyCode.V))
         {
@@ -189,11 +202,17 @@ public class MainChar : MonoBehaviour, IDashExecutor
                 rb.linearVelocity.y
             );
         }
-        else if (!isWallSliding)
+        // CAMBIO 1: Solo aplicar movimiento horizontal si NO está atacando
+        else if (!isWallSliding && !isAttacking)
         {
             float targetX = moveInput * moveSpeed;
             float appliedX = isGrounded ? targetX : targetX * airControlMultiplier;
             rb.linearVelocity = new Vector2(appliedX, rb.linearVelocity.y);
+        }
+        // CAMBIO 2: Mantener velocidad X en 0 durante ataques en el suelo
+        else if (isAttacking && isGrounded)
+        {
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
 
         HandleJump();
@@ -213,7 +232,15 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
     private void HandleInput()
     {
-        moveInput = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
+        // CAMBIO 3: Resetear completamente el input durante ataque
+        if (isAttacking)
+        {
+            moveInput = 0;
+        }
+        else
+        {
+            moveInput = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
+        }
 
         float verticalInput = (Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
 
@@ -236,20 +263,100 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
         isAttackingDown = false;
 
-        if (Input.GetKeyDown(KeyCode.X))
+        if (Input.GetKeyDown(KeyCode.X) && !isAttacking)
         {
-            // --- NUEVO: Verificamos el Cooldown antes de atacar ---
-            if (Time.time >= nextAttackTime)
-            {
-                if (enableDownAttack && verticalInput < 0 && !isGrounded)
-                    isAttackingDown = true;
+            if (enableDownAttack && verticalInput < 0 && !isGrounded)
+                isAttackingDown = true;
 
-                Attack();
-
-                // Reseteamos el contador para el siguiente ataque
-                nextAttackTime = Time.time + attackRate;
-            }
+            StartCoroutine(PerformComboAttack());
         }
+    }
+
+    private void HandleComboReset()
+    {
+        if (Time.time - lastAttackTime > comboResetTime && currentComboStep > 0)
+        {
+            currentComboStep = 0;
+            Debug.Log("Combo reseteado");
+        }
+    }
+
+    private IEnumerator PerformComboAttack()
+    {
+        isAttacking = true;
+        lastAttackTime = Time.time;
+
+        // CAMBIO 4: Detener completamente el movimiento horizontal al iniciar ataque
+        if (isGrounded)
+        {
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+        }
+
+        int damage = 0;
+        GameObject effect = null;
+        Color flashColor = Color.white;
+        float knockbackMultiplier = 1f;
+
+        switch (currentComboStep)
+        {
+            case 0:
+                damage = combo1Damage;
+                effect = combo1Effect ?? sideAttackEffect;
+                flashColor = combo1Color;
+                knockbackMultiplier = 1f;
+                Debug.Log("⚔️ COMBO 1 - Golpe ligero");
+                break;
+            case 1:
+                damage = combo2Damage;
+                effect = combo2Effect ?? sideAttackEffect;
+                flashColor = combo2Color;
+                knockbackMultiplier = 1.2f;
+                Debug.Log("⚔️⚔️ COMBO 2 - Golpe medio");
+                break;
+            case 2:
+                damage = combo3Damage;
+                effect = combo3Effect ?? sideAttackEffect;
+                flashColor = combo3Color;
+                knockbackMultiplier = 2f;
+                Debug.Log("💥⚔️⚔️⚔️ COMBO 3 - GOLPE FINAL!");
+                break;
+        }
+
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color originalColor = sr != null ? sr.color : Color.white;
+        if (sr != null) sr.color = flashColor;
+
+        if (effect != null)
+        {
+            ParticleSystem ps = effect.GetComponent<ParticleSystem>();
+            if (ps != null) ps.Play();
+        }
+
+        // CAMBIO 5: Reducir knockback del jugador o eliminarlo en suelo
+        if (!isAttackingDown && !isGrounded)
+        {
+            float knockbackDir = isFacingRight ? -1 : 1;
+            float knockbackAmount = playerKnockbackForce * (currentComboStep == 2 ? 0.3f : 0.5f);
+            rb.AddForce(new Vector2(knockbackDir * knockbackAmount, 0), ForceMode2D.Impulse);
+        }
+
+        if (isAttackingDown && enableDownAttack)
+        {
+            HandleDownAttack();
+        }
+        else
+        {
+            HandleSideAttackWithDamage(damage, knockbackMultiplier);
+        }
+
+        currentComboStep++;
+        if (currentComboStep > 2) currentComboStep = 0;
+
+        yield return new WaitForSeconds(attackAnimationDuration);
+
+        if (sr != null) sr.color = originalColor;
+
+        isAttacking = false;
     }
 
     private void HandleAbilityInput()
@@ -333,6 +440,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private void HandleFlip()
     {
         if (isDashing) return;
+        if (isAttacking) return;
         if (wallJumpCounter > 0.05f) return;
 
         if (moveInput < 0 && isFacingRight)
@@ -478,6 +586,8 @@ public class MainChar : MonoBehaviour, IDashExecutor
         currentHealth -= damage;
         Debug.Log($"Jugador recibió {damage} de daño. Vida: {currentHealth}/{maxHealth}");
 
+        currentComboStep = 0;
+
         float knockbackDir = 1f;
         GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
         if (enemies.Length > 0)
@@ -571,6 +681,8 @@ public class MainChar : MonoBehaviour, IDashExecutor
         yield return new WaitForSeconds(1f);
 
         currentHealth = maxHealth;
+        currentComboStep = 0;
+
         if (GameManager.Instance != null)
             transform.position = GameManager.Instance.GetRespawnPosition();
 
@@ -580,31 +692,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
         enabled = true;
 
         Debug.Log("Jugador respawneado");
-    }
-
-    void Attack()
-    {
-        GameObject effectToShow = isAttackingDown ? downAttackEffect : sideAttackEffect;
-        if (effectToShow != null)
-        {
-            ParticleSystem ps = effectToShow.GetComponent<ParticleSystem>();
-            if (ps != null) ps.Play();
-        }
-
-        if (!isAttackingDown)
-        {
-            float knockbackDir = isFacingRight ? -1 : 1;
-            rb.AddForce(new Vector2(knockbackDir * playerKnockbackForce, 0), ForceMode2D.Impulse);
-        }
-
-        if (isAttackingDown && enableDownAttack)
-        {
-            HandleDownAttack();
-        }
-        else
-        {
-            HandleSideAttack();
-        }
     }
 
     private void HandleDownAttack()
@@ -617,7 +704,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
         foreach (Collider2D enemyCollider in hitEnemies)
         {
-            if (TryDealDamage(enemyCollider, isFacingRight ? 1 : -1))
+            if (TryDealDamage(enemyCollider, isFacingRight ? 1 : -1, combo1Damage))
                 hitSomething = true;
         }
 
@@ -642,33 +729,44 @@ public class MainChar : MonoBehaviour, IDashExecutor
         }
     }
 
-    private void HandleSideAttack()
+    private void HandleSideAttackWithDamage(int damage, float knockbackMultiplier)
     {
         Transform currentAttackPoint = attackPoint;
         Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(currentAttackPoint.position, attackRange, enemyLayer);
 
         foreach (Collider2D enemyCollider in hitEnemies)
         {
-            if (TryDealDamage(enemyCollider, isFacingRight ? 1 : -1))
-                Debug.Log($"Golpeó a enemigo: {enemyCollider.name}");
+            if (TryDealDamage(enemyCollider, isFacingRight ? 1 : -1, damage, knockbackMultiplier))
+            {
+                string comboText = currentComboStep == 0 ? "💥 GOLPE FINAL" : $"Golpe {currentComboStep}";
+                Debug.Log($"{comboText} - Golpeó a enemigo: {enemyCollider.name} ({damage} daño)");
+            }
         }
     }
 
-    private bool TryDealDamage(Collider2D enemyCollider, int knockbackDir)
+    private bool TryDealDamage(Collider2D enemyCollider, int knockbackDir, int damage, float knockbackMultiplier = 1f)
     {
-        Debug.Log("he intentado hacer daño");
+        Debug.Log($"Intentando hacer {damage} de daño con knockback x{knockbackMultiplier}");
 
         var enemy = enemyCollider.GetComponent<Enemigo>();
         if (enemy != null)
         {
-            enemy.TakeDamage(attackDamage, knockbackDir);
+            enemy.TakeDamage(damage, knockbackDir);
+            return true;
+        }
+
+        // CAMBIO 6: Buscar también el componente EnemigoVolador
+        var flyingEnemy = enemyCollider.GetComponent<EnemigoVolador>();
+        if (flyingEnemy != null)
+        {
+            flyingEnemy.TakeDamage(damage, knockbackDir);
             return true;
         }
 
         var boss = enemyCollider.GetComponent<BossController>();
         if (boss != null)
         {
-            boss.TakeDamage(attackDamage, knockbackDir);
+            boss.TakeDamage(damage, knockbackDir);
             return true;
         }
 
