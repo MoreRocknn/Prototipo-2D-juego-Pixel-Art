@@ -207,6 +207,7 @@ GameObject:
   - component: {fileID: 40544029}
   - component: {fileID: 40544034}
   - component: {fileID: 40544035}
+  - component: {fileID: 40544036}
   m_Layer: 7
   m_Name: Enemigo
   m_TagString: Enemy
@@ -477,6 +478,20 @@ MonoBehaviour:
   damageCooldown: 1
   onlyDamageWhenAggressive: 0
   damageCollider: {fileID: 40544031}
+--- !u!114 &40544036
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 40544028}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ac2d42fe68c5ab4187834a82816bfa0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  urgentDistance: 3
+  absorptionKey: 101
 --- !u!1 &88905133
 GameObject:
   m_ObjectHideFlags: 0
@@ -2650,6 +2665,7 @@ GameObject:
   - component: {fileID: 826415830}
   - component: {fileID: 826415831}
   - component: {fileID: 826415832}
+  - component: {fileID: 826415833}
   m_Layer: 0
   m_Name: Respawn
   m_TagString: Untagged
@@ -2802,6 +2818,18 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 0.93, y: 1.76}
   m_EdgeRadius: 0
+--- !u!114 &826415833
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 826415828}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7231a22630633e14b81f374c0087f110, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &828248760
 GameObject:
   m_ObjectHideFlags: 0
@@ -7592,6 +7620,58 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!1 &2092389900
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2092389902}
+  - component: {fileID: 2092389901}
+  m_Layer: 0
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2092389901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2092389900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 427e60880273ea041b37ecc8bb8121b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  restPromptPrefab: {fileID: 0}
+  absorptionIndicatorPrefab: {fileID: 0}
+  restKey: 101
+  absorptionKey: 101
+  restPrimaryColor: {r: 1, g: 0.85, b: 0.4, a: 1}
+  restSecondaryColor: {r: 1, g: 0.6, b: 0.2, a: 1}
+  absorptionCyan: {r: 0.3, g: 0.9, b: 1, a: 1}
+  absorptionPurple: {r: 0.7, g: 0.3, b: 1, a: 1}
+--- !u!4 &2092389902
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2092389900}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -5.2452297, y: -2.0466971, z: 0.019065963}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2118777251
 GameObject:
   m_ObjectHideFlags: 0
@@ -7800,3 +7880,4 @@ SceneRoots:
   - {fileID: 1152376268}
   - {fileID: 1327264186}
   - {fileID: 166613570}
+  - {fileID: 2092389902}
