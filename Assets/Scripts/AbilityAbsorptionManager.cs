@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 
 // ============================================
@@ -26,7 +26,7 @@ public abstract class Ability
     public int currentUses;
     public bool limitedUses = false;
 
-    // NUEVO: Sistema de cooldown post-absorci�n
+    // Sistema de cooldown post-absorción
     public float postAbsorptionCooldown = 0f;
     public float timeAbsorbed = -999f;
 
@@ -53,24 +53,25 @@ public class DashAbility : Ability
         abilityName = "Dash";
         abilityColor = new Color(0.3f, 0.8f, 1f);
 
-        // Configuraci�n por defecto: 3 usos
-        maxUses = 3;
-        currentUses = 3;
-        limitedUses = true;
+        // Configuración por defecto
+        maxUses = 999;
+        currentUses = 999;
+        limitedUses = false; // Por defecto ilimitado
 
-        // NUEVO: Cooldown de 3 segundos despu�s de absorber
-        postAbsorptionCooldown = 3f;
+        // Cooldown por defecto
+        dashCooldown = 1f;
+        postAbsorptionCooldown = 0f;
     }
 
     public override bool CanUse(GameObject owner)
     {
+        // Verificar cooldown entre usos
         bool cooldownOK = Time.time - lastDashTime >= dashCooldown;
+
+        // Verificar usos restantes (solo si está limitado)
         bool usesOK = !limitedUses || currentUses > 0;
 
-        // NUEVO: Verificar cooldown post-absorci�n
-        bool absorptionCooldownOK = Time.time - timeAbsorbed >= postAbsorptionCooldown;
-
-        return cooldownOK && usesOK && absorptionCooldownOK;
+        return cooldownOK && usesOK;
     }
 
     public override void Execute(GameObject owner)
@@ -83,6 +84,10 @@ public class DashAbility : Ability
         {
             currentUses--;
             Debug.Log($"Dash usado. Restantes: {currentUses}/{maxUses}");
+        }
+        else
+        {
+            Debug.Log($"Dash usado. Próximo disponible en {dashCooldown}s");
         }
 
         var dashExecutor = owner.GetComponent<IDashExecutor>();
@@ -101,10 +106,17 @@ public class DashAbility : Ability
             dashCooldown = this.dashCooldown,
             abilityColor = this.abilityColor,
             maxUses = this.maxUses,
-            currentUses = this.maxUses,
+            currentUses = this.currentUses,
             limitedUses = this.limitedUses,
             postAbsorptionCooldown = this.postAbsorptionCooldown
         };
+    }
+
+    // Método para obtener tiempo restante del cooldown
+    public float GetCooldownRemaining()
+    {
+        float remaining = dashCooldown - (Time.time - lastDashTime);
+        return Mathf.Max(0f, remaining);
     }
 }
 
@@ -222,7 +234,7 @@ public class AbilityHolder : MonoBehaviour
         }
     }
 
-    // NUEVO: M�todo para obtener tiempo restante de cooldown
+    // Método para obtener tiempo restante de cooldown
     public float GetAbsorptionCooldownRemaining()
     {
         if (currentAbility == null) return 0f;
@@ -233,22 +245,26 @@ public class AbilityHolder : MonoBehaviour
 }
 
 // ============================================
-// MANAGER PRINCIPAL
+// MANAGER PRINCIPAL CON SISTEMA CINEMATOGRÁFICO
 // ============================================
 public class AbilityAbsorptionManager : MonoBehaviour
 {
     public static AbilityAbsorptionManager Instance { get; private set; }
 
-    [Header("Configuraci�n de Absorci�n")]
+    [Header("Configuración de Absorción")]
     public KeyCode absorbKey = KeyCode.E;
     public float absorptionRange = 2f;
     public LayerMask absorptionTargetLayer;
 
-    [Header("Efectos Visuales")]
+    [Header("Sistema Cinematográfico")]
+    public bool useCinematicMode = true;
+    public CinematicAbsorptionSystem cinematicSystem;
+
+    [Header("Efectos Visuales (No Cinemáticos)")]
     public GameObject absorptionEffectPrefab;
     public Color absorptionBeamColor = Color.cyan;
 
-    [Header("UI")]
+    [Header("UI Simple (Si no hay cinemática)")]
     public GameObject absorptionPromptUI;
     public UnityEngine.UI.Text absorptionText;
 
@@ -259,10 +275,11 @@ public class AbilityAbsorptionManager : MonoBehaviour
     private Transform player;
     private AbilityHolder playerAbilityHolder;
     private IAbsorbable nearbyAbsorbableTarget;
+    private Transform nearbyAbsorbableTransform;
 
     private List<IResettable> resettableEnemies = new List<IResettable>();
 
-    // OPTIMIZACI�N
+    // OPTIMIZACIÓN
     private float checkTimer = 0f;
     private float checkInterval = 0.2f;
     private Collider2D[] hitCollidersBuffer = new Collider2D[10];
@@ -285,6 +302,18 @@ public class AbilityAbsorptionManager : MonoBehaviour
             if (playerAbilityHolder == null)
             {
                 playerAbilityHolder = playerObj.AddComponent<AbilityHolder>();
+            }
+        }
+
+        // Buscar o crear sistema cinemático
+        if (useCinematicMode && cinematicSystem == null)
+        {
+            cinematicSystem = FindFirstObjectByType<CinematicAbsorptionSystem>();
+
+            if (cinematicSystem == null)
+            {
+                GameObject cinematicObj = new GameObject("CinematicAbsorptionSystem");
+                cinematicSystem = cinematicObj.AddComponent<CinematicAbsorptionSystem>();
             }
         }
 
@@ -329,6 +358,12 @@ public class AbilityAbsorptionManager : MonoBehaviour
     {
         if (player == null) return;
 
+        // Si estamos en modo cinemático, no verificar objetivos
+        if (useCinematicMode && cinematicSystem != null && cinematicSystem.IsInCinematicMode())
+        {
+            return;
+        }
+
         checkTimer -= Time.deltaTime;
         if (checkTimer <= 0)
         {
@@ -345,15 +380,29 @@ public class AbilityAbsorptionManager : MonoBehaviour
             }
         }
 
+        // NUEVO: Si estamos usando cinemática, iniciamos el modo al presionar E
         if (Input.GetKeyDown(absorbKey) && nearbyAbsorbableTarget != null)
         {
-            PerformAbsorption();
+            if (useCinematicMode && cinematicSystem != null)
+            {
+                // Modo cinematográfico
+                cinematicSystem.StartCinematicMode(nearbyAbsorbableTransform, () =>
+                {
+                    PerformAbsorption();
+                });
+            }
+            else
+            {
+                // Modo normal (sin cinemática)
+                PerformAbsorption();
+            }
         }
     }
 
     void CheckForAbsorbableTargets()
     {
         IAbsorbable newTarget = null;
+        Transform newTargetTransform = null;
 
         ContactFilter2D filter = new ContactFilter2D();
         filter.SetLayerMask(absorptionTargetLayer);
@@ -376,6 +425,7 @@ public class AbilityAbsorptionManager : MonoBehaviour
                 {
                     closestDistance = distance;
                     newTarget = absorbable;
+                    newTargetTransform = col.transform;
                 }
             }
         }
@@ -383,6 +433,7 @@ public class AbilityAbsorptionManager : MonoBehaviour
         if (newTarget != nearbyAbsorbableTarget)
         {
             nearbyAbsorbableTarget = newTarget;
+            nearbyAbsorbableTransform = newTargetTransform;
 
             if (currentIndicator != null) Destroy(currentIndicator);
 
@@ -406,6 +457,12 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
     void CreateAbsorptionIndicator(Transform target)
     {
+        // No mostrar indicador si estamos en modo cinemático
+        if (useCinematicMode && cinematicSystem != null && cinematicSystem.IsInCinematicMode())
+        {
+            return;
+        }
+
         if (absorptionIndicatorPrefab != null)
         {
             currentIndicator = Instantiate(absorptionIndicatorPrefab, target.position + new Vector3(0, 1.5f, 0), Quaternion.identity);
@@ -468,17 +525,20 @@ public class AbilityAbsorptionManager : MonoBehaviour
         // 1. Asignar habilidad al jugador
         playerAbilityHolder.SetAbility(targetAbility);
 
-        // Forzar que el jugador SIEMPRE tenga usos limitados (3)
+        // JUGADOR: Usos ILIMITADOS con cooldown de 3 segundos
         if (playerAbilityHolder.currentAbility != null)
         {
-            playerAbilityHolder.currentAbility.limitedUses = true;
-            playerAbilityHolder.currentAbility.maxUses = 3;
-            playerAbilityHolder.currentAbility.currentUses = 3;
+            playerAbilityHolder.currentAbility.limitedUses = false; // ← ILIMITADO
+            playerAbilityHolder.currentAbility.maxUses = 999;
+            playerAbilityHolder.currentAbility.currentUses = 999;
 
-            // NUEVO: Establecer el tiempo de absorci�n para activar el cooldown de 3 segundos
-            playerAbilityHolder.currentAbility.timeAbsorbed = Time.time;
+            // Establecer cooldown de 3 segundos
+            if (playerAbilityHolder.currentAbility is DashAbility dashAbility)
+            {
+                dashAbility.dashCooldown = 3f; // ← 3 segundos entre usos
+            }
 
-            Debug.Log("Habilidad absorbida: Se han limitado los usos a 3 para el jugador. Cooldown de 3s activado.");
+            Debug.Log("Habilidad absorbida: Dash ILIMITADO con cooldown de 3 segundos.");
         }
 
         targetAbilityHolder.SetAbility(playerAbility);
@@ -488,22 +548,30 @@ public class AbilityAbsorptionManager : MonoBehaviour
             Destroy(currentIndicator);
         }
 
-        if (absorptionEffectPrefab != null)
+        // Efectos visuales solo si NO estamos en modo cinemático
+        if (!useCinematicMode || cinematicSystem == null)
         {
-            GameObject effect = Instantiate(absorptionEffectPrefab,
-                (player.position + targetObject.transform.position) / 2f,
-                Quaternion.identity);
-            Destroy(effect, 2f);
-        }
+            if (absorptionEffectPrefab != null)
+            {
+                GameObject effect = Instantiate(absorptionEffectPrefab,
+                    (player.position + targetObject.transform.position) / 2f,
+                    Quaternion.identity);
+                Destroy(effect, 2f);
+            }
 
-        StartCoroutine(DrawAbsorptionBeam(player.position, targetObject.transform.position));
+            StartCoroutine(DrawAbsorptionBeam(player.position, targetObject.transform.position));
+        }
 
         nearbyAbsorbableTarget.OnAbsorbed();
 
         string message = targetAbility != null
-            ? $"�Absorbiste {targetAbility.abilityName}!"
-            : "�Transferiste tu habilidad!";
+            ? $"¡Absorbiste {targetAbility.abilityName}!"
+            : "¡Transferiste tu habilidad!";
         Debug.Log(message);
+
+        // Limpiar referencias
+        nearbyAbsorbableTarget = null;
+        nearbyAbsorbableTransform = null;
     }
 
     System.Collections.IEnumerator DrawAbsorptionBeam(Vector3 from, Vector3 to)
@@ -540,6 +608,13 @@ public class AbilityAbsorptionManager : MonoBehaviour
     void UpdateUI()
     {
         if (absorptionPromptUI == null) return;
+
+        // No mostrar UI simple si estamos en modo cinemático
+        if (useCinematicMode && cinematicSystem != null)
+        {
+            absorptionPromptUI.SetActive(false);
+            return;
+        }
 
         bool showPrompt = nearbyAbsorbableTarget != null;
         absorptionPromptUI.SetActive(showPrompt);

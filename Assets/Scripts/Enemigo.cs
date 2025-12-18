@@ -18,6 +18,10 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     public int criticalHealthThreshold = 1;
     public float criticalStunDuration = 3f;
 
+    [Header("=== INMORTALIDAD CON DASH ===")]
+    public bool immortalWhenCriticalWithDash = true;
+    private bool isImmortalForAbsorption = false;
+
     [Header("=== DETECCIÓN & HABILIDAD ===")]
     public float detectionRange = 8f;
     public float attackRange = 2f;
@@ -73,9 +77,10 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     [Header("=== VISUALES ===")]
     public GameObject guardEffect, attackEffect;
     public Color guardColor = Color.yellow, attackColor = Color.red;
+    public Color immortalColor = new Color(1f, 0.84f, 0f); // Color dorado
 
     private EnemyState currentState = EnemyState.Idle;
-    private enum EnemyState { Idle, Patrol, Guard, Chase, Attack, Stunned, Dashing }
+    private enum EnemyState { Idle, Patrol, Guard, Chase, Attack, Stunned, Dashing, WaitingAbsorption }
 
     private SpriteRenderer sr;
     private Rigidbody2D rb;
@@ -153,6 +158,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         isDashing = false;
         isDashingToPlayer = false;
         hasSeenPlayer = false;
+        isImmortalForAbsorption = false;
 
         if (startsWithAbility && abilityHolder != null)
         {
@@ -161,14 +167,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             abilityHolder.SetAbility(enemyDash);
         }
 
-        // --- CORRECCIÓN: Asegurar que la barra se reactiva al revivir ---
         if (healthBar == null) SetupHealthBar();
         else
         {
             healthBar.gameObject.SetActive(true);
             healthBar.UpdateHealth(health, maxHealth);
         }
-        // ---------------------------------------------------------------
 
         ResetTimers();
         rb.linearVelocity = Vector2.zero;
@@ -200,6 +204,15 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
         if (isDashing)
         {
+            UpdateAnimations();
+            return;
+        }
+
+        // FIX BUG 2: Si está esperando absorción, no hacer nada más
+        if (currentState == EnemyState.WaitingAbsorption)
+        {
+            rb.linearVelocity = Vector2.zero;
+            if (player) LookAtPlayer();
             UpdateAnimations();
             return;
         }
@@ -266,9 +279,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         UpdateAnimations();
     }
 
-    // ... (El resto de métodos auxiliares como UpdateAnimations, IsGrounded, PredictPlayerPosition, PerformAttack, etc. se mantienen igual) ...
-    // Para ahorrar espacio no los repito todos, pero aquí está la parte clave modificada: DIE
-
     void UpdateAnimations()
     {
         if (!anim || !anim.runtimeAnimatorController) return;
@@ -278,7 +288,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         anim.SetBool(animIsAttacking, currentState == EnemyState.Attack);
         anim.SetBool(animIsDashing, isDashing);
         anim.SetBool(animIsCritical, isCritical);
-        anim.SetBool(animIsStunned, currentState == EnemyState.Stunned || isCriticalStunned);
+        anim.SetBool(animIsStunned, currentState == EnemyState.Stunned || isCriticalStunned || currentState == EnemyState.WaitingAbsorption);
         anim.SetFloat(animSpeed, Mathf.Abs(rb.linearVelocity.x));
     }
 
@@ -389,7 +399,15 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     public void TakeDamage(int damage, float knockbackDir)
     {
+        // FIX BUG 2: Si está inmortal (esperando absorción), ignorar daño
+        if (isImmortalForAbsorption)
+        {
+            Debug.Log("¡Enemigo inmortal! Solo puede ser absorbido");
+            return;
+        }
+
         if (isInvincible) return;
+
         health -= damage;
         if (healthBar) healthBar.UpdateHealth(health, maxHealth);
         if (anim) anim.SetTrigger(animTakeDamage);
@@ -400,25 +418,40 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         else if (!isCritical) StartCoroutine(RecoverAndChase());
     }
 
-    public bool CanBeAbsorbed() => isCritical && !isCriticalStunned;
+    public bool CanBeAbsorbed()
+    {
+        return isCritical && abilityHolder != null && abilityHolder.HasAbility();
+    }
 
     public void OnAbsorbed()
     {
         Debug.Log("Enemigo Absorbido");
+
+        isImmortalForAbsorption = false;
+
         StartCoroutine(FlashRoutine(dashColor));
         if (player != null)
         {
             MainChar playerScript = player.GetComponent<MainChar>();
             SpriteRenderer playerSr = player.GetComponent<SpriteRenderer>();
-            if (playerScript != null && playerSr != null) playerScript.StartCoroutine(PlayerAbsorptionFlash(playerSr));
+            if (playerScript != null && playerSr != null)
+                playerScript.StartCoroutine(PlayerAbsorptionFlash(playerSr));
         }
-        if (abilityHolder && !abilityHolder.HasAbility()) Die();
+
+        if (abilityHolder && !abilityHolder.HasAbility())
+            Die();
     }
 
     IEnumerator PlayerAbsorptionFlash(SpriteRenderer playerSr)
     {
         Color oldColor = playerSr.color;
-        for (int i = 0; i < 4; i++) { playerSr.color = dashColor; yield return new WaitForSeconds(0.08f); playerSr.color = Color.white; yield return new WaitForSeconds(0.08f); }
+        for (int i = 0; i < 4; i++)
+        {
+            playerSr.color = dashColor;
+            yield return new WaitForSeconds(0.08f);
+            playerSr.color = Color.white;
+            yield return new WaitForSeconds(0.08f);
+        }
         playerSr.color = oldColor;
     }
 
@@ -450,17 +483,39 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             if (!canDashThroughPlayer && player)
             {
                 float distToPlayer = Vector2.Distance(transform.position, player.position);
-                if (distToPlayer <= attackRange) { if (attackTimer <= 0) { EnterState(EnemyState.Attack); break; } }
+                if (distToPlayer <= attackRange)
+                {
+                    if (attackTimer <= 0)
+                    {
+                        EnterState(EnemyState.Attack);
+                        break;
+                    }
+                }
             }
             elapsed += Time.deltaTime;
             yield return null;
         }
         SetVelocity(rb.linearVelocity.x * 0.3f);
-        isDashing = false; isDashingToPlayer = false;
-        if (sr && currentState == EnemyState.Guard) sr.color = guardColor;
-        else if (sr && !isInvincible && !isCritical) sr.color = originalColor;
-        if (player && Vector2.Distance(transform.position, player.position) <= detectionRange) EnterState(EnemyState.Chase);
-        else EnterState(EnemyState.Guard);
+        isDashing = false;
+        isDashingToPlayer = false;
+
+        if (sr && currentState == EnemyState.Guard)
+            sr.color = guardColor;
+        else if (sr && !isInvincible && !isCritical)
+            sr.color = originalColor;
+        else if (sr && isImmortalForAbsorption)
+            sr.color = immortalColor;
+
+        // FIX BUG 2: Si está en estado de absorción, no cambiar de estado
+        if (currentState == EnemyState.WaitingAbsorption)
+        {
+            yield break;
+        }
+
+        if (player && Vector2.Distance(transform.position, player.position) <= detectionRange)
+            EnterState(EnemyState.Chase);
+        else
+            EnterState(EnemyState.Guard);
     }
 
     bool IsGoingToHitWall(float dir)
@@ -488,38 +543,84 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
     }
 
+    // FIX BUG 2: Modificado para entrar en estado WaitingAbsorption
     void CheckCriticalHealth()
     {
         bool wasCritical = isCritical;
         isCritical = (health <= criticalHealthThreshold && health > 0);
-        if (isCritical && !wasCritical) StartCoroutine(CriticalHealthSequence());
+
+        if (isCritical && !wasCritical)
+        {
+            StartCoroutine(CriticalHealthSequence());
+
+            // Activar inmortalidad si tiene dash
+            if (immortalWhenCriticalWithDash && abilityHolder != null && abilityHolder.HasAbility())
+            {
+                isImmortalForAbsorption = true;
+                Debug.Log("¡Enemigo ahora es INMORTAL! Solo puede ser absorbido");
+            }
+        }
         else if (!isCritical && wasCritical)
         {
-            StopAllCoroutines(); isCriticalStunned = false; if (sr) sr.color = originalColor;
-            if (player && Vector2.Distance(transform.position, player.position) <= detectionRange) EnterState(EnemyState.Chase);
-            else ReturnToPatrol();
+            StopAllCoroutines();
+            isCriticalStunned = false;
+            isImmortalForAbsorption = false;
+
+            if (sr) sr.color = originalColor;
+            if (player && Vector2.Distance(transform.position, player.position) <= detectionRange)
+                EnterState(EnemyState.Chase);
+            else
+                ReturnToPatrol();
         }
     }
 
+    // FIX BUG 2: Modificado para mantener al enemigo en estado pasivo después del stun
     IEnumerator CriticalHealthSequence()
     {
-        isCriticalStunned = true; currentState = EnemyState.Stunned; SetVelocity(0);
+        isCriticalStunned = true;
+        currentState = EnemyState.Stunned;
+        SetVelocity(0);
+
         float elapsed = 0;
+        Color flashColor = isImmortalForAbsorption ? immortalColor : Color.red;
+
+        // Stun inicial
         while (elapsed < criticalStunDuration && isCritical)
         {
-            if (sr) sr.color = Color.red; yield return new WaitForSeconds(0.15f);
-            if (sr) sr.color = originalColor; yield return new WaitForSeconds(0.15f);
+            if (sr) sr.color = flashColor;
+            yield return new WaitForSeconds(0.15f);
+            if (sr) sr.color = originalColor;
+            yield return new WaitForSeconds(0.15f);
             elapsed += 0.3f;
         }
+
         if (!isCritical) yield break;
+
         isCriticalStunned = false;
         if (healthBar) healthBar.ForceShow();
-        if (player && Vector2.Distance(transform.position, player.position) <= detectionRange) EnterState(EnemyState.Chase);
-        else ReturnToPatrol();
+
+        // FIX BUG 2: En lugar de volver a Chase/Patrol, entrar en estado WaitingAbsorption
+        if (isImmortalForAbsorption)
+        {
+            EnterState(EnemyState.WaitingAbsorption);
+            Debug.Log("Enemigo esperando absorción - NO puede atacar");
+        }
+        else
+        {
+            // Si no es inmortal (no tiene dash), comportamiento normal
+            if (player && Vector2.Distance(transform.position, player.position) <= detectionRange)
+                EnterState(EnemyState.Chase);
+            else
+                ReturnToPatrol();
+        }
+
+        // Continuar flasheando mientras está crítico
         while (isCritical)
         {
-            if (sr) sr.color = Color.red; yield return new WaitForSeconds(0.15f);
-            if (sr) sr.color = originalColor; yield return new WaitForSeconds(0.15f);
+            if (sr) sr.color = flashColor;
+            yield return new WaitForSeconds(0.15f);
+            if (sr) sr.color = originalColor;
+            yield return new WaitForSeconds(0.15f);
         }
     }
 
@@ -528,30 +629,50 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         isInvincible = true;
         for (int i = 0; i < 5; i++)
         {
-            if (sr) sr.color = Color.red; yield return new WaitForSeconds(invincibilityTime / 10f);
-            if (sr) sr.color = originalColor; yield return new WaitForSeconds(invincibilityTime / 10f);
+            if (sr) sr.color = Color.red;
+            yield return new WaitForSeconds(invincibilityTime / 10f);
+            if (sr) sr.color = originalColor;
+            yield return new WaitForSeconds(invincibilityTime / 10f);
         }
-        isInvincible = false; EnterState(player ? EnemyState.Chase : EnemyState.Idle);
+        isInvincible = false;
+        EnterState(player ? EnemyState.Chase : EnemyState.Idle);
     }
 
     IEnumerator FlashRoutine(Color c)
     {
-        for (int i = 0; i < 3; i++) { if (sr) sr.color = c; yield return new WaitForSeconds(0.1f); if (sr) sr.color = Color.white; yield return new WaitForSeconds(0.1f); }
+        for (int i = 0; i < 3; i++)
+        {
+            if (sr) sr.color = c;
+            yield return new WaitForSeconds(0.1f);
+            if (sr) sr.color = Color.white;
+            yield return new WaitForSeconds(0.1f);
+        }
         if (sr) sr.color = originalColor;
     }
 
     void EnterState(EnemyState newState)
     {
-        currentState = newState; ResetTimers();
-        if (guardEffect) guardEffect.SetActive(newState == EnemyState.Guard);
-        if (sr && !isInvincible && !isCritical) sr.color = (newState == EnemyState.Guard) ? guardColor : originalColor;
+        currentState = newState;
+        ResetTimers();
+
+        if (guardEffect)
+            guardEffect.SetActive(newState == EnemyState.Guard);
+
+        if (sr && !isInvincible && !isCritical && !isImmortalForAbsorption)
+            sr.color = (newState == EnemyState.Guard) ? guardColor : originalColor;
+        else if (sr && isImmortalForAbsorption)
+            sr.color = immortalColor;
     }
 
     void ReturnToPatrol() => EnterState(shouldPatrol ? EnemyState.Patrol : EnemyState.Idle);
 
     void TurnAroundAndPatrol()
     {
-        movingRight = !isFacingRight; Flip(); waitTimer = waitTimeAtPatrolPoint; playerIgnoreTimer = waitTimeAtPatrolPoint + 2f; EnterState(EnemyState.Patrol);
+        movingRight = !isFacingRight;
+        Flip();
+        waitTimer = waitTimeAtPatrolPoint;
+        playerIgnoreTimer = waitTimeAtPatrolPoint + 2f;
+        EnterState(EnemyState.Patrol);
     }
 
     void LookAtPlayer()
@@ -563,7 +684,8 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     void Flip()
     {
-        isFacingRight = !isFacingRight; transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
+        isFacingRight = !isFacingRight;
+        transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
     }
 
     bool CanSeePlayer()
@@ -583,21 +705,24 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     void CreateEdgeCheck()
     {
-        GameObject obj = new GameObject("EdgeCheckPoint"); obj.transform.SetParent(transform); obj.transform.localPosition = new Vector3(0.8f, -0.5f, 0); edgeCheckPoint = obj.transform;
+        GameObject obj = new GameObject("EdgeCheckPoint");
+        obj.transform.SetParent(transform);
+        obj.transform.localPosition = new Vector3(0.8f, -0.5f, 0);
+        edgeCheckPoint = obj.transform;
     }
 
     void SetVelocity(float x) => rb.linearVelocity = new Vector2(x, rb.linearVelocity.y);
+
     public void RestoreFullHealth()
     {
-        health = maxHealth; Debug.Log($"{gameObject.name} vida restaurada: {health}/{maxHealth}");
+        health = maxHealth;
+        Debug.Log($"{gameObject.name} vida restaurada: {health}/{maxHealth}");
     }
 
-    // === AQUÍ ESTÁ EL CAMBIO CLAVE ===
     void Die()
     {
         Debug.Log($"{gameObject.name} murió");
 
-        // APAGAR LA BARRA DE VIDA AL MORIR
         if (healthBar != null)
         {
             healthBar.gameObject.SetActive(false);
@@ -612,12 +737,13 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             Destroy(gameObject);
         }
     }
-    // ==================================
 
     IEnumerator DeathSequence()
     {
-        rb.linearVelocity = Vector2.zero; enabled = false;
-        yield return new WaitForSeconds(0.5f); gameObject.SetActive(false);
+        rb.linearVelocity = Vector2.zero;
+        enabled = false;
+        yield return new WaitForSeconds(0.5f);
+        gameObject.SetActive(false);
     }
 
     void UpdateTimers()
@@ -630,15 +756,26 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         if (currentState == EnemyState.Chase) chaseTimer += Time.deltaTime;
     }
 
-    void ResetTimers() { chaseTimer = 0; guardTimer = 0; edgeWaitTimer = 0; totalEdgeTime = 0; }
+    void ResetTimers()
+    {
+        chaseTimer = 0;
+        guardTimer = 0;
+        edgeWaitTimer = 0;
+        totalEdgeTime = 0;
+    }
 
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow; Gizmos.DrawWireSphere(transform.position, detectionRange);
-        Gizmos.color = Color.green; Gizmos.DrawWireSphere(transform.position, extendedChaseRange);
-        Gizmos.color = Color.red; Gizmos.DrawWireSphere(transform.position, attackRange);
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, extendedChaseRange);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, attackRange);
         if (attackPoint) Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
-        Gizmos.color = Color.cyan; Gizmos.DrawWireSphere(transform.position, dashMinDistance);
-        Gizmos.color = Color.blue; Gizmos.DrawWireSphere(transform.position, dashMaxDistance);
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, dashMinDistance);
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(transform.position, dashMaxDistance);
     }
 }

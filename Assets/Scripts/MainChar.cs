@@ -53,11 +53,17 @@ public class MainChar : MonoBehaviour, IDashExecutor
     public float attackRange = 0.5f;
     public LayerMask enemyLayer;
     public float playerKnockbackForce = 3f;
+
+    // FIX BUG 1: Usar GameObject para instanciar en lugar de referencias de escena
+    [Tooltip("Prefab del efecto de ataque lateral")]
     public GameObject sideAttackEffect;
 
     [Header("Efectos de Combo")]
+    [Tooltip("Prefab del efecto para Combo 1")]
     public GameObject combo1Effect;
+    [Tooltip("Prefab del efecto para Combo 2")]
     public GameObject combo2Effect;
+    [Tooltip("Prefab del efecto para Combo 3")]
     public GameObject combo3Effect;
     public Color combo1Color = Color.white;
     public Color combo2Color = new Color(1f, 0.8f, 0f);
@@ -300,7 +306,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
         }
 
         int damage = 0;
-        GameObject effect = null;
+        GameObject effectPrefab = null;
         Color flashColor = Color.white;
         float knockbackMultiplier = 1f;
 
@@ -308,26 +314,26 @@ public class MainChar : MonoBehaviour, IDashExecutor
         {
             case 0:
                 damage = combo1Damage;
-                effect = combo1Effect ?? sideAttackEffect;
+                effectPrefab = combo1Effect ?? sideAttackEffect;
                 flashColor = combo1Color;
                 knockbackMultiplier = 1f;
                 Debug.Log("⚔️ COMBO 1 - Golpe ligero");
                 break;
             case 1:
                 damage = combo2Damage;
-                effect = combo2Effect ?? sideAttackEffect;
+                effectPrefab = combo2Effect ?? sideAttackEffect;
                 flashColor = combo2Color;
                 knockbackMultiplier = 1.2f;
                 Debug.Log("⚔️⚔️ COMBO 2 - Golpe medio");
                 break;
             case 2:
                 damage = combo3Damage;
-                effect = combo3Effect ?? sideAttackEffect;
+                effectPrefab = combo3Effect ?? sideAttackEffect;
                 flashColor = combo3Color;
                 knockbackMultiplier = 2f;
                 Debug.Log("💥⚔️⚔️⚔️ COMBO 3 - GOLPE FINAL!");
 
-                // NUEVO: Activar Camera Shake en el Combo 3
+                // Camera Shake en el Combo 3
                 if (enableCombo3Shake && CameraShake.Instance != null)
                 {
                     if (useImpactShake)
@@ -346,10 +352,30 @@ public class MainChar : MonoBehaviour, IDashExecutor
         Color originalColor = sr != null ? sr.color : Color.white;
         if (sr != null) sr.color = flashColor;
 
-        if (effect != null)
+        // FIX BUG 1: Instanciar el efecto en lugar de activar un objeto de escena
+        if (effectPrefab != null)
         {
-            ParticleSystem ps = effect.GetComponent<ParticleSystem>();
-            if (ps != null) ps.Play();
+            // Calcular posición y rotación del efecto
+            Vector3 effectPosition = attackPoint != null ? attackPoint.position : transform.position;
+            Quaternion effectRotation = Quaternion.identity;
+
+            // Instanciar el efecto
+            GameObject effectInstance = Instantiate(effectPrefab, effectPosition, effectRotation);
+
+            // Ajustar escala según la dirección del personaje
+            Vector3 effectScale = effectInstance.transform.localScale;
+            effectScale.x *= isFacingRight ? 1 : -1;
+            effectInstance.transform.localScale = effectScale;
+
+            // Reproducir el sistema de partículas si existe
+            ParticleSystem ps = effectInstance.GetComponent<ParticleSystem>();
+            if (ps != null)
+            {
+                ps.Play();
+            }
+
+            // Destruir el efecto después de la animación
+            Destroy(effectInstance, attackAnimationDuration + 0.5f);
         }
 
         if (!isAttackingDown && !isGrounded)
