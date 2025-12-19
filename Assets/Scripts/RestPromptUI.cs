@@ -4,20 +4,57 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Indicador visual estilo Dark Souls para descansar en hogueras/altares
-/// Temática medieval con llamas y runas antiguas
+/// Indicador visual estilo Dark Souls para descansar en altares
+/// Control 100% desde Inspector - Sin problemas de texto superpuesto
 /// </summary>
 public class RestPromptUI : MonoBehaviour
 {
-    [Header("=== COLORES MEDIEVAL ===")]
-    public Color flameColor = new Color(1f, 0.6f, 0.2f);          // Naranja fuego
-    public Color emberColor = new Color(1f, 0.3f, 0.1f);          // Rojo brasa
-    public Color goldColor = new Color(0.85f, 0.7f, 0.3f);        // Dorado antiguo
+    [Header("=== COLORES ===")]
+    [Tooltip("Color principal de las llamas")]
+    public Color flameColor = new Color(1f, 0.6f, 0.2f);
+    [Tooltip("Color de las brasas")]
+    public Color emberColor = new Color(1f, 0.3f, 0.1f);
+    [Tooltip("Color dorado del texto")]
+    public Color goldColor = new Color(0.85f, 0.7f, 0.3f);
+
+    [Header("=== POSICIONAMIENTO ===")]
+    [Tooltip("Offset vertical sobre el altar")]
+    public float heightOffset = 1.8f;
+    [Tooltip("Escala del prompt")]
+    public float promptScale = 0.01f;
+    [Tooltip("Orden de renderizado")]
+    public int sortingOrder = 100;
 
     [Header("=== ANIMACIÓN ===")]
+    [Tooltip("Velocidad del parpadeo de llamas")]
     public float flickerSpeed = 6f;
+    [Tooltip("Velocidad de flotación")]
     public float floatSpeed = 1f;
+    [Tooltip("Cantidad de flotación")]
     public float floatAmount = 0.05f;
+
+    [Header("=== TEXTO ===")]
+    [Tooltip("Texto de la acción")]
+    public string actionText = "INTERACTUAR";
+    [Tooltip("Tamaño de fuente del texto")]
+    public int actionFontSize = 13;
+    [Tooltip("Tamaño de fuente de la tecla")]
+    public int keyFontSize = 24;
+    [Tooltip("Mostrar texto de acción")]
+    public bool showActionText = true;
+
+    [Header("=== EFECTOS ===")]
+    [Tooltip("Número de llamas")]
+    [Range(4, 12)]
+    public int flameCount = 8;
+    [Tooltip("Mostrar resplandor")]
+    public bool showEmberGlow = true;
+
+    [Header("=== FADE ===")]
+    [Tooltip("Duración del fade in")]
+    public float fadeInDuration = 0.4f;
+    [Tooltip("Duración del fade out")]
+    public float fadeOutDuration = 0.25f;
 
     // Referencias internas
     private Canvas canvas;
@@ -28,33 +65,36 @@ public class RestPromptUI : MonoBehaviour
     private Image[] flames;
     private Image emberGlow;
     private TextMeshProUGUI keyText;
-    private TextMeshProUGUI actionText;
+    private TextMeshProUGUI actionTextComponent;
+    private GameObject keyBackground;
 
     private Transform targetCheckpoint;
     private bool isVisible = false;
     private float animationTime = 0f;
+    private bool isInitialized = false;
 
     void Start()
     {
         CreateUI();
         SetVisible(false);
+        isInitialized = true;
     }
 
     void CreateUI()
     {
         // Canvas en World Space
-        GameObject canvasObj = new GameObject("RestPromptCanvas_Medieval");
+        GameObject canvasObj = new GameObject("RestPromptCanvas");
         canvasObj.transform.SetParent(transform);
         canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
-        canvas.sortingOrder = 100;
+        canvas.sortingOrder = sortingOrder;
 
         canvasGroup = canvasObj.AddComponent<CanvasGroup>();
         canvasGroup.alpha = 0f;
 
         RectTransform canvasRect = canvasObj.GetComponent<RectTransform>();
         canvasRect.sizeDelta = new Vector2(180, 120);
-        canvasRect.localScale = Vector3.one * 0.01f;
+        canvasRect.localScale = Vector3.one * promptScale;
 
         // Contenedor principal
         GameObject containerObj = new GameObject("Container");
@@ -63,10 +103,10 @@ public class RestPromptUI : MonoBehaviour
         mainContainer.sizeDelta = new Vector2(180, 120);
 
         // Crear elementos
-        CreateEmberGlow();
+        if (showEmberGlow) CreateEmberGlow();
         CreateFlames();
         CreateKeyPrompt();
-        CreateActionText();
+        if (showActionText) CreateActionText();
     }
 
     void CreateEmberGlow()
@@ -77,6 +117,7 @@ public class RestPromptUI : MonoBehaviour
         emberGlow = glowObj.AddComponent<Image>();
         emberGlow.sprite = CreateGlowSprite(64);
         emberGlow.color = new Color(flameColor.r, flameColor.g, flameColor.b, 0.4f);
+        emberGlow.raycastTarget = false;
 
         RectTransform rect = glowObj.GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(80, 80);
@@ -85,18 +126,17 @@ public class RestPromptUI : MonoBehaviour
 
     void CreateFlames()
     {
-        flames = new Image[8];
+        flames = new Image[flameCount];
 
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < flameCount; i++)
         {
             GameObject flameObj = new GameObject($"Flame_{i}");
             flameObj.transform.SetParent(mainContainer, false);
 
             flames[i] = flameObj.AddComponent<Image>();
             flames[i].sprite = CreateFlameSprite(32);
-
-            // Alternar colores
             flames[i].color = (i % 2 == 0) ? flameColor : emberColor;
+            flames[i].raycastTarget = false;
 
             RectTransform rect = flameObj.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(10 + Random.Range(0, 5), 18 + Random.Range(0, 10));
@@ -106,38 +146,41 @@ public class RestPromptUI : MonoBehaviour
     void CreateKeyPrompt()
     {
         // Fondo de piedra oscura
-        GameObject bgObj = new GameObject("KeyBackground");
-        bgObj.transform.SetParent(mainContainer, false);
+        keyBackground = new GameObject("KeyBackground");
+        keyBackground.transform.SetParent(mainContainer, false);
 
-        Image keyBg = bgObj.AddComponent<Image>();
+        Image keyBg = keyBackground.AddComponent<Image>();
         keyBg.sprite = CreateStoneSprite(64);
         keyBg.color = new Color(0.12f, 0.1f, 0.08f);
+        keyBg.raycastTarget = false;
 
-        RectTransform bgRect = bgObj.GetComponent<RectTransform>();
+        RectTransform bgRect = keyBackground.GetComponent<RectTransform>();
         bgRect.sizeDelta = new Vector2(38, 38);
         bgRect.anchoredPosition = new Vector2(0, 15);
 
         // Borde dorado desgastado
         GameObject borderObj = new GameObject("KeyBorder");
-        borderObj.transform.SetParent(bgObj.transform, false);
+        borderObj.transform.SetParent(keyBackground.transform, false);
 
         Image border = borderObj.AddComponent<Image>();
         border.sprite = CreateStoneBorderSprite(64);
         border.color = goldColor;
+        border.raycastTarget = false;
 
         RectTransform borderRect = borderObj.GetComponent<RectTransform>();
         borderRect.sizeDelta = new Vector2(44, 44);
 
         // Texto de la tecla
         GameObject textObj = new GameObject("KeyText");
-        textObj.transform.SetParent(bgObj.transform, false);
+        textObj.transform.SetParent(keyBackground.transform, false);
 
         keyText = textObj.AddComponent<TextMeshProUGUI>();
         keyText.text = "E";
-        keyText.fontSize = 24;
+        keyText.fontSize = keyFontSize;
         keyText.fontStyle = FontStyles.Bold;
         keyText.color = goldColor;
         keyText.alignment = TextAlignmentOptions.Center;
+        keyText.raycastTarget = false;
 
         RectTransform textRect = textObj.GetComponent<RectTransform>();
         textRect.sizeDelta = new Vector2(38, 38);
@@ -145,17 +188,23 @@ public class RestPromptUI : MonoBehaviour
 
     void CreateActionText()
     {
+        // Texto de acción - posicionado DEBAJO del indicador
         GameObject textObj = new GameObject("ActionText");
         textObj.transform.SetParent(mainContainer, false);
 
-        actionText = textObj.AddComponent<TextMeshProUGUI>();
-        actionText.text = "DESCANSAR";
-        actionText.fontSize = 13;
-        actionText.fontStyle = FontStyles.SmallCaps;
-        actionText.color = goldColor;
-        actionText.alignment = TextAlignmentOptions.Center;
+        actionTextComponent = textObj.AddComponent<TextMeshProUGUI>();
+        actionTextComponent.text = actionText;
+        actionTextComponent.fontSize = actionFontSize;
+        actionTextComponent.fontStyle = FontStyles.SmallCaps;
+        actionTextComponent.color = goldColor;
+        actionTextComponent.alignment = TextAlignmentOptions.Center;
+        actionTextComponent.raycastTarget = false;
 
-        // Sombra oscura
+        // Evitar que el texto se corte
+        actionTextComponent.overflowMode = TextOverflowModes.Overflow;
+        actionTextComponent.enableWordWrapping = false;
+
+        // Sombra oscura para legibilidad
         Shadow shadow = textObj.AddComponent<Shadow>();
         shadow.effectColor = new Color(0, 0, 0, 0.9f);
         shadow.effectDistance = new Vector2(1, -1);
@@ -239,7 +288,6 @@ public class RestPromptUI : MonoBehaviour
 
                 if (dist < 0.85f)
                 {
-                    // Textura rugosa
                     float noise = ((x * 17 + y * 11) % 13) / 40f;
                     float alpha = 0.85f + noise;
                     tex.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(alpha)));
@@ -272,7 +320,6 @@ public class RestPromptUI : MonoBehaviour
 
                 if (dist >= 0.7f && dist < 0.95f)
                 {
-                    // Borde irregular
                     float noise = ((x * 7 + y * 13) % 11) / 20f;
                     float alpha = 0.6f + noise;
                     tex.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(alpha)));
@@ -310,25 +357,20 @@ public class RestPromptUI : MonoBehaviour
             {
                 if (flames[i] == null) continue;
 
-                // Posición alrededor del centro
-                float baseAngle = i * 45f;
+                float baseAngle = i * (360f / flameCount);
                 float wobble = Mathf.Sin(animationTime * flickerSpeed + i) * 8f;
                 float radius = 22f + wobble * 0.3f;
 
                 float x = Mathf.Cos(baseAngle * Mathf.Deg2Rad) * radius;
                 float y = 15f + Mathf.Sin(baseAngle * Mathf.Deg2Rad) * radius * 0.2f;
-
-                // Movimiento hacia arriba
                 y += Mathf.Abs(Mathf.Sin(animationTime * flickerSpeed * 1.5f + i * 0.7f)) * 12f;
 
                 flames[i].rectTransform.anchoredPosition = new Vector2(x, y);
 
-                // Parpadeo
                 float flicker = 0.5f + Mathf.PerlinNoise(animationTime * flickerSpeed + i * 0.5f, i) * 0.5f;
                 Color baseColor = (i % 2 == 0) ? flameColor : emberColor;
                 flames[i].color = new Color(baseColor.r, baseColor.g, baseColor.b, flicker);
 
-                // Escala
                 float scale = 0.8f + Mathf.Sin(animationTime * flickerSpeed + i * 0.3f) * 0.3f;
                 flames[i].rectTransform.localScale = new Vector3(scale, scale * 1.3f, 1f);
             }
@@ -345,10 +387,10 @@ public class RestPromptUI : MonoBehaviour
         }
 
         // Texto con brillo
-        if (actionText != null)
+        if (actionTextComponent != null)
         {
             float textGlow = 0.7f + Mathf.Sin(animationTime * 2.5f) * 0.3f;
-            actionText.color = new Color(goldColor.r, goldColor.g, goldColor.b, textGlow);
+            actionTextComponent.color = new Color(goldColor.r, goldColor.g, goldColor.b, textGlow);
         }
 
         // Tecla con pulso sutil
@@ -361,7 +403,7 @@ public class RestPromptUI : MonoBehaviour
         // Seguir al checkpoint
         if (targetCheckpoint != null && canvas != null)
         {
-            canvas.transform.position = targetCheckpoint.position + Vector3.up * 1.8f;
+            canvas.transform.position = targetCheckpoint.position + Vector3.up * heightOffset;
 
             if (Camera.main != null)
             {
@@ -390,6 +432,39 @@ public class RestPromptUI : MonoBehaviour
         StartCoroutine(FadeOut());
     }
 
+    /// <summary>
+    /// Actualiza los colores en tiempo de ejecución
+    /// </summary>
+    public void SetColors(Color primary, Color secondary, Color text)
+    {
+        flameColor = primary;
+        emberColor = secondary;
+        goldColor = text;
+
+        if (keyText != null) keyText.color = text;
+        if (actionTextComponent != null) actionTextComponent.color = text;
+    }
+
+    /// <summary>
+    /// Actualiza el texto de acción
+    /// </summary>
+    public void SetActionText(string text)
+    {
+        actionText = text;
+        if (actionTextComponent != null)
+        {
+            actionTextComponent.text = text;
+        }
+    }
+
+    /// <summary>
+    /// Actualiza la altura del prompt
+    /// </summary>
+    public void SetHeightOffset(float height)
+    {
+        heightOffset = height;
+    }
+
     void SetVisible(bool visible)
     {
         isVisible = visible;
@@ -404,15 +479,14 @@ public class RestPromptUI : MonoBehaviour
         SetVisible(true);
         animationTime = 0f;
 
-        float duration = 0.4f;
         float elapsed = 0f;
 
-        while (elapsed < duration)
+        while (elapsed < fadeInDuration)
         {
             elapsed += Time.deltaTime;
             if (canvasGroup != null)
             {
-                canvasGroup.alpha = Mathf.Lerp(0f, 1f, elapsed / duration);
+                canvasGroup.alpha = Mathf.Lerp(0f, 1f, elapsed / fadeInDuration);
             }
             yield return null;
         }
@@ -422,15 +496,14 @@ public class RestPromptUI : MonoBehaviour
 
     IEnumerator FadeOut()
     {
-        float duration = 0.25f;
         float elapsed = 0f;
 
-        while (elapsed < duration)
+        while (elapsed < fadeOutDuration)
         {
             elapsed += Time.deltaTime;
             if (canvasGroup != null)
             {
-                canvasGroup.alpha = Mathf.Lerp(1f, 0f, elapsed / duration);
+                canvasGroup.alpha = Mathf.Lerp(1f, 0f, elapsed / fadeOutDuration);
             }
             yield return null;
         }
@@ -438,9 +511,24 @@ public class RestPromptUI : MonoBehaviour
         SetVisible(false);
     }
 
-    public void SetColors(Color primary, Color secondary)
+    void OnValidate()
     {
-        flameColor = primary;
-        emberColor = secondary;
+        if (!isInitialized || !Application.isPlaying) return;
+
+        // Actualizar escala y orden
+        if (canvas != null)
+        {
+            canvas.GetComponent<RectTransform>().localScale = Vector3.one * promptScale;
+            canvas.sortingOrder = sortingOrder;
+        }
+
+        // Actualizar colores y texto
+        if (keyText != null) keyText.color = goldColor;
+        if (actionTextComponent != null)
+        {
+            actionTextComponent.color = goldColor;
+            actionTextComponent.text = actionText;
+            actionTextComponent.fontSize = actionFontSize;
+        }
     }
 }
