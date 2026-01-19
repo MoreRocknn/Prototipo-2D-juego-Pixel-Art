@@ -77,7 +77,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     [Header("=== VISUALES ===")]
     public GameObject guardEffect, attackEffect;
     public Color guardColor = Color.yellow, attackColor = Color.red;
-    public Color immortalColor = new Color(1f, 0.84f, 0f); // Color dorado
+    public Color immortalColor = new Color(1f, 0.84f, 0f);
 
     private EnemyState currentState = EnemyState.Idle;
     private enum EnemyState { Idle, Patrol, Guard, Chase, Attack, Stunned, Dashing, WaitingAbsorption }
@@ -208,7 +208,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             return;
         }
 
-        // FIX BUG 2: Si está esperando absorción, no hacer nada más
         if (currentState == EnemyState.WaitingAbsorption)
         {
             rb.linearVelocity = Vector2.zero;
@@ -397,9 +396,10 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
     }
 
+    // ========== FIX BUG 3: TakeDamage corregido ==========
     public void TakeDamage(int damage, float knockbackDir)
     {
-        // FIX BUG 2: Si está inmortal (esperando absorción), ignorar daño
+        // Si está inmortal (esperando absorción), ignorar daño
         if (isImmortalForAbsorption)
         {
             Debug.Log("¡Enemigo inmortal! Solo puede ser absorbido");
@@ -408,12 +408,28 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
         if (isInvincible) return;
 
-        health -= damage;
+        // === FIX BUG 3: Prevenir muerte si tiene habilidad para absorber ===
+        int newHealth = health - damage;
+
+        // Si el daño lo mataría Y tiene dash para absorber, dejarlo en el umbral crítico
+        if (newHealth <= 0 && immortalWhenCriticalWithDash && abilityHolder != null && abilityHolder.HasAbility())
+        {
+            health = criticalHealthThreshold; // Dejarlo en 1 HP (o el umbral crítico configurado)
+            Debug.Log($"¡Daño letal prevenido! {gameObject.name} entra en estado crítico para absorción");
+        }
+        else
+        {
+            health = newHealth;
+        }
+
         if (healthBar) healthBar.UpdateHealth(health, maxHealth);
         if (anim) anim.SetTrigger(animTakeDamage);
         rb.linearVelocity = new Vector2(knockbackForce.x * knockbackDir, knockbackForce.y);
+
         if (!isCritical) currentState = EnemyState.Stunned;
         ResetTimers();
+
+        // Solo morir si realmente la vida llegó a 0 (sin protección de absorción)
         if (health <= 0) Die();
         else if (!isCritical) StartCoroutine(RecoverAndChase());
     }
@@ -506,7 +522,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         else if (sr && isImmortalForAbsorption)
             sr.color = immortalColor;
 
-        // FIX BUG 2: Si está en estado de absorción, no cambiar de estado
         if (currentState == EnemyState.WaitingAbsorption)
         {
             yield break;
@@ -543,7 +558,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
     }
 
-    // FIX BUG 2: Modificado para entrar en estado WaitingAbsorption
     void CheckCriticalHealth()
     {
         bool wasCritical = isCritical;
@@ -553,7 +567,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         {
             StartCoroutine(CriticalHealthSequence());
 
-            // Activar inmortalidad si tiene dash
             if (immortalWhenCriticalWithDash && abilityHolder != null && abilityHolder.HasAbility())
             {
                 isImmortalForAbsorption = true;
@@ -574,7 +587,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
     }
 
-    // FIX BUG 2: Modificado para mantener al enemigo en estado pasivo después del stun
     IEnumerator CriticalHealthSequence()
     {
         isCriticalStunned = true;
@@ -584,7 +596,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         float elapsed = 0;
         Color flashColor = isImmortalForAbsorption ? immortalColor : Color.red;
 
-        // Stun inicial
         while (elapsed < criticalStunDuration && isCritical)
         {
             if (sr) sr.color = flashColor;
@@ -599,7 +610,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         isCriticalStunned = false;
         if (healthBar) healthBar.ForceShow();
 
-        // FIX BUG 2: En lugar de volver a Chase/Patrol, entrar en estado WaitingAbsorption
         if (isImmortalForAbsorption)
         {
             EnterState(EnemyState.WaitingAbsorption);
@@ -607,14 +617,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         }
         else
         {
-            // Si no es inmortal (no tiene dash), comportamiento normal
             if (player && Vector2.Distance(transform.position, player.position) <= detectionRange)
                 EnterState(EnemyState.Chase);
             else
                 ReturnToPatrol();
         }
 
-        // Continuar flasheando mientras está crítico
         while (isCritical)
         {
             if (sr) sr.color = flashColor;

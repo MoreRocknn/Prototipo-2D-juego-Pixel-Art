@@ -5,15 +5,14 @@ public class EnemigoVolador : MonoBehaviour
 {
     [Header("=== SALUD ===")]
     public int health = 3;
-    // CAMBIO 1: Reducir invencibilidad para que sea más fácil de golpear
-    public float invincibilityTime = 0.25f; // Era 0.5f
-    private bool isInvincible = false;
+    public int maxHealth = 3;
+    public float invincibilityTime = 0.25f;
     public Vector2 knockbackForce = new Vector2(4f, 3f);
 
-    [Header("=== PROTECCIÓN ANTI-VUELO ===")]
-    // CAMBIO 2: Reducir tiempo de invencibilidad por knockback
-    public float knockbackInvincibilityTime = 0.15f; // Era 0.3f
-    private bool isKnockbackInvincible = false;
+    [Header("=== BARRA DE VIDA ===")]
+    public Vector3 healthBarOffset = new Vector3(0, 1.2f, 0);
+    public bool hideHealthBarWhenFull = true;
+    private HealthBarUI healthBar;
 
     [Header("=== DETECCIÓN ===")]
     public float detectionRange = 10f;
@@ -22,777 +21,410 @@ public class EnemigoVolador : MonoBehaviour
     public LayerMask wallLayer;
     public Transform detectionPoint;
 
-    [Header("=== COMPORTAMIENTO DE VUELO ===")]
-    // CAMBIO 3: Reducir velocidad de movimiento para hacerlo más predecible
-    public float moveSpeed = 2f; // Era 3f
-    public float chaseSpeed = 3.5f; // Era 5f
-    public float fleeSpeed = 5f; // Era 7f
-    public float guardTime = 0.8f;
-    public float attackCooldown = 1.5f;
-    // CAMBIO 4: Reducir tiempo de huida
-    public float repositionTime = 1.2f; // Era 2f
-    public float repositionDistance = 3f; // Era 5f
-
-    [Header("=== MOVIMIENTO VERTICAL ===")]
-    public float hoverHeight = 0.5f;
-    // CAMBIO 5: Reducir velocidad vertical
-    public float verticalSpeed = 2.5f; // Era 4f
+    [Header("=== MOVIMIENTO ===")]
+    public float moveSpeed = 2f;
+    public float chaseSpeed = 3.5f;
+    public float fleeSpeed = 5f;
+    public float verticalSpeed = 2.5f;
     public float smoothTime = 0.3f;
 
-    [Header("=== PATRULLA AÉREA ===")]
-    private bool shouldPatrol = true;
+    [Header("=== PATRULLA ===")]
     public Vector2 patrolAreaSize = new Vector2(8f, 4f);
     public float waitTimeAtPatrolPoint = 2f;
-    public float patrolPointRadius = 0.5f;
 
-    [Header("=== ATAQUE DIAGONAL ===")]
+    [Header("=== ATAQUE HORIZONTAL ===")]
     public Transform attackPoint;
     public float attackRadius = 1f;
     public int attackDamage = 1;
-    public float attackDuration = 0.3f;
-    // CAMBIO 6: Reducir velocidad de ataque para que sea más esquivable
-    public float diagonalAttackSpeed = 8f; // Era 12f
-    public float diagonalDashTime = 0.25f;
-    public float attackRepositionTime = 0.4f;
-    public float attackRepositionDistance = 3f;
+    public float attackSpeed = 12f;
+    public float attackDuration = 0.25f;
+    public float attackCooldown = 1.5f;
+    public float guardTime = 0.8f;
+    [Range(0.1f, 1f)] public float alignmentTolerance = 0.5f;
 
-    [Header("=== EFECTOS VISUALES ===")]
-    public GameObject guardEffect;
-    public GameObject attackEffect;
+    [Header("=== COLORES ===")]
     public Color guardColor = Color.yellow;
     public Color attackColor = Color.red;
-    public Color fleeColor = new Color(1f, 0.5f, 0f);
+    public Color hurtColor = Color.white;
 
-    [Header("=== DEBUG ===")]
-    public bool showDebugGizmos = true;
+    [Header("=== ANIMACIONES ===")]
+    public string animSpeed = "speed";
+    public string animState = "state"; // 0=idle, 1=move, 2=chase, 3=guard, 4=attack, 5=hurt, 6=dead
 
-    private enum EnemyState
-    {
-        Idle,
-        Patrol,
-        Guard,
-        Alert,
-        Chase,
-        Attack,
-        Flee,
-        Reposition,
-        Stunned // CAMBIO 7: Nuevo estado para cuando recibe daño
-    }
+    // Estado
+    private enum State { Idle, Patrol, Alert, Guard, Chase, Attack, Flee, Stunned }
+    private State state = State.Idle;
 
-    private EnemyState currentState = EnemyState.Idle;
-
-    private SpriteRenderer spriteRenderer;
+    // Referencias
+    private SpriteRenderer sr;
     private Rigidbody2D rb;
     private Transform player;
-    private Animator animator;
+    private Animator anim;
     private Color originalColor;
 
-    private bool isFacingRight = true;
-    private float attackTimer = 0f;
-    private float guardTimer = 0f;
-    private bool isAttacking = false;
-    private Vector2 startPosition;
-    private Vector2 currentPatrolTarget;
-    private float waitTimer = 0f;
-    private float fleeTimer = 0f;
-    private Vector2 fleeDirection;
-    private Vector2 velocitySmooth = Vector2.zero;
-    private bool hasReachedRepositionDistance = false;
+    // Variables internas
+    private Vector2 startPos, patrolTarget, velocity;
+    private float attackTimer, guardTimer, waitTimer, minY, maxY;
+    private bool isFacingRight = true, isInvincible, isAttacking;
 
     void Start()
     {
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        sr = GetComponent<SpriteRenderer>();
         rb = GetComponent<Rigidbody2D>();
-        animator = GetComponent<Animator>();
+        anim = GetComponent<Animator>();
 
-        if (spriteRenderer != null)
-        {
-            originalColor = spriteRenderer.color;
-        }
+        if (sr) originalColor = sr.color;
+        if (rb) rb.gravityScale = 0f;
 
-        if (rb != null)
-        {
-            rb.gravityScale = 0f;
-        }
+        // Asegurar que la vida empieza al máximo
+        health = maxHealth;
 
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null)
-        {
-            player = playerObj.transform;
-            Debug.Log($"Enemigo Volador {gameObject.name} encontró al jugador");
-        }
+        player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        startPos = transform.position;
+
+        minY = startPos.y - patrolAreaSize.y / 2f;
+        maxY = startPos.y + patrolAreaSize.y / 2f;
+
+        if (!detectionPoint) detectionPoint = transform;
+        if (!attackPoint) CreateAttackPoint();
+
+        SetupHealthBar();
+        GeneratePatrolPoint();
+        state = State.Patrol;
+    }
+
+    void SetupHealthBar()
+    {
+        if (HealthBarFactory.Instance)
+            healthBar = HealthBarFactory.Instance.CreateHealthBar(transform, health, maxHealth, healthBarOffset);
         else
         {
-            Debug.LogError("¡No se encontró GameObject con Tag 'Player'!");
+            GameObject hbObj = new GameObject($"HealthBar_{name}");
+            healthBar = hbObj.AddComponent<HealthBarUI>();
+            healthBar.Initialize(transform, health, maxHealth);
+            healthBar.offset = healthBarOffset;
         }
+        if (healthBar) healthBar.alwaysShow = !hideHealthBarWhenFull;
+    }
 
-        startPosition = transform.position;
-        GenerateNewPatrolPoint();
-
-        if (detectionPoint == null)
-        {
-            detectionPoint = transform;
-        }
-
-        if (attackPoint == null)
-        {
-            GameObject attackPt = new GameObject("AttackPoint");
-            attackPt.transform.SetParent(transform);
-            attackPt.transform.localPosition = new Vector3(1f, 0f, 0f);
-            attackPoint = attackPt.transform;
-        }
-
-        currentState = shouldPatrol ? EnemyState.Patrol : EnemyState.Idle;
+    void CreateAttackPoint()
+    {
+        GameObject pt = new GameObject("AttackPoint");
+        pt.transform.SetParent(transform);
+        pt.transform.localPosition = new Vector3(1f, 0f, 0f);
+        attackPoint = pt.transform;
     }
 
     void Update()
     {
-        // CAMBIO 8: No bloquear Update durante invencibilidad
         attackTimer -= Time.deltaTime;
 
-        Vector3 detectionPos = detectionPoint.position;
-        float distanceToPlayer = player != null ? Vector2.Distance(detectionPos, player.position) : Mathf.Infinity;
+        if (isInvincible || state == State.Stunned) { UpdateAnim(); return; }
+        if (isAttacking) return;
 
-        bool canSeePlayer = CanSeePlayer(detectionPos, distanceToPlayer);
-        bool playerInAttackRange = canSeePlayer && distanceToPlayer <= attackRange;
+        bool canSee = CanSeePlayer();
+        bool inRange = canSee && Vector2.Distance(transform.position, player.position) <= attackRange;
+        bool aligned = player && Mathf.Abs(transform.position.y - player.position.y) < alignmentTolerance;
 
-        if (canSeePlayer && player != null && currentState != EnemyState.Attack &&
-            currentState != EnemyState.Flee && currentState != EnemyState.Reposition &&
-            currentState != EnemyState.Stunned)
-        {
+        if (canSee && state != State.Attack && state != State.Flee)
             LookAtPlayer();
-        }
 
-        switch (currentState)
+        switch (state)
         {
-            case EnemyState.Idle:
-                HandleIdle(canSeePlayer);
+            case State.Idle:
+            case State.Patrol:
+                if (canSee) { state = State.Alert; break; }
+                Patrol();
                 break;
-
-            case EnemyState.Patrol:
-                HandlePatrol(canSeePlayer);
+            case State.Alert:
+                if (!canSee) { state = State.Patrol; break; }
+                MoveToward(new Vector2(player.position.x, ClampY(player.position.y)), chaseSpeed * 0.8f);
+                if (Vector2.Distance(transform.position, player.position) <= detectionRange * 0.6f)
+                    state = State.Guard;
                 break;
-
-            case EnemyState.Guard:
-                HandleGuard(canSeePlayer, playerInAttackRange);
+            case State.Guard:
+                Guard(canSee, inRange, aligned);
                 break;
-
-            case EnemyState.Alert:
-                HandleAlert(canSeePlayer, playerInAttackRange);
+            case State.Chase:
+                Chase(canSee, inRange, aligned);
                 break;
-
-            case EnemyState.Chase:
-                HandleChase(canSeePlayer, playerInAttackRange);
+            case State.Attack:
+                if (!isAttacking) StartCoroutine(DoAttack());
                 break;
-
-            case EnemyState.Attack:
-                HandleAttack();
-                break;
-
-            case EnemyState.Flee:
-                HandleFlee();
-                break;
-
-            case EnemyState.Reposition:
-                HandleReposition(canSeePlayer);
-                break;
-
-            case EnemyState.Stunned:
-                // Durante stunned, solo esperar a que termine la invencibilidad
+            case State.Flee:
+                Flee();
                 break;
         }
 
-        UpdateAnimations();
+        UpdateAnim();
     }
 
-    bool CanSeePlayer(Vector3 detectionPos, float distance)
+    void Patrol()
     {
-        if (player == null || distance > detectionRange)
-        {
-            return false;
-        }
+        if (waitTimer > 0) { waitTimer -= Time.deltaTime; rb.linearVelocity = Vector2.zero; return; }
 
-        Vector2 directionToPlayer = (player.position - detectionPos).normalized;
-        RaycastHit2D hit = Physics2D.Raycast(detectionPos, directionToPlayer, distance, wallLayer | PlayerLayer);
+        ClampPosition();
+        MoveToward(patrolTarget, moveSpeed);
 
-        if (hit.collider != null)
-        {
-            bool canSee = hit.collider.CompareTag("Player");
-
-            if (showDebugGizmos)
-            {
-                Debug.DrawLine(detectionPos, hit.point, canSee ? Color.green : Color.red);
-            }
-
-            return canSee;
-        }
-
-        return false;
-    }
-
-    void HandleIdle(bool playerDetected)
-    {
-        rb.linearVelocity = Vector2.zero;
-
-        if (playerDetected)
-        {
-            EnterAlertState();
-        }
-    }
-
-    void HandlePatrol(bool playerDetected)
-    {
-        if (playerDetected)
-        {
-            EnterAlertState();
-            return;
-        }
-
-        if (waitTimer > 0)
-        {
-            waitTimer -= Time.deltaTime;
-            rb.linearVelocity = Vector2.zero;
-            return;
-        }
-
-        float minHeight = startPosition.y - patrolAreaSize.y / 2f;
-        if (transform.position.y < minHeight)
-        {
-            Vector2 upwardDirection = Vector2.up;
-            rb.linearVelocity = upwardDirection * moveSpeed;
-            return;
-        }
-
-        Vector2 direction = (currentPatrolTarget - (Vector2)transform.position).normalized;
-        Vector2 targetVelocity = direction * moveSpeed;
-        rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime);
-
-        if ((direction.x > 0 && !isFacingRight) || (direction.x < 0 && isFacingRight))
-        {
-            Flip();
-        }
-
-        if (Vector2.Distance(transform.position, currentPatrolTarget) < patrolPointRadius)
+        if (Vector2.Distance(transform.position, patrolTarget) < 0.5f)
         {
             waitTimer = waitTimeAtPatrolPoint;
-            GenerateNewPatrolPoint();
+            GeneratePatrolPoint();
         }
     }
 
-    void HandleGuard(bool playerDetected, bool inAttackRange)
+    void Guard(bool canSee, bool inRange, bool aligned)
     {
-        if (player != null)
-        {
-            float targetY = player.position.y + hoverHeight;
-            Vector2 targetPosition = new Vector2(transform.position.x, targetY);
-            Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
-            rb.linearVelocity = new Vector2(0, direction.y * verticalSpeed * 0.5f);
-        }
-        else
-        {
+        if (!canSee) { state = State.Patrol; return; }
+
+        // Alinearse verticalmente
+        float targetY = ClampY(player.position.y);
+        float dirY = Mathf.Sign(targetY - transform.position.y);
+        rb.linearVelocity = new Vector2(0, dirY * verticalSpeed * 0.5f);
+
+        if (Mathf.Abs(transform.position.y - targetY) < 0.1f)
             rb.linearVelocity = Vector2.zero;
-        }
 
-        if (!playerDetected)
-        {
-            Debug.Log($"{gameObject.name}: Jugador fuera de rango");
-            ReturnToPatrol();
-            return;
-        }
-
-        LookAtPlayer();
         guardTimer += Time.deltaTime;
+        if (guardTimer >= guardTime)
+        {
+            if (inRange && aligned && attackTimer <= 0) { state = State.Attack; guardTimer = 0; }
+            else if (!inRange) { state = State.Chase; guardTimer = 0; }
+        }
 
-        if (inAttackRange && guardTimer >= guardTime && attackTimer <= 0)
-        {
-            ExitGuardState();
-            EnterAttackState();
-            guardTimer = 0f;
-        }
-        else if (!inAttackRange && guardTimer >= guardTime)
-        {
-            ExitGuardState();
-            EnterChaseState();
-        }
+        if (sr && !isInvincible) sr.color = guardColor;
     }
 
-    void HandleAlert(bool playerDetected, bool inAttackRange)
+    void Chase(bool canSee, bool inRange, bool aligned)
     {
-        if (!playerDetected)
-        {
-            ReturnToPatrol();
-            return;
-        }
+        if (!canSee) { state = State.Patrol; return; }
 
-        if (player != null)
-        {
-            float targetY = player.position.y + hoverHeight;
-            Vector2 targetPosition = new Vector2(player.position.x, targetY);
-            Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
+        Vector2 target = new Vector2(player.position.x, ClampY(player.position.y));
+        MoveToward(target, chaseSpeed);
 
-            Vector2 targetVelocity = direction * (chaseSpeed * 0.8f);
-            rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime * 0.5f);
-
-            LookAtPlayer();
-
-            float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-            if (distanceToPlayer <= detectionRange * 0.6f)
-            {
-                EnterGuardState();
-            }
-        }
+        if (inRange && aligned && attackTimer <= 0)
+            state = State.Attack;
     }
 
-    void HandleChase(bool playerDetected, bool playerInAttackRange)
+    void Flee()
     {
-        if (!playerDetected)
-        {
-            Debug.Log($"{gameObject.name}: Perdió de vista al jugador");
-            ReturnToPatrol();
-            return;
-        }
+        Vector2 dir = ((Vector2)transform.position - (Vector2)player.position).normalized;
+        if (transform.position.y < minY) dir.y = 1;
+        else if (transform.position.y > maxY) dir.y = -1;
 
-        if (player != null)
-        {
-            float targetY = player.position.y + hoverHeight;
-            Vector2 targetPosition = new Vector2(player.position.x, targetY);
+        rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, dir * fleeSpeed, ref velocity, smoothTime * 0.5f);
 
-            Vector2 direction = (targetPosition - (Vector2)transform.position).normalized;
-            Vector2 targetVelocity = direction * chaseSpeed;
-            rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime);
-
-            LookAtPlayer();
-
-            if (playerInAttackRange && attackTimer <= 0)
-            {
-                EnterAttackState();
-            }
-        }
+        if (Vector2.Distance(transform.position, player.position) >= detectionRange * 0.8f)
+            state = CanSeePlayer() ? State.Alert : State.Patrol;
     }
 
-    void HandleAttack()
-    {
-        if (!isAttacking)
-        {
-            StartCoroutine(PerformDiagonalAttack());
-        }
-    }
-
-    void HandleFlee()
-    {
-        fleeTimer += Time.deltaTime;
-
-        Vector2 targetVelocity = fleeDirection * fleeSpeed;
-        rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, targetVelocity, ref velocitySmooth, smoothTime * 0.5f);
-
-        if (player != null)
-        {
-            float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-            if (distanceToPlayer >= repositionDistance)
-            {
-                hasReachedRepositionDistance = true;
-            }
-        }
-
-        if (fleeTimer >= repositionTime && hasReachedRepositionDistance)
-        {
-            EnterRepositionState();
-        }
-    }
-
-    void HandleReposition(bool playerDetected)
-    {
-        rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, Vector2.zero, Time.deltaTime * 3f);
-
-        if (rb.linearVelocity.magnitude < 0.1f)
-        {
-            if (playerDetected)
-            {
-                EnterAlertState();
-            }
-            else
-            {
-                ReturnToPatrol();
-            }
-        }
-    }
-
-    void EnterAlertState()
-    {
-        currentState = EnemyState.Alert;
-        guardTimer = 0f;
-        Debug.Log($"{gameObject.name}: ¡Alerta! Jugador detectado");
-    }
-
-    void EnterGuardState()
-    {
-        currentState = EnemyState.Guard;
-        guardTimer = 0f;
-
-        if (guardEffect != null)
-        {
-            guardEffect.SetActive(true);
-        }
-
-        if (spriteRenderer != null && !isInvincible)
-        {
-            spriteRenderer.color = guardColor;
-        }
-
-        Debug.Log($"{gameObject.name}: En Guardia");
-    }
-
-    void ExitGuardState()
-    {
-        if (guardEffect != null)
-        {
-            guardEffect.SetActive(false);
-        }
-
-        if (spriteRenderer != null && !isInvincible)
-        {
-            spriteRenderer.color = originalColor;
-        }
-    }
-
-    void EnterChaseState()
-    {
-        currentState = EnemyState.Chase;
-        Debug.Log($"{gameObject.name}: Persiguiendo");
-    }
-
-    void EnterAttackState()
-    {
-        currentState = EnemyState.Attack;
-
-        if (spriteRenderer != null && !isInvincible)
-        {
-            spriteRenderer.color = attackColor;
-        }
-
-        Debug.Log($"{gameObject.name}: Atacando");
-    }
-
-    void EnterFleeState()
-    {
-        currentState = EnemyState.Flee;
-        fleeTimer = 0f;
-        hasReachedRepositionDistance = false;
-
-        if (player != null)
-        {
-            fleeDirection = ((Vector2)transform.position - (Vector2)player.position).normalized;
-        }
-        else
-        {
-            fleeDirection = isFacingRight ? Vector2.left : Vector2.right;
-        }
-
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.color = fleeColor;
-        }
-
-        Debug.Log($"{gameObject.name}: ¡Huyendo para reposicionarse!");
-    }
-
-    void EnterRepositionState()
-    {
-        currentState = EnemyState.Reposition;
-
-        if (spriteRenderer != null && !isInvincible)
-        {
-            spriteRenderer.color = originalColor;
-        }
-
-        Debug.Log($"{gameObject.name}: Reposicionándose");
-    }
-
-    IEnumerator PerformDiagonalAttack()
+    IEnumerator DoAttack()
     {
         isAttacking = true;
+        if (player == null) { isAttacking = false; state = State.Guard; yield break; }
 
-        if (player == null)
+        float dirX = player.position.x > transform.position.x ? 1f : -1f;
+        if ((dirX > 0 && !isFacingRight) || (dirX < 0 && isFacingRight)) Flip();
+
+        // Carga
+        rb.linearVelocity = Vector2.zero;
+        if (sr) sr.color = Color.white;
+        yield return new WaitForSeconds(0.12f);
+        if (sr) sr.color = attackColor;
+
+        // Embestida
+        float t = 0;
+        while (t < attackDuration)
         {
-            isAttacking = false;
-            EnterGuardState();
-            yield break;
-        }
+            rb.linearVelocity = new Vector2(dirX * attackSpeed, 0);
+            t += Time.deltaTime;
 
-        Vector2 startPos = transform.position;
-        Vector2 targetPos = player.position;
-        Vector2 diagonalDirection = (targetPos - startPos).normalized;
-
-        float dashTimer = 0f;
-        while (dashTimer < diagonalDashTime)
-        {
-            rb.linearVelocity = diagonalDirection * diagonalAttackSpeed;
-            dashTimer += Time.deltaTime;
-            yield return null;
-        }
-
-        if (attackEffect != null && attackPoint != null)
-        {
-            GameObject effect = Instantiate(attackEffect, attackPoint);
-            effect.transform.localPosition = Vector3.zero;
-
-            float effectScale = 0.7f;
-            effect.transform.localScale = new Vector3(
-                (isFacingRight ? 1f : -1f) * effectScale,
-                effectScale,
-                effectScale
-            );
-
-            effect.transform.localRotation = Quaternion.identity;
-
-            ParticleSystem ps = effect.GetComponent<ParticleSystem>();
-            if (ps != null)
+            // Detectar golpe durante la embestida
+            if (attackPoint)
             {
-                ps.Play();
-            }
-
-            SpriteRenderer sr = effect.GetComponent<SpriteRenderer>();
-            if (sr != null)
-            {
-                sr.sortingOrder = 10;
-            }
-
-            Destroy(effect, attackDuration + 0.5f);
-        }
-
-        if (attackPoint != null)
-        {
-            Collider2D[] hits = Physics2D.OverlapCircleAll(attackPoint.position, attackRadius);
-
-            foreach (Collider2D hit in hits)
-            {
-                if (hit.CompareTag("Player"))
+                Collider2D hit = Physics2D.OverlapCircle(attackPoint.position, attackRadius, PlayerLayer);
+                if (hit && hit.CompareTag("Player"))
                 {
-                    MainChar playerScript = hit.GetComponent<MainChar>();
-                    if (playerScript != null)
-                    {
-                        playerScript.TakeDamage(attackDamage);
-                        Debug.Log($"{gameObject.name}: Golpeó al jugador por {attackDamage} de daño");
-                    }
+                    hit.GetComponent<MainChar>()?.TakeDamage(attackDamage);
+                    break;
                 }
             }
-        }
-
-        yield return new WaitForSeconds(attackDuration);
-
-        Vector2 repositionDirection = -diagonalDirection;
-        float repositionTimer = 0f;
-
-        while (repositionTimer < attackRepositionTime)
-        {
-            rb.linearVelocity = repositionDirection * (diagonalAttackSpeed * 0.8f);
-            repositionTimer += Time.deltaTime;
             yield return null;
         }
 
-        float slowDownTimer = 0f;
-        float slowDownDuration = 0.2f;
-        Vector2 currentVel = rb.linearVelocity;
-
-        while (slowDownTimer < slowDownDuration)
+        // Retroceso
+        t = 0;
+        while (t < 0.3f)
         {
-            slowDownTimer += Time.deltaTime;
-            float t = slowDownTimer / slowDownDuration;
-            rb.linearVelocity = Vector2.Lerp(currentVel, Vector2.zero, t);
+            rb.linearVelocity = new Vector2(-dirX * attackSpeed * 0.5f, 0);
+            t += Time.deltaTime;
             yield return null;
         }
 
         rb.linearVelocity = Vector2.zero;
-
         isAttacking = false;
         attackTimer = attackCooldown;
+        if (sr) sr.color = originalColor;
+        state = State.Guard;
+    }
 
-        if (spriteRenderer != null && !isInvincible)
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        Debug.Log($"{name}: Trigger con {other.name} (tag: {other.tag})");
+    }
+
+    void OnCollisionEnter2D(Collision2D other)
+    {
+        Debug.Log($"{name}: Colisión con {other.gameObject.name} (tag: {other.gameObject.tag})");
+    }
+
+    // Sobrecarga para compatibilidad
+    public void TakeDamage(int damage)
+    {
+        float knockbackDir = player ? Mathf.Sign(transform.position.x - player.position.x) : 1f;
+        TakeDamage(damage, knockbackDir);
+    }
+
+    public void TakeDamage(int damage, float knockbackDir)
+    {
+        if (isInvincible)
         {
-            spriteRenderer.color = originalColor;
+            Debug.Log($"{name}: Invencible, daño ignorado");
+            return;
         }
 
-        EnterGuardState();
+        health -= damage;
+        Debug.Log($"{name}: Recibió {damage} daño. Vida: {health}/{maxHealth}");
+
+        if (healthBar) healthBar.UpdateHealth(health, maxHealth);
+
+        if (sr) sr.color = hurtColor;
+        rb.linearVelocity = new Vector2(knockbackForce.x * knockbackDir, knockbackForce.y);
+
+        if (health <= 0) Die();
+        else StartCoroutine(Stun());
+    }
+
+    IEnumerator Stun()
+    {
+        isInvincible = true;
+        state = State.Stunned;
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (sr) sr.color = hurtColor;
+            yield return new WaitForSeconds(invincibilityTime / 8f);
+            if (sr) sr.color = originalColor;
+            yield return new WaitForSeconds(invincibilityTime / 8f);
+        }
+
+        isInvincible = false;
+        state = CanSeePlayer() ? State.Alert : State.Patrol;
+    }
+
+    void Die()
+    {
+        if (healthBar) healthBar.gameObject.SetActive(false);
+        rb.linearVelocity = Vector2.zero;
+        rb.simulated = false;
+        GetComponent<Collider2D>().enabled = false;
+        StartCoroutine(DoDeath());
+    }
+
+    IEnumerator DoDeath()
+    {
+        if (anim) anim.SetInteger(animState, 6);
+
+        float t = 0;
+        Color c = sr ? sr.color : Color.white;
+        while (t < 0.5f)
+        {
+            t += Time.deltaTime;
+            if (sr) sr.color = new Color(c.r, c.g, c.b, 1 - t * 2);
+            yield return null;
+        }
+        Destroy(gameObject);
+    }
+
+    // === UTILIDADES ===
+    void MoveToward(Vector2 target, float speed)
+    {
+        Vector2 dir = (target - (Vector2)transform.position).normalized;
+        rb.linearVelocity = Vector2.SmoothDamp(rb.linearVelocity, dir * speed, ref velocity, smoothTime);
+
+        if ((dir.x > 0 && !isFacingRight) || (dir.x < 0 && isFacingRight)) Flip();
+    }
+
+    void ClampPosition()
+    {
+        if (transform.position.y < minY) rb.linearVelocity = Vector2.up * moveSpeed;
+        else if (transform.position.y > maxY) rb.linearVelocity = Vector2.down * moveSpeed;
+    }
+
+    float ClampY(float y) => Mathf.Clamp(y, minY, maxY);
+
+    void GeneratePatrolPoint()
+    {
+        patrolTarget = new Vector2(
+            startPos.x + Random.Range(-patrolAreaSize.x / 2f, patrolAreaSize.x / 2f),
+            Random.Range(minY, maxY)
+        );
+    }
+
+    bool CanSeePlayer()
+    {
+        if (!player || Vector2.Distance(transform.position, player.position) > detectionRange) return false;
+        Vector2 dir = (player.position - detectionPoint.position).normalized;
+        RaycastHit2D hit = Physics2D.Raycast(detectionPoint.position, dir, detectionRange, wallLayer | PlayerLayer);
+        return hit.collider && hit.collider.CompareTag("Player");
     }
 
     void LookAtPlayer()
     {
-        if (player == null) return;
-
-        bool playerOnRight = player.position.x > transform.position.x;
-
-        if ((playerOnRight && !isFacingRight) || (!playerOnRight && isFacingRight))
-        {
-            Flip();
-        }
+        if (!player) return;
+        bool shouldFaceRight = player.position.x > transform.position.x;
+        if (shouldFaceRight != isFacingRight) Flip();
     }
 
     void Flip()
     {
         isFacingRight = !isFacingRight;
-        Vector3 scale = transform.localScale;
-        scale.x *= -1;
-        transform.localScale = scale;
+        transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
     }
 
-    void ReturnToPatrol()
+    void UpdateAnim()
     {
-        ExitGuardState();
-        currentState = shouldPatrol ? EnemyState.Patrol : EnemyState.Idle;
-        guardTimer = 0f;
-    }
+        if (!anim) return;
+        anim.SetFloat(animSpeed, rb.linearVelocity.magnitude);
 
-    void GenerateNewPatrolPoint()
-    {
-        float randomX = startPosition.x + Random.Range(-patrolAreaSize.x / 2f, patrolAreaSize.x / 2f);
-        float minY = startPosition.y - patrolAreaSize.y / 4f;
-        float maxY = startPosition.y + patrolAreaSize.y / 2f;
-        float randomY = Random.Range(minY, maxY);
-        currentPatrolTarget = new Vector2(randomX, randomY);
-
-        Debug.Log($"{gameObject.name}: Nuevo punto de patrulla en {currentPatrolTarget}");
-    }
-
-    // CAMBIO 9: Método TakeDamage mejorado
-    public void TakeDamage(int damage, float knockbackDirection)
-    {
-        if (isInvincible)
+        int s = state switch
         {
-            Debug.Log($"{gameObject.name}: Invencible - Daño ignorado");
-            return;
-        }
-
-        health -= damage;
-        Debug.Log($"{gameObject.name}: Recibió {damage} de daño. Vida: {health}");
-
-        // CAMBIO 10: Aplicar knockback más fuerte
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector2.zero;
-            rb.linearVelocity = new Vector2(
-                knockbackForce.x * knockbackDirection * 1.5f, // Más knockback horizontal
-                knockbackForce.y * 1.2f // Más knockback vertical
-            );
-        }
-
-        ExitGuardState();
-
-        if (health <= 0)
-        {
-            Die();
-        }
-        else
-        {
-            // CAMBIO 11: Entrar en estado Stunned al recibir daño
-            currentState = EnemyState.Stunned;
-            StartCoroutine(StunAndRecover());
-        }
-    }
-
-    void Die()
-    {
-        Debug.Log($"{gameObject.name}: Murió");
-        Destroy(gameObject);
-    }
-
-    // CAMBIO 12: Nueva corrutina de stun simplificada
-    IEnumerator StunAndRecover()
-    {
-        isInvincible = true;
-
-        float flashDuration = invincibilityTime / 8f;
-
-        // Flash visual
-        for (int i = 0; i < 4; i++)
-        {
-            if (spriteRenderer != null) spriteRenderer.color = Color.red;
-            yield return new WaitForSeconds(flashDuration);
-            if (spriteRenderer != null) spriteRenderer.color = originalColor;
-            yield return new WaitForSeconds(flashDuration);
-        }
-
-        isInvincible = false;
-
-        // Después del stun, entrar en estado de alerta para buscar al jugador
-        if (player != null)
-        {
-            float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-            if (distanceToPlayer <= detectionRange)
-            {
-                EnterAlertState();
-            }
-            else
-            {
-                ReturnToPatrol();
-            }
-        }
-        else
-        {
-            ReturnToPatrol();
-        }
-    }
-
-    void UpdateAnimations()
-    {
-        if (animator != null)
-        {
-            animator.SetBool("isGuarding", currentState == EnemyState.Guard);
-            animator.SetBool("isAttacking", currentState == EnemyState.Attack);
-            animator.SetBool("isFleeing", currentState == EnemyState.Flee);
-            animator.SetFloat("speed", rb.linearVelocity.magnitude);
-        }
+            State.Idle => 0,
+            State.Patrol => 1,
+            State.Alert or State.Chase => 2,
+            State.Guard => 3,
+            State.Attack => 4,
+            State.Stunned => 5,
+            _ => 0
+        };
+        anim.SetInteger(animState, s);
     }
 
     void OnDrawGizmosSelected()
     {
-        if (!showDebugGizmos) return;
-
-        Vector3 detectionPos = detectionPoint != null ? detectionPoint.position : transform.position;
+        Vector2 center = Application.isPlaying ? startPos : (Vector2)transform.position;
 
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(detectionPos, detectionRange);
-
+        Gizmos.DrawWireSphere(center, detectionRange);
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(detectionPos, attackRange);
+        Gizmos.DrawWireSphere(center, attackRange);
+        Gizmos.color = new Color(0, 1, 0, 0.3f);
+        Gizmos.DrawWireCube(center, patrolAreaSize);
 
-        if (attackPoint != null)
+        if (attackPoint)
         {
             Gizmos.color = Color.magenta;
             Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
-        }
-
-        if (shouldPatrol)
-        {
-            Vector2 center = Application.isPlaying ? startPosition : (Vector2)transform.position;
-            Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
-            Gizmos.DrawWireCube(center, new Vector3(patrolAreaSize.x, patrolAreaSize.y, 0f));
-
-            if (Application.isPlaying)
-            {
-                Gizmos.color = Color.cyan;
-                Gizmos.DrawWireSphere(currentPatrolTarget, patrolPointRadius);
-                Gizmos.DrawLine(transform.position, currentPatrolTarget);
-            }
-        }
-
-        Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(detectionPos, repositionDistance);
-
-        if (Application.isPlaying && player != null)
-        {
-            Vector2 directionToPlayer = (player.position - detectionPos).normalized;
-            float distance = Vector2.Distance(detectionPos, player.position);
-
-            if (distance <= detectionRange)
-            {
-                RaycastHit2D hit = Physics2D.Raycast(detectionPos, directionToPlayer, distance, wallLayer | PlayerLayer);
-
-                if (hit.collider != null)
-                {
-                    Gizmos.color = hit.collider.CompareTag("Player") ? Color.green : Color.red;
-                    Gizmos.DrawLine(detectionPos, hit.point);
-                }
-            }
         }
     }
 }

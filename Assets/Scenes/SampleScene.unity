@@ -2793,12 +2793,17 @@ MonoBehaviour:
   healOnRest: 1
   refillVialsOnRest: 1
   showPrompt: 1
-  promptHeight: 2.81
-  promptScale: 0.01242
-  promptKeyFontSize: 19
-  promptActionFontSize: 12
-  promptKeyBoxSize: 26
-  promptActionText: Interactuar
+  promptHeight: 2.02
+  promptWidth: 4
+  promptBgHeight: 0.91
+  keyBoxSize: 0.76
+  keyBoxOffsetY: 0.023
+  keyTextSize: 0.143
+  keyFontSize: 48
+  actionTextSize: 0.112
+  actionFontSize: 39
+  actionTextOffsetY: -0.32
+  actionText: Interactuar
   promptKeyColor: {r: 0.76, g: 0.6, b: 0.23, a: 1}
   promptKeyBgColor: {r: 0.12, g: 0.1, b: 0.06, a: 1}
   promptTextColor: {r: 0.76, g: 0.6, b: 0.23, a: 1}
@@ -7171,11 +7176,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   health: 2
+  maxHealth: 3
   invincibilityTime: 1
   knockbackForce: {x: 2, y: 5}
-  knockbackInvincibilityTime: 1.23
+  healthBarOffset: {x: 0, y: 1.2, z: 0}
+  hideHealthBarWhenFull: 1
   detectionRange: 8.62
-  attackRange: 1.48
+  attackRange: 4.95
   PlayerLayer:
     serializedVersion: 2
     m_Bits: 512
@@ -7186,30 +7193,23 @@ MonoBehaviour:
   moveSpeed: 3
   chaseSpeed: 5
   fleeSpeed: 7
-  guardTime: 0.8
-  attackCooldown: 3
-  repositionTime: 1
-  repositionDistance: 5
-  hoverHeight: 1.5
   verticalSpeed: 6
   smoothTime: 0.5
   patrolAreaSize: {x: 21.79, y: 6.18}
   waitTimeAtPatrolPoint: 2
-  patrolPointRadius: 0.5
   attackPoint: {fileID: 500623608}
   attackRadius: 1.7
   attackDamage: 1
+  attackSpeed: 12
   attackDuration: 0.3
-  diagonalAttackSpeed: 12
-  diagonalDashTime: 0.25
-  attackRepositionTime: 0.4
-  attackRepositionDistance: 3
-  guardEffect: {fileID: 0}
-  attackEffect: {fileID: 0}
+  attackCooldown: 3
+  guardTime: 0.8
+  alignmentTolerance: 0.5
   guardColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   attackColor: {r: 1, g: 0, b: 0, a: 1}
-  fleeColor: {r: 1, g: 0.5, b: 0, a: 1}
-  showDebugGizmos: 1
+  hurtColor: {r: 1, g: 1, b: 1, a: 1}
+  animSpeed: speed
+  animState: state
 --- !u!50 &2010411031
 Rigidbody2D:
   serializedVersion: 5

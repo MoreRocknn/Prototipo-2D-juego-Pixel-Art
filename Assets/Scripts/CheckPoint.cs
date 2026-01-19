@@ -30,30 +30,44 @@ public class CheckPoint : MonoBehaviour
     public bool healOnRest = true;
     public bool refillVialsOnRest = true;
 
-    [Header("=== PROMPT - GENERAL ===")]
+    [Header("=== PROMPT ===")]
     public bool showPrompt = true;
-    [Range(0.5f, 4f)]
+    [Range(0.5f, 5f)]
     public float promptHeight = 1.8f;
-    [Range(0.004f, 0.02f)]
-    public float promptScale = 0.008f;
 
-    [Header("=== PROMPT - TAMAÑOS ===")]
-    [Range(10, 40)]
-    public int promptKeyFontSize = 22;
-    [Range(6, 24)]
-    public int promptActionFontSize = 12;
-    [Range(20, 60)]
-    public float promptKeyBoxSize = 34f;
+    [Header("=== PROMPT - TAMAÑO FONDO ===")]
+    [Range(0.5f, 4f)]
+    public float promptWidth = 1.6f;
+    [Range(0.5f, 3f)]
+    public float promptBgHeight = 1f;
 
-    [Header("=== PROMPT - TEXTOS ===")]
-    public string promptActionText = "Interactuar";
+    [Header("=== PROMPT - CAJA TECLA ===")]
+    [Range(0.2f, 1.5f)]
+    public float keyBoxSize = 0.55f;
+    [Range(-0.5f, 0.5f)]
+    public float keyBoxOffsetY = 0.12f;
+
+    [Header("=== PROMPT - TEXTO TECLA ===")]
+    [Range(0.05f, 0.4f)]
+    public float keyTextSize = 0.15f;
+    [Range(20, 80)]
+    public int keyFontSize = 48;
+
+    [Header("=== PROMPT - TEXTO ACCION ===")]
+    [Range(0.03f, 0.2f)]
+    public float actionTextSize = 0.08f;
+    [Range(20, 80)]
+    public int actionFontSize = 48;
+    [Range(-0.8f, 0f)]
+    public float actionTextOffsetY = -0.32f;
+    public string actionText = "Interactuar";
 
     [Header("=== PROMPT - COLORES ===")]
     public Color promptKeyColor = new Color(0.76f, 0.6f, 0.23f);
-    public Color promptKeyBgColor = new Color(0.12f, 0.1f, 0.06f);
-    public Color promptTextColor = new Color(0.76f, 0.6f, 0.23f);
-    public Color promptBgColor = new Color(0, 0, 0, 0.85f);
-    public Color promptBorderColor = new Color(0.4f, 0.32f, 0.12f);
+    public Color promptKeyBgColor = new Color(0.15f, 0.12f, 0.08f);
+    public Color promptTextColor = new Color(0.9f, 0.85f, 0.7f);
+    public Color promptBgColor = new Color(0.05f, 0.04f, 0.03f, 0.95f);
+    public Color promptBorderColor = new Color(0.5f, 0.4f, 0.2f);
 
     [Header("=== CINEMATICA ===")]
     public bool useCinematic = true;
@@ -113,7 +127,7 @@ public class CheckPoint : MonoBehaviour
     private bool playerNearby = false;
     private bool menuActive = false;
     private bool resting = false;
-    private bool menuLocked = false; // BLOQUEO TOTAL
+    private bool menuLocked = false;
 
     private GameObject player;
     private MainChar playerCtrl;
@@ -123,8 +137,7 @@ public class CheckPoint : MonoBehaviour
     private float savedTimeScale = 1f;
 
     // UI
-    private Canvas promptCanvas;
-    private CanvasGroup promptCG;
+    private GameObject promptObject;
     private Canvas menuCanvas;
     private Image overlay;
     private CanvasGroup menuCG;
@@ -162,7 +175,7 @@ public class CheckPoint : MonoBehaviour
             {
                 string n = c.name.ToLower();
                 if (n.Contains("text") || n.Contains("prompt") || n.Contains("canvas") ||
-                    n.Contains("ui") || n.Contains("tmp"))
+                    n.Contains("ui") || n.Contains("tmp") || n.Contains("_prompt"))
                 {
                     DestroyImmediate(c.gameObject);
                 }
@@ -172,10 +185,8 @@ public class CheckPoint : MonoBehaviour
 
     void Update()
     {
-        // === BLOQUEO TOTAL: Si menu activo, NADA puede interrumpir ===
         if (menuLocked)
         {
-            // Forzar posicion del jugador
             if (player != null)
             {
                 player.transform.position = savedPlayerPos;
@@ -186,7 +197,6 @@ public class CheckPoint : MonoBehaviour
                 }
             }
 
-            // Solo procesar input del menu si no estamos en animacion de descanso
             if (menuActive && !resting)
             {
                 if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
@@ -199,10 +209,9 @@ public class CheckPoint : MonoBehaviour
                     DoExit();
             }
 
-            return; // NO PROCESAR NADA MAS
+            return;
         }
 
-        // Menu no activo - permitir abrir
         if (playerNearby && isActivated && canRestHere)
         {
             if (Input.GetKeyDown(interactKey))
@@ -210,10 +219,9 @@ public class CheckPoint : MonoBehaviour
         }
     }
 
-    // === TRIGGERS - Solo funcionan si menu NO esta bloqueado ===
     void OnTriggerEnter2D(Collider2D other)
     {
-        if (menuLocked) return; // IGNORAR
+        if (menuLocked) return;
         if (!other.CompareTag("Player")) return;
 
         playerNearby = true;
@@ -225,7 +233,7 @@ public class CheckPoint : MonoBehaviour
 
     void OnTriggerExit2D(Collider2D other)
     {
-        if (menuLocked) return; // IGNORAR
+        if (menuLocked) return;
         if (!other.CompareTag("Player")) return;
 
         playerNearby = false;
@@ -255,80 +263,186 @@ public class CheckPoint : MonoBehaviour
         if (activeVisual) activeVisual.SetActive(isActivated);
     }
 
-    // ===== PROMPT =====
+    // ===== PROMPT CON SPRITES (CONTROL TOTAL) =====
+    private SpriteRenderer promptBgSprite;
+    private SpriteRenderer promptKeyBgSprite;
+    private TextMesh promptKeyText;
+    private TextMesh promptActionTextMesh;
+    private float promptAlpha = 0f;
+    private bool promptFading = false;
+    private bool promptFadeIn = false;
+
     void BuildPrompt()
     {
-        var go = new GameObject("_Prompt");
-        go.transform.SetParent(transform);
-        go.transform.localPosition = Vector3.up * promptHeight;
+        if (promptObject != null)
+        {
+            DestroyImmediate(promptObject);
+        }
 
-        promptCanvas = go.AddComponent<Canvas>();
-        promptCanvas.renderMode = RenderMode.WorldSpace;
-        promptCanvas.sortingOrder = 100;
+        promptObject = new GameObject("_Prompt");
+        promptObject.transform.SetParent(transform);
+        promptObject.transform.localPosition = Vector3.up * promptHeight;
+        promptObject.transform.localScale = Vector3.one;
 
-        promptCG = go.AddComponent<CanvasGroup>();
-        promptCG.alpha = 0;
+        // === BORDE (detrás del fondo) ===
+        GameObject border = new GameObject("Border");
+        border.transform.SetParent(promptObject.transform);
+        border.transform.localPosition = Vector3.zero;
+        border.transform.localScale = new Vector3(promptWidth + 0.1f, promptBgHeight + 0.1f, 1f);
 
-        var crt = go.GetComponent<RectTransform>();
-        crt.sizeDelta = new Vector2(120, 75);
-        crt.localScale = Vector3.one * promptScale;
+        SpriteRenderer borderSprite = border.AddComponent<SpriteRenderer>();
+        borderSprite.sprite = CreateSquareSprite();
+        borderSprite.color = promptBorderColor;
+        borderSprite.sortingOrder = 99;
 
-        // Fondo
-        var bg = MakeImg(go.transform, "bg", new Vector2(120, 75), Vector2.zero, promptBgColor);
-        bg.AddComponent<Outline>().effectColor = promptBorderColor;
+        // === FONDO PRINCIPAL ===
+        GameObject bg = new GameObject("Background");
+        bg.transform.SetParent(promptObject.transform);
+        bg.transform.localPosition = Vector3.zero;
+        bg.transform.localScale = new Vector3(promptWidth, promptBgHeight, 1f);
 
-        // Caja tecla
-        var key = MakeImg(go.transform, "key", new Vector2(promptKeyBoxSize, promptKeyBoxSize), new Vector2(0, 12), promptKeyBgColor);
-        var ko = key.AddComponent<Outline>();
-        ko.effectColor = promptKeyColor;
-        ko.effectDistance = new Vector2(2, -2);
+        promptBgSprite = bg.AddComponent<SpriteRenderer>();
+        promptBgSprite.sprite = CreateSquareSprite();
+        promptBgSprite.color = promptBgColor;
+        promptBgSprite.sortingOrder = 100;
 
-        // Texto tecla
-        var kt = MakeTxt(key.transform, "kt", interactKey.ToString(), promptKeyFontSize, promptKeyColor);
-        var ktr = kt.GetComponent<RectTransform>();
-        ktr.anchorMin = Vector2.zero;
-        ktr.anchorMax = Vector2.one;
-        ktr.offsetMin = ktr.offsetMax = Vector2.zero;
+        // === BORDE DE LA TECLA ===
+        GameObject keyBorder = new GameObject("KeyBorder");
+        keyBorder.transform.SetParent(promptObject.transform);
+        keyBorder.transform.localPosition = new Vector3(0, keyBoxOffsetY, 0);
+        keyBorder.transform.localScale = new Vector3(keyBoxSize + 0.07f, keyBoxSize + 0.07f, 1f);
 
-        // Texto accion
-        var at = MakeTxt(go.transform, "at", promptActionText, promptActionFontSize, promptTextColor);
-        at.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -24);
-        at.GetComponent<RectTransform>().sizeDelta = new Vector2(120, 25);
+        SpriteRenderer keyBorderSprite = keyBorder.AddComponent<SpriteRenderer>();
+        keyBorderSprite.sprite = CreateSquareSprite();
+        keyBorderSprite.color = promptKeyColor;
+        keyBorderSprite.sortingOrder = 100;
 
-        promptCanvas.gameObject.SetActive(false);
+        // === CAJA DE LA TECLA ===
+        GameObject keyBox = new GameObject("KeyBox");
+        keyBox.transform.SetParent(promptObject.transform);
+        keyBox.transform.localPosition = new Vector3(0, keyBoxOffsetY, 0);
+        keyBox.transform.localScale = new Vector3(keyBoxSize, keyBoxSize, 1f);
+
+        promptKeyBgSprite = keyBox.AddComponent<SpriteRenderer>();
+        promptKeyBgSprite.sprite = CreateSquareSprite();
+        promptKeyBgSprite.color = promptKeyBgColor;
+        promptKeyBgSprite.sortingOrder = 101;
+
+        // === TEXTO DE LA TECLA ===
+        GameObject keyTextObj = new GameObject("KeyText");
+        keyTextObj.transform.SetParent(promptObject.transform);
+        keyTextObj.transform.localPosition = new Vector3(0, keyBoxOffsetY - 0.02f, -0.1f);
+        keyTextObj.transform.localScale = Vector3.one * keyTextSize;
+
+        promptKeyText = keyTextObj.AddComponent<TextMesh>();
+        promptKeyText.text = interactKey.ToString();
+        promptKeyText.fontSize = keyFontSize;
+        promptKeyText.fontStyle = FontStyle.Bold;
+        promptKeyText.color = promptKeyColor;
+        promptKeyText.anchor = TextAnchor.MiddleCenter;
+        promptKeyText.alignment = TextAlignment.Center;
+
+        MeshRenderer keyTextRenderer = keyTextObj.GetComponent<MeshRenderer>();
+        keyTextRenderer.sortingOrder = 102;
+
+        // === TEXTO DE ACCIÓN ===
+        GameObject actionTextObj = new GameObject("ActionText");
+        actionTextObj.transform.SetParent(promptObject.transform);
+        actionTextObj.transform.localPosition = new Vector3(0, actionTextOffsetY, -0.1f);
+        actionTextObj.transform.localScale = Vector3.one * actionTextSize;
+
+        promptActionTextMesh = actionTextObj.AddComponent<TextMesh>();
+        promptActionTextMesh.text = actionText;
+        promptActionTextMesh.fontSize = actionFontSize;
+        promptActionTextMesh.fontStyle = FontStyle.Bold;
+        promptActionTextMesh.color = promptTextColor;
+        promptActionTextMesh.anchor = TextAnchor.MiddleCenter;
+        promptActionTextMesh.alignment = TextAlignment.Center;
+
+        MeshRenderer actionTextRenderer = actionTextObj.GetComponent<MeshRenderer>();
+        actionTextRenderer.sortingOrder = 102;
+
+        promptObject.SetActive(false);
+        promptAlpha = 0f;
+    }
+
+    Sprite CreateSquareSprite()
+    {
+        Texture2D tex = new Texture2D(4, 4);
+        Color[] colors = new Color[16];
+        for (int i = 0; i < 16; i++) colors[i] = Color.white;
+        tex.SetPixels(colors);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
+    }
+
+    void UpdatePromptAlpha()
+    {
+        if (promptObject == null) return;
+
+        SpriteRenderer[] sprites = promptObject.GetComponentsInChildren<SpriteRenderer>();
+        foreach (var sr in sprites)
+        {
+            Color c = sr.color;
+            c.a = (sr == promptBgSprite) ? promptBgColor.a * promptAlpha : promptAlpha;
+            sr.color = c;
+        }
+
+        if (promptKeyText != null)
+        {
+            Color c = promptKeyText.color;
+            c.a = promptAlpha;
+            promptKeyText.color = c;
+        }
+
+        if (promptActionTextMesh != null)
+        {
+            Color c = promptActionTextMesh.color;
+            c.a = promptAlpha;
+            promptActionTextMesh.color = c;
+        }
     }
 
     void ShowPrompt()
     {
-        if (!showPrompt || !promptCanvas) return;
-        promptCanvas.gameObject.SetActive(true);
-        StopCoroutine("FadePrompt");
-        StartCoroutine(FadePrompt(true));
+        if (!showPrompt || promptObject == null) return;
+        promptObject.SetActive(true);
+        promptFading = true;
+        promptFadeIn = true;
     }
 
     void HidePrompt()
     {
-        if (!promptCanvas) return;
-        StopCoroutine("FadePrompt");
-        StartCoroutine(FadePrompt(false));
+        if (promptObject == null) return;
+        promptFading = true;
+        promptFadeIn = false;
     }
 
-    IEnumerator FadePrompt(bool show)
+    void UpdatePromptFade()
     {
-        float target = show ? 1 : 0;
-        while (Mathf.Abs(promptCG.alpha - target) > 0.01f)
+        if (!promptFading || promptObject == null) return;
+
+        float target = promptFadeIn ? 1f : 0f;
+        promptAlpha = Mathf.MoveTowards(promptAlpha, target, Time.unscaledDeltaTime * 5f);
+        UpdatePromptAlpha();
+
+        if (Mathf.Approximately(promptAlpha, target))
         {
-            promptCG.alpha = Mathf.MoveTowards(promptCG.alpha, target, Time.unscaledDeltaTime * 5);
-            yield return null;
+            promptFading = false;
+            if (!promptFadeIn) promptObject.SetActive(false);
         }
-        promptCG.alpha = target;
-        if (!show) promptCanvas.gameObject.SetActive(false);
     }
 
     void LateUpdate()
     {
-        if (promptCanvas && promptCanvas.gameObject.activeSelf && cam)
-            promptCanvas.transform.rotation = cam.transform.rotation;
+        // Actualizar fade del prompt
+        UpdatePromptFade();
+
+        // Billboard - que siempre mire a la cámara
+        if (promptObject != null && promptObject.activeSelf && cam)
+        {
+            promptObject.transform.rotation = cam.transform.rotation;
+        }
     }
 
     // ===== MENU =====
@@ -444,7 +558,6 @@ public class CheckPoint : MonoBehaviour
 
         idx = (idx < 0) ? 1 : (idx > 1) ? 0 : idx;
 
-        // Deselect old
         if (showArrows && arrowsL != null && arrowsL[selectedBtn])
         {
             arrowsL[selectedBtn].SetActive(false);
@@ -454,7 +567,6 @@ public class CheckPoint : MonoBehaviour
 
         selectedBtn = idx;
 
-        // Select new
         if (showArrows && arrowsL != null && arrowsL[selectedBtn])
         {
             arrowsL[selectedBtn].SetActive(true);
@@ -526,11 +638,9 @@ public class CheckPoint : MonoBehaviour
     {
         if (menuLocked) return;
 
-        // ACTIVAR BLOQUEO TOTAL
         menuLocked = true;
         menuActive = true;
 
-        // Guardar estado
         if (player) savedPlayerPos = player.transform.position;
         if (cam)
         {
@@ -538,7 +648,6 @@ public class CheckPoint : MonoBehaviour
             savedCamPos = cam.transform.position;
         }
 
-        // Congelar jugador
         if (playerRb)
         {
             playerRb.linearVelocity = Vector2.zero;
@@ -547,7 +656,6 @@ public class CheckPoint : MonoBehaviour
         }
         if (playerCtrl) playerCtrl.enabled = false;
 
-        // Congelar tiempo
         if (freezeWorld)
         {
             savedTimeScale = Time.timeScale;
@@ -594,14 +702,11 @@ public class CheckPoint : MonoBehaviour
         {
             menuCanvas.gameObject.SetActive(false);
 
-            // Restaurar tiempo
             if (freezeWorld) Time.timeScale = savedTimeScale > 0 ? savedTimeScale : 1;
 
-            // Descongelar jugador
             if (playerRb) playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
             if (playerCtrl) playerCtrl.enabled = true;
 
-            // QUITAR BLOQUEO
             menuActive = false;
             menuLocked = false;
             playerNearby = true;
@@ -625,7 +730,6 @@ public class CheckPoint : MonoBehaviour
     {
         resting = true;
 
-        // Fade menu
         float t = 0;
         while (t < 0.2f)
         {
@@ -634,14 +738,12 @@ public class CheckPoint : MonoBehaviour
             yield return null;
         }
 
-        // Efectos
         if (restEffect) restEffect.Play();
         if (audioSource && restSound) audioSource.PlayOneShot(restSound);
         RestUIManager.Instance?.ShowRestPanel(restDuration);
 
         yield return new WaitForSecondsRealtime(restDuration);
 
-        // Aplicar
         GameManager.Instance?.SetCheckpoint(transform.position);
         if (healOnRest && playerCtrl) playerCtrl.currentHealth = playerCtrl.maxHealth;
         if (refillVialsOnRest && healingSys) healingSys.RefillVials();
@@ -652,6 +754,57 @@ public class CheckPoint : MonoBehaviour
         resting = false;
         CloseMenu();
     }
+
+    // ===== REBUILD EN EDITOR =====
+#if UNITY_EDITOR
+    private float lastPromptHeight, lastPromptWidth, lastPromptBgHeight, lastKeyBoxSize;
+    private float lastKeyBoxOffsetY, lastKeyTextSize, lastActionTextSize, lastActionTextOffsetY;
+    private int lastKeyFontSize, lastActionFontSize;
+
+    void OnValidate()
+    {
+        if (Application.isPlaying && promptObject != null)
+        {
+            // Si cambió algo importante, reconstruir
+            bool needsRebuild =
+                lastPromptWidth != promptWidth ||
+                lastPromptBgHeight != promptBgHeight ||
+                lastKeyBoxSize != keyBoxSize ||
+                lastKeyBoxOffsetY != keyBoxOffsetY ||
+                lastKeyTextSize != keyTextSize ||
+                lastKeyFontSize != keyFontSize ||
+                lastActionTextSize != actionTextSize ||
+                lastActionFontSize != actionFontSize ||
+                lastActionTextOffsetY != actionTextOffsetY;
+
+            if (needsRebuild)
+            {
+                BuildPrompt();
+                if (playerNearby && isActivated)
+                {
+                    promptObject.SetActive(true);
+                    promptAlpha = 1f;
+                    UpdatePromptAlpha();
+                }
+            }
+
+            // Solo actualizar altura (no requiere rebuild)
+            promptObject.transform.localPosition = Vector3.up * promptHeight;
+
+            // Guardar valores actuales
+            lastPromptHeight = promptHeight;
+            lastPromptWidth = promptWidth;
+            lastPromptBgHeight = promptBgHeight;
+            lastKeyBoxSize = keyBoxSize;
+            lastKeyBoxOffsetY = keyBoxOffsetY;
+            lastKeyTextSize = keyTextSize;
+            lastKeyFontSize = keyFontSize;
+            lastActionTextSize = actionTextSize;
+            lastActionFontSize = actionFontSize;
+            lastActionTextOffsetY = actionTextOffsetY;
+        }
+    }
+#endif
 
     void OnDrawGizmos()
     {
