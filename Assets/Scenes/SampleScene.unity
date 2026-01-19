@@ -5092,7 +5092,7 @@ MonoBehaviour:
   damageInvincibilityTime: 1
   damageKnockbackForce: {x: 5, y: 5}
   damageColor: {r: 1, g: 0.3, b: 0.3, a: 1}
-  abilityUseKey: 113
+  abilityUseKey: 122
   dashTrailEffect: {fileID: 0}
   dashColor: {r: 0.4056604, g: 0.4056604, b: 0.4056604, a: 1}
   showGhostTrail: 1
