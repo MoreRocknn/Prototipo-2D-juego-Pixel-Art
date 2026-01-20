@@ -10,9 +10,16 @@ public class GameManager : MonoBehaviour
     public int playerHealth = 3;
     public int maxHealth = 3;
 
-    
     [Header("Configuración")]
-    public Vector2 spawnInicial = new Vector2(0, 0); // Posición inicial del juego
+    public Vector2 spawnInicial = new Vector2(0, 0);
+
+    // ========================================
+    // SISTEMA DE HABILIDADES PERMANENTES
+    // ========================================
+    [Header("Habilidades Permanentes")]
+    [Tooltip("Si es true, el jugador ya tiene el Dash de forma permanente")]
+    public bool hasPermanentDash = false;
+
     public void TakeDamage(int damage)
     {
         playerHealth -= damage;
@@ -21,9 +28,9 @@ public class GameManager : MonoBehaviour
             // Respawn
         }
     }
+
     void Awake()
     {
-        // Singleton pattern
         if (Instance == null)
         {
             Instance = this;
@@ -35,7 +42,6 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Establecer spawn inicial como primer checkpoint
         if (!hasCheckpoint)
         {
             lastCheckpoint = spawnInicial;
@@ -53,5 +59,40 @@ public class GameManager : MonoBehaviour
     {
         return lastCheckpoint;
     }
-}
 
+    // ========================================
+    // MÉTODOS PARA HABILIDADES PERMANENTES
+    // ========================================
+
+    /// <summary>
+    /// Llama a este método cuando el jugador absorbe el Dash por primera vez.
+    /// El Dash quedará guardado permanentemente.
+    /// </summary>
+    public void UnlockPermanentDash()
+    {
+        if (!hasPermanentDash)
+        {
+            hasPermanentDash = true;
+            Debug.Log("¡DASH DESBLOQUEADO PERMANENTEMENTE!");
+        }
+    }
+
+    /// <summary>
+    /// Verifica si el jugador tiene el Dash permanente.
+    /// </summary>
+    public bool HasPermanentDash()
+    {
+        return hasPermanentDash;
+    }
+
+    /// <summary>
+    /// Resetea el progreso del jugador (para nuevo juego).
+    /// </summary>
+    public void ResetProgress()
+    {
+        hasPermanentDash = false;
+        hasCheckpoint = false;
+        lastCheckpoint = spawnInicial;
+        Debug.Log("Progreso reseteado");
+    }
+}

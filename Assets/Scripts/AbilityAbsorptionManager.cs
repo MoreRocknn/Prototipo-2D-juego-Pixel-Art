@@ -21,12 +21,10 @@ public abstract class Ability
     public Sprite abilityIcon;
     public Color abilityColor = Color.cyan;
 
-    // SISTEMA DE USOS LIMITADOS
     public int maxUses;
     public int currentUses;
     public bool limitedUses = false;
 
-    // Sistema de cooldown post-absorción
     public float postAbsorptionCooldown = 0f;
     public float timeAbsorbed = -999f;
 
@@ -36,7 +34,7 @@ public abstract class Ability
 }
 
 // ============================================
-// HABILIDAD: DASH (Con usos limitados)
+// HABILIDAD: DASH
 // ============================================
 [System.Serializable]
 public class DashAbility : Ability
@@ -53,24 +51,18 @@ public class DashAbility : Ability
         abilityName = "Dash";
         abilityColor = new Color(0.3f, 0.8f, 1f);
 
-        // Configuración por defecto
         maxUses = 999;
         currentUses = 999;
-        limitedUses = false; // Por defecto ilimitado
+        limitedUses = false;
 
-        // Cooldown por defecto
         dashCooldown = 1f;
         postAbsorptionCooldown = 0f;
     }
 
     public override bool CanUse(GameObject owner)
     {
-        // Verificar cooldown entre usos
         bool cooldownOK = Time.time - lastDashTime >= dashCooldown;
-
-        // Verificar usos restantes (solo si está limitado)
         bool usesOK = !limitedUses || currentUses > 0;
-
         return cooldownOK && usesOK;
     }
 
@@ -112,7 +104,6 @@ public class DashAbility : Ability
         };
     }
 
-    // Método para obtener tiempo restante del cooldown
     public float GetCooldownRemaining()
     {
         float remaining = dashCooldown - (Time.time - lastDashTime);
@@ -169,7 +160,6 @@ public class AbilityHolder : MonoBehaviour
 
     void Update()
     {
-        // Solo mostramos visuales si hay habilidad Y le quedan usos
         bool canUse = currentAbility != null && (!currentAbility.limitedUses || currentAbility.currentUses > 0);
 
         if (hasAbilityVisualActive && spriteRenderer != null && currentAbility != null && canUse)
@@ -234,7 +224,6 @@ public class AbilityHolder : MonoBehaviour
         }
     }
 
-    // Método para obtener tiempo restante de cooldown
     public float GetAbsorptionCooldownRemaining()
     {
         if (currentAbility == null) return 0f;
@@ -245,7 +234,7 @@ public class AbilityHolder : MonoBehaviour
 }
 
 // ============================================
-// MANAGER PRINCIPAL CON SISTEMA CINEMATOGRÁFICO
+// MANAGER PRINCIPAL CON SISTEMA DE DASH PERMANENTE
 // ============================================
 public class AbilityAbsorptionManager : MonoBehaviour
 {
@@ -279,7 +268,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
     private List<IResettable> resettableEnemies = new List<IResettable>();
 
-    // OPTIMIZACIÓN
     private float checkTimer = 0f;
     private float checkInterval = 0.2f;
     private Collider2D[] hitCollidersBuffer = new Collider2D[10];
@@ -303,9 +291,13 @@ public class AbilityAbsorptionManager : MonoBehaviour
             {
                 playerAbilityHolder = playerObj.AddComponent<AbilityHolder>();
             }
+
+            // ========================================
+            // RESTAURAR DASH PERMANENTE AL INICIAR
+            // ========================================
+            RestorePermanentAbilities();
         }
 
-        // Buscar o crear sistema cinemático
         if (useCinematicMode && cinematicSystem == null)
         {
             cinematicSystem = FindFirstObjectByType<CinematicAbsorptionSystem>();
@@ -325,6 +317,23 @@ public class AbilityAbsorptionManager : MonoBehaviour
         uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
     }
 
+    /// <summary>
+    /// Restaura las habilidades permanentes del jugador al iniciar el juego
+    /// </summary>
+    void RestorePermanentAbilities()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.HasPermanentDash())
+        {
+            // Crear y asignar el Dash permanente
+            DashAbility permanentDash = new DashAbility();
+            permanentDash.limitedUses = false;
+            permanentDash.dashCooldown = 3f;
+
+            playerAbilityHolder.SetAbility(permanentDash);
+            Debug.Log("Dash permanente restaurado al jugador");
+        }
+    }
+
     public void RegisterResettable(IResettable enemy)
     {
         if (!resettableEnemies.Contains(enemy)) resettableEnemies.Add(enemy);
@@ -335,15 +344,31 @@ public class AbilityAbsorptionManager : MonoBehaviour
         if (resettableEnemies.Contains(enemy)) resettableEnemies.Remove(enemy);
     }
 
+    // ========================================
+    // MODIFICADO: Ya NO quita el dash si es permanente
+    // ========================================
     public void OnPlayerDeath()
     {
         Debug.Log("Resetting Game State...");
 
+        // SOLO quitar habilidad si NO es permanente
         if (playerAbilityHolder != null)
         {
-            playerAbilityHolder.RemoveAbility();
+            bool hasPermanentDash = GameManager.Instance != null && GameManager.Instance.HasPermanentDash();
+
+            if (!hasPermanentDash)
+            {
+                // No tiene dash permanente, se lo quitamos
+                playerAbilityHolder.RemoveAbility();
+            }
+            else
+            {
+                // Tiene dash permanente, lo mantenemos (solo reseteamos cooldown si es necesario)
+                Debug.Log("El jugador mantiene el Dash permanente después de morir");
+            }
         }
 
+        // Resetear enemigos (excepto bosses)
         for (int i = resettableEnemies.Count - 1; i >= 0; i--)
         {
             var enemy = resettableEnemies[i];
@@ -358,7 +383,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
     {
         if (player == null) return;
 
-        // Si estamos en modo cinemático, no verificar objetivos
         if (useCinematicMode && cinematicSystem != null && cinematicSystem.IsInCinematicMode())
         {
             return;
@@ -380,12 +404,10 @@ public class AbilityAbsorptionManager : MonoBehaviour
             }
         }
 
-        // NUEVO: Si estamos usando cinemática, iniciamos el modo al presionar E
         if (Input.GetKeyDown(absorbKey) && nearbyAbsorbableTarget != null)
         {
             if (useCinematicMode && cinematicSystem != null)
             {
-                // Modo cinematográfico
                 cinematicSystem.StartCinematicMode(nearbyAbsorbableTransform, () =>
                 {
                     PerformAbsorption();
@@ -393,7 +415,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
             }
             else
             {
-                // Modo normal (sin cinemática)
                 PerformAbsorption();
             }
         }
@@ -457,7 +478,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
 
     void CreateAbsorptionIndicator(Transform target)
     {
-        // No mostrar indicador si estamos en modo cinemático
         if (useCinematicMode && cinematicSystem != null && cinematicSystem.IsInCinematicMode())
         {
             return;
@@ -522,23 +542,29 @@ public class AbilityAbsorptionManager : MonoBehaviour
         Ability targetAbility = targetAbilityHolder.GetAbility();
         Ability playerAbility = playerAbilityHolder.GetAbility();
 
-        // 1. Asignar habilidad al jugador
+        // Asignar habilidad al jugador
         playerAbilityHolder.SetAbility(targetAbility);
 
-        // JUGADOR: Usos ILIMITADOS con cooldown de 3 segundos
         if (playerAbilityHolder.currentAbility != null)
         {
-            playerAbilityHolder.currentAbility.limitedUses = false; // ← ILIMITADO
+            playerAbilityHolder.currentAbility.limitedUses = false;
             playerAbilityHolder.currentAbility.maxUses = 999;
             playerAbilityHolder.currentAbility.currentUses = 999;
 
-            // Establecer cooldown de 3 segundos
             if (playerAbilityHolder.currentAbility is DashAbility dashAbility)
             {
-                dashAbility.dashCooldown = 3f; // ← 3 segundos entre usos
+                dashAbility.dashCooldown = 3f;
+
+                // ========================================
+                // GUARDAR DASH COMO PERMANENTE
+                // ========================================
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.UnlockPermanentDash();
+                }
             }
 
-            Debug.Log("Habilidad absorbida: Dash ILIMITADO con cooldown de 3 segundos.");
+            Debug.Log("Habilidad absorbida: Dash PERMANENTE con cooldown de 3 segundos.");
         }
 
         targetAbilityHolder.SetAbility(playerAbility);
@@ -548,7 +574,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
             Destroy(currentIndicator);
         }
 
-        // Efectos visuales solo si NO estamos en modo cinemático
         if (!useCinematicMode || cinematicSystem == null)
         {
             if (absorptionEffectPrefab != null)
@@ -565,11 +590,10 @@ public class AbilityAbsorptionManager : MonoBehaviour
         nearbyAbsorbableTarget.OnAbsorbed();
 
         string message = targetAbility != null
-            ? $"¡Absorbiste {targetAbility.abilityName}!"
+            ? $"¡Absorbiste {targetAbility.abilityName} PERMANENTEMENTE!"
             : "¡Transferiste tu habilidad!";
         Debug.Log(message);
 
-        // Limpiar referencias
         nearbyAbsorbableTarget = null;
         nearbyAbsorbableTransform = null;
     }
@@ -609,7 +633,6 @@ public class AbilityAbsorptionManager : MonoBehaviour
     {
         if (absorptionPromptUI == null) return;
 
-        // No mostrar UI simple si estamos en modo cinemático
         if (useCinematicMode && cinematicSystem != null)
         {
             absorptionPromptUI.SetActive(false);
