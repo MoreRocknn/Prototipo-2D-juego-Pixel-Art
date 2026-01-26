@@ -10,7 +10,7 @@ public class EnemigoVolador : MonoBehaviour
     public Vector2 knockbackForce = new Vector2(4f, 3f);
 
     [Header("=== BARRA DE VIDA ===")]
-    public Vector3 healthBarOffset = new Vector3(0, 1.2f, 0);
+    public Vector3 healthBarOffset = new Vector3(0, 2f, 0);  // MÁS ALTO
     public bool hideHealthBarWhenFull = true;
     private HealthBarUI healthBar;
 
@@ -96,15 +96,23 @@ public class EnemigoVolador : MonoBehaviour
     void SetupHealthBar()
     {
         if (HealthBarFactory.Instance)
+        {
             healthBar = HealthBarFactory.Instance.CreateHealthBar(transform, health, maxHealth, healthBarOffset);
+        }
         else
         {
+            // Fallback sin Factory
             GameObject hbObj = new GameObject($"HealthBar_{name}");
             healthBar = hbObj.AddComponent<HealthBarUI>();
-            healthBar.Initialize(transform, health, maxHealth);
             healthBar.offset = healthBarOffset;
+            healthBar.Initialize(transform, health, maxHealth);
         }
-        if (healthBar) healthBar.alwaysShow = !hideHealthBarWhenFull;
+
+        // IMPORTANTE: La barra empieza OCULTA
+        if (healthBar)
+        {
+            healthBar.alwaysShow = !hideHealthBarWhenFull;
+        }
     }
 
     void CreateAttackPoint()
@@ -296,7 +304,11 @@ public class EnemigoVolador : MonoBehaviour
         health -= damage;
         Debug.Log($"{name}: Recibió {damage} daño. Vida: {health}/{maxHealth}");
 
-        if (healthBar) healthBar.UpdateHealth(health, maxHealth);
+        // MOSTRAR LA BARRA DE VIDA
+        if (healthBar)
+        {
+            healthBar.UpdateHealth(health, maxHealth);
+        }
 
         if (sr) sr.color = hurtColor;
         rb.linearVelocity = new Vector2(knockbackForce.x * knockbackDir, knockbackForce.y);
