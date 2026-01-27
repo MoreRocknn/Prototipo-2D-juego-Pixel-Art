@@ -30,26 +30,18 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     public bool startsWithAbility = true;
     public AbilityType startingAbility = AbilityType.Dash;
 
-    // ========================================
-    // CONFIGURACIÓN DE ENEMIGO DE ELITE
-    // ========================================
     [Header("=== ENEMIGO DE ELITE (DASH) ===")]
-    [Tooltip("Si es true, este enemigo es el 'elite' que da el Dash")]
     public bool isEliteWithDash = false;
-    [Tooltip("Si el jugador ya tiene el Dash, este enemigo pierde su habilidad y no puede ser absorbido")]
     public bool disableAbilityIfPlayerHasDash = true;
-
-    // Variable interna para saber si este enemigo perdió su habilidad
     private bool abilityDisabledByPlayerProgress = false;
 
-    [Header("=== DASH AGRESIVO MEJORADO ===")]
+    [Header("=== DASH AGRESIVO ===")]
     public float dashForce = 20f;
     public float dashDuration = 0.35f;
     public float dashCooldownTime = 2f;
     public float dashMinDistance = 3f;
     public float dashMaxDistance = 10f;
     public float dashPredictionTime = 0.2f;
-    public bool canDashThroughPlayer = false;
     public Color dashColor = new Color(0.3f, 0.8f, 1f);
     public bool showDashTrail = true;
     private float dashCooldownTimer = 0f;
@@ -82,8 +74,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     public string animIsDashing = "isDashing";
     public string animIsCritical = "isCritical";
     public string animIsStunned = "isStunned";
-    public string animTakeDamage = "takeDamage";
-    public string animDie = "die";
     public string animAttackTrigger = "attack";
 
     [Header("=== VISUALES ===")]
@@ -106,8 +96,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     private bool isFacingRight = true, movingRight = true, isAtEdge;
     private bool isInvincible, isCritical, isCriticalStunned, isAttacking, isDashing;
     private float guardTimer, attackTimer, waitTimer, chaseTimer, edgeWaitTimer, totalEdgeTime, playerIgnoreTimer;
-
-    private Vector2 lastKnownPlayerPosition;
     private bool hasSeenPlayer = false;
     private Rigidbody2D playerRb;
 
@@ -122,25 +110,18 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         startPos = transform.position;
         health = maxHealth;
 
-        // Verificar si debe tener habilidad o no
         CheckAndSetupAbility();
 
         player = GameObject.FindGameObjectWithTag("Player")?.transform;
-        if (player)
-        {
-            playerRb = player.GetComponent<Rigidbody2D>();
-        }
+        if (player) playerRb = player.GetComponent<Rigidbody2D>();
 
         if (!detectionPoint) detectionPoint = transform;
         if (!edgeCheckPoint) CreateEdgeCheck();
 
         if (AbilityAbsorptionManager.Instance != null)
-        {
             AbilityAbsorptionManager.Instance.RegisterResettable(this);
-        }
 
         SetupHealthBar();
-
         currentState = shouldPatrol ? EnemyState.Patrol : EnemyState.Idle;
     }
 
@@ -151,7 +132,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             if (GameManager.Instance != null && GameManager.Instance.HasPermanentDash())
             {
                 abilityDisabledByPlayerProgress = true;
-                Debug.Log($"[{gameObject.name}] Enemigo elite SIN habilidad - El jugador ya tiene el Dash");
                 return;
             }
         }
@@ -167,9 +147,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     void OnDestroy()
     {
         if (AbilityAbsorptionManager.Instance != null)
-        {
             AbilityAbsorptionManager.Instance.UnregisterResettable(this);
-        }
     }
 
     public void ResetState()
@@ -189,59 +167,39 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         isImmortalForAbsorption = false;
         isAttacking = false;
 
-        // Re-verificar si debe tener habilidad
         if (isEliteWithDash && disableAbilityIfPlayerHasDash)
         {
             if (GameManager.Instance != null && GameManager.Instance.HasPermanentDash())
             {
                 abilityDisabledByPlayerProgress = true;
-                if (abilityHolder != null)
-                {
-                    abilityHolder.RemoveAbility();
-                }
+                if (abilityHolder != null) abilityHolder.RemoveAbility();
             }
             else
             {
                 abilityDisabledByPlayerProgress = false;
                 if (startsWithAbility && abilityHolder != null)
                 {
-                    DashAbility enemyDash = new DashAbility();
-                    enemyDash.limitedUses = false;
-                    abilityHolder.SetAbility(enemyDash);
+                    DashAbility d = new DashAbility();
+                    d.limitedUses = false;
+                    abilityHolder.SetAbility(d);
                 }
             }
         }
-        else if (startsWithAbility && abilityHolder != null && !abilityDisabledByPlayerProgress)
-        {
-            DashAbility enemyDash = new DashAbility();
-            enemyDash.limitedUses = false;
-            abilityHolder.SetAbility(enemyDash);
-        }
 
-        if (healthBar == null) SetupHealthBar();
-        else
+        if (healthBar != null)
         {
             healthBar.gameObject.SetActive(true);
-            healthBar.UpdateHealth(health, maxHealth);
+            healthBar.ResetVisibility();
         }
 
         ResetTimers();
         rb.linearVelocity = Vector2.zero;
-        UpdateAnimations();
     }
 
     void SetupHealthBar()
     {
         if (HealthBarFactory.Instance)
             healthBar = HealthBarFactory.Instance.CreateHealthBar(transform, health, maxHealth, healthBarOffset);
-        else
-        {
-            GameObject hbObj = new GameObject($"HealthBar_{name}");
-            healthBar = hbObj.AddComponent<HealthBarUI>();
-            healthBar.Initialize(transform, health, maxHealth);
-            healthBar.offset = healthBarOffset;
-        }
-        if (healthBar) healthBar.alwaysShow = !hideHealthBarWhenFull;
     }
 
     void Update()
@@ -253,11 +211,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             return;
         }
 
-        if (isDashing)
-        {
-            UpdateAnimations();
-            return;
-        }
+        if (isDashing) { UpdateAnimations(); return; }
 
         if (currentState == EnemyState.WaitingAbsorption)
         {
@@ -272,42 +226,24 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         CheckEdge();
 
         bool seePlayer = CanSeePlayer();
-        float distToPlayer = Mathf.Infinity;
+        float distToPlayer = player != null ? Vector2.Distance(detectionPoint.position, player.position) : Mathf.Infinity;
 
-        if (player != null)
-        {
-            distToPlayer = Vector2.Distance(detectionPoint.position, player.position);
-
-            if (seePlayer)
-            {
-                lastKnownPlayerPosition = player.position;
-                hasSeenPlayer = true;
-            }
-        }
+        if (seePlayer) hasSeenPlayer = true;
 
         bool detected = (seePlayer && playerIgnoreTimer <= 0) ||
                         (hasSeenPlayer && distToPlayer <= extendedChaseRange && playerIgnoreTimer <= 0);
-
         bool inRange = seePlayer && distToPlayer <= attackRange;
 
-        // Intentar dash si tiene habilidad y está persiguiendo
         if (currentState == EnemyState.Chase && detected && !abilityDisabledByPlayerProgress &&
             abilityHolder != null && abilityHolder.HasAbility() && dashCooldownTimer <= 0)
         {
             if (distToPlayer >= dashMinDistance && distToPlayer <= dashMaxDistance && !isAtEdge)
             {
-                Vector2 predictedPos = PredictPlayerPosition();
-                float predictedDist = Vector2.Distance(transform.position, predictedPos);
-
-                if (predictedDist >= dashMinDistance)
-                {
-                    isDashingToPlayer = true;
-                    abilityHolder.UseAbility();
-                }
+                isDashingToPlayer = true;
+                abilityHolder.UseAbility();
             }
         }
 
-        // Máquina de estados
         switch (currentState)
         {
             case EnemyState.Idle:
@@ -319,13 +255,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
                 else HandlePatrol();
                 break;
             case EnemyState.Guard:
-                HandleGuard(detected, inRange, seePlayer);
+                HandleGuard(detected, inRange);
                 break;
             case EnemyState.Chase:
-                HandleChase(detected, inRange, seePlayer);
+                HandleChase(detected, inRange);
                 break;
             case EnemyState.Attack:
-                // *** IMPORTANTE: Ejecutar ataque ***
                 if (!isAttacking) StartCoroutine(PerformAttack());
                 break;
         }
@@ -336,84 +271,38 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     void UpdateAnimations()
     {
         if (anim == null) return;
-
         anim.SetFloat(animSpeed, Mathf.Abs(rb.linearVelocity.x));
-        anim.SetBool(animIsGrounded, IsGrounded());
         anim.SetBool(animIsGuarding, currentState == EnemyState.Guard);
-        anim.SetBool(animIsAttacking, currentState == EnemyState.Attack || isAttacking);
+        anim.SetBool(animIsAttacking, isAttacking);
         anim.SetBool(animIsDashing, isDashing);
         anim.SetBool(animIsCritical, isCritical);
-        anim.SetBool(animIsStunned, currentState == EnemyState.Stunned || isCriticalStunned);
+        anim.SetBool(animIsStunned, isCriticalStunned);
     }
 
-    bool IsGrounded()
-    {
-        Vector2 origin = new Vector2(transform.position.x, transform.position.y - 0.5f);
-        return Physics2D.Raycast(origin, Vector2.down, 0.2f, groundLayer);
-    }
-
-    Vector2 PredictPlayerPosition()
-    {
-        if (!player || !playerRb) return player ? (Vector2)player.position : (Vector2)transform.position;
-        Vector2 playerVelocity = playerRb.linearVelocity;
-        Vector2 currentPos = player.position;
-        return currentPos + (playerVelocity * dashPredictionTime);
-    }
-
-    // ========================================
-    // CORRUTINA DE ATAQUE
-    // ========================================
     IEnumerator PerformAttack()
     {
         isAttacking = true;
         SetVelocity(0);
-
-        // Trigger de animación
         if (anim) anim.SetTrigger(animAttackTrigger);
-
-        // Efecto visual
-        if (attackEffect && attackPoint)
-        {
-            GameObject obj = Instantiate(attackEffect, attackPoint);
-            obj.transform.localPosition = Vector3.zero;
-            obj.transform.localScale = new Vector3((isFacingRight ? 1 : -1) * 0.7f, 0.7f, 0.7f);
-            Destroy(obj, attackDuration + 0.5f);
-        }
-
         if (sr) sr.color = attackColor;
 
-        // Esperar un frame + mitad de la duración del ataque
-        yield return null;
         yield return new WaitForSeconds(attackDuration * 0.5f);
 
-        // Hacer daño al jugador si está en rango
         if (attackPoint != null)
         {
             Collider2D[] hits = Physics2D.OverlapCircleAll(attackPoint.position, attackRadius, PlayerLayer);
             foreach (var hit in hits)
             {
                 if (hit.CompareTag("Player"))
-                {
-                    MainChar playerScript = hit.GetComponent<MainChar>();
-                    if (playerScript != null)
-                    {
-                        playerScript.TakeDamage(attackDamage);
-                        Debug.Log($"[{gameObject.name}] Golpeó al jugador por {attackDamage} de daño");
-                    }
-                }
+                    hit.GetComponent<MainChar>()?.TakeDamage(attackDamage);
             }
         }
 
-        // Esperar la otra mitad
         yield return new WaitForSeconds(attackDuration * 0.5f);
 
-        // Restaurar color
         if (sr) sr.color = originalColor;
-
         isAttacking = false;
         attackTimer = attackCooldown;
-
-        // Volver a guardia
         EnterState(EnemyState.Guard);
     }
 
@@ -421,91 +310,34 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     {
         if (waitTimer > 0) { SetVelocity(0); return; }
         if (isAtEdge) { movingRight = !movingRight; waitTimer = waitTimeAtPatrolPoint; Flip(); return; }
-
         SetVelocity((movingRight ? 1 : -1) * moveSpeed);
-
-        if ((movingRight && transform.position.x >= startPos.x + patrolDistance) ||
-            (!movingRight && transform.position.x <= startPos.x - patrolDistance))
-        {
-            movingRight = !movingRight;
-            waitTimer = waitTimeAtPatrolPoint;
-        }
-
         if ((movingRight && !isFacingRight) || (!movingRight && isFacingRight)) Flip();
     }
 
-    void HandleGuard(bool detected, bool inRange, bool seePlayer)
+    void HandleGuard(bool detected, bool inRange)
     {
         SetVelocity(0);
         if (player) LookAtPlayer();
-
         guardTimer += Time.deltaTime;
 
         if (!detected || guardTimer >= guardTime)
         {
-            if (detected && inRange && attackTimer <= 0)
-            {
-                EnterState(EnemyState.Attack);
-            }
-            else if (detected)
-            {
-                EnterState(EnemyState.Chase);
-            }
-            else
-            {
-                ReturnToPatrol();
-            }
+            if (detected && inRange && attackTimer <= 0) EnterState(EnemyState.Attack);
+            else if (detected) EnterState(EnemyState.Chase);
+            else ReturnToPatrol();
         }
     }
 
-    void HandleChase(bool detected, bool inRange, bool seePlayer)
+    void HandleChase(bool detected, bool inRange)
     {
-        if (!detected || chaseTimer >= chaseTimeout)
-        {
-            if (isAtEdge) TurnAroundAndPatrol();
-            else ReturnToPatrol();
-            return;
-        }
-
-        // Atacar si está en rango y el cooldown terminó
-        if (inRange && attackTimer <= 0)
-        {
-            EnterState(EnemyState.Attack);
-            return;
-        }
-
+        if (!detected || chaseTimer >= chaseTimeout) { ReturnToPatrol(); return; }
+        if (inRange && attackTimer <= 0) { EnterState(EnemyState.Attack); return; }
         if (player) LookAtPlayer();
-
-        if (isAtEdge)
-        {
-            HandleEdgeWhileChasing();
-            return;
-        }
+        if (isAtEdge) { SetVelocity(0); return; }
 
         float dir = player.position.x > transform.position.x ? 1 : -1;
         SetVelocity(dir * chaseSpeed);
-
         chaseTimer += Time.deltaTime;
-    }
-
-    void HandleEdgeWhileChasing()
-    {
-        SetVelocity(0);
-        edgeWaitTimer += Time.deltaTime;
-        totalEdgeTime += Time.deltaTime;
-
-        if (totalEdgeTime >= maxEdgeWaitTime)
-        {
-            TurnAroundAndPatrol();
-            return;
-        }
-
-        if (edgeWaitTimer >= edgeWaitTime)
-        {
-            edgeWaitTimer = 0;
-            movingRight = !movingRight;
-            Flip();
-        }
     }
 
     public void PerformDash(float force, float duration)
@@ -517,51 +349,27 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     {
         isDashing = true;
         currentState = EnemyState.Dashing;
-
         if (player) LookAtPlayer();
 
         float dir = isFacingRight ? 1 : -1;
-
-        // Si está haciendo dash hacia el jugador, calcular dirección
-        if (isDashingToPlayer && player != null)
-        {
-            Vector2 targetPos = PredictPlayerPosition();
-            Vector2 dashDirection = ((Vector3)targetPos - transform.position).normalized;
-            dir = dashDirection.x >= 0 ? 1 : -1;
-
-            if ((dir > 0 && !isFacingRight) || (dir < 0 && isFacingRight)) Flip();
-        }
-
         if (sr) sr.color = dashColor;
 
-        float originalGravity = rb.gravityScale;
+        float origGrav = rb.gravityScale;
         rb.gravityScale = 0;
         rb.linearVelocity = new Vector2(dir * force, 0);
 
-        if (showDashTrail && sr)
-        {
-            StartCoroutine(SpawnDashGhostTrail(duration));
-        }
+        if (showDashTrail && sr) StartCoroutine(SpawnDashGhostTrail(duration));
 
         yield return new WaitForSeconds(duration);
 
-        rb.gravityScale = originalGravity;
+        rb.gravityScale = origGrav;
         rb.linearVelocity = Vector2.zero;
-
         if (sr) sr.color = originalColor;
+
         isDashing = false;
         isDashingToPlayer = false;
         dashCooldownTimer = dashCooldownTime;
-
-        // Después del dash, volver a perseguir o atacar
-        if (player && Vector2.Distance(transform.position, player.position) <= attackRange)
-        {
-            EnterState(EnemyState.Attack);
-        }
-        else
-        {
-            EnterState(EnemyState.Chase);
-        }
+        EnterState(EnemyState.Chase);
     }
 
     IEnumerator SpawnDashGhostTrail(float duration)
@@ -569,38 +377,55 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         float elapsed = 0;
         while (elapsed < duration && isDashing)
         {
-            GameObject ghost = new GameObject("DashGhost");
+            GameObject ghost = new GameObject("Ghost");
             ghost.transform.position = transform.position;
             ghost.transform.localScale = transform.localScale;
-            SpriteRenderer gSr = ghost.AddComponent<SpriteRenderer>();
-            gSr.sprite = sr.sprite;
-            gSr.color = new Color(dashColor.r, dashColor.g, dashColor.b, 0.5f);
-            gSr.sortingOrder = sr.sortingOrder - 1;
-            Destroy(ghost, 0.4f);
+            SpriteRenderer g = ghost.AddComponent<SpriteRenderer>();
+            g.sprite = sr.sprite;
+            g.color = new Color(dashColor.r, dashColor.g, dashColor.b, 0.5f);
+            g.sortingOrder = sr.sortingOrder - 1;
+            Destroy(ghost, 0.3f);
             yield return new WaitForSeconds(0.05f);
             elapsed += 0.05f;
         }
     }
 
+    // ========================================
+    // TAKE DAMAGE - CORREGIDO
+    // ========================================
     public void TakeDamage(int damage, int knockbackDirection)
     {
         if (isInvincible) return;
 
-        if (isImmortalForAbsorption && !abilityDisabledByPlayerProgress)
+        // Si es inmortal, solo flashea
+        if (isImmortalForAbsorption)
         {
-            Debug.Log($"{gameObject.name} es INMORTAL - ¡Solo puede ser absorbido!");
             StartCoroutine(FlashRoutine(immortalColor));
             return;
         }
 
         health -= damage;
-        if (healthBar) healthBar.UpdateHealth(health, maxHealth);
+        if (healthBar != null) healthBar.UpdateHealth(health, maxHealth);
 
         rb.linearVelocity = new Vector2(knockbackDirection * knockbackForce.x, knockbackForce.y);
 
+        // ========================================
+        // SI LLEGARÍA A 0 O MENOS
+        // ========================================
         if (health <= 0)
         {
-            Die();
+            // Si tiene habilidad y debe ser inmortal en crítico
+            if (immortalWhenCriticalWithDash && !abilityDisabledByPlayerProgress &&
+                abilityHolder != null && abilityHolder.HasAbility())
+            {
+                // NO MUERE - se queda en 1 HP y entra en crítico
+                health = 1;
+                if (healthBar != null) healthBar.UpdateHealth(health, maxHealth);
+            }
+            else
+            {
+                Die();
+            }
         }
         else
         {
@@ -623,60 +448,32 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     public bool CanBeAbsorbed()
     {
-        if (abilityDisabledByPlayerProgress)
-            return false;
-
+        if (abilityDisabledByPlayerProgress) return false;
         return isCritical && abilityHolder != null && abilityHolder.HasAbility();
     }
 
     public void OnAbsorbed()
     {
-        Debug.Log($"{gameObject.name} fue absorbido");
         isImmortalForAbsorption = false;
         isCritical = false;
-
-        if (abilityHolder != null)
-        {
-            abilityHolder.RemoveAbility();
-        }
-
+        if (abilityHolder != null) abilityHolder.RemoveAbility();
         Die();
     }
 
     void CheckCriticalHealth()
     {
+        if (abilityDisabledByPlayerProgress) { isCritical = false; return; }
+
         bool wasCritical = isCritical;
-
-        if (abilityDisabledByPlayerProgress)
-        {
-            isCritical = false;
-            isImmortalForAbsorption = false;
-            return;
-        }
-
         isCritical = (health <= criticalHealthThreshold && health > 0);
 
         if (isCritical && !wasCritical)
         {
-            StartCoroutine(CriticalHealthSequence());
-
             if (immortalWhenCriticalWithDash && abilityHolder != null && abilityHolder.HasAbility())
             {
                 isImmortalForAbsorption = true;
-                Debug.Log("¡Enemigo ahora es INMORTAL! Solo puede ser absorbido");
             }
-        }
-        else if (!isCritical && wasCritical)
-        {
-            StopAllCoroutines();
-            isCriticalStunned = false;
-            isImmortalForAbsorption = false;
-
-            if (sr) sr.color = originalColor;
-            if (player && Vector2.Distance(transform.position, player.position) <= detectionRange)
-                EnterState(EnemyState.Chase);
-            else
-                ReturnToPatrol();
+            StartCoroutine(CriticalHealthSequence());
         }
     }
 
@@ -686,8 +483,8 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         currentState = EnemyState.Stunned;
         SetVelocity(0);
 
-        float elapsed = 0;
         Color flashColor = isImmortalForAbsorption ? immortalColor : Color.red;
+        float elapsed = 0;
 
         while (elapsed < criticalStunDuration && isCritical)
         {
@@ -704,17 +501,11 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         if (healthBar) healthBar.ForceShow();
 
         if (isImmortalForAbsorption)
-        {
             EnterState(EnemyState.WaitingAbsorption);
-        }
         else
-        {
-            if (player && Vector2.Distance(transform.position, player.position) <= detectionRange)
-                EnterState(EnemyState.Chase);
-            else
-                ReturnToPatrol();
-        }
+            EnterState(EnemyState.Chase);
 
+        // Seguir parpadeando mientras esté crítico
         while (isCritical)
         {
             if (sr) sr.color = flashColor;
@@ -740,26 +531,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     {
         currentState = newState;
         ResetTimers();
-
-        if (guardEffect)
-            guardEffect.SetActive(newState == EnemyState.Guard);
-
+        if (guardEffect) guardEffect.SetActive(newState == EnemyState.Guard);
         if (sr && !isInvincible && !isCritical && !isImmortalForAbsorption)
             sr.color = (newState == EnemyState.Guard) ? guardColor : originalColor;
-        else if (sr && isImmortalForAbsorption)
-            sr.color = immortalColor;
     }
 
     void ReturnToPatrol() => EnterState(shouldPatrol ? EnemyState.Patrol : EnemyState.Idle);
-
-    void TurnAroundAndPatrol()
-    {
-        movingRight = !isFacingRight;
-        Flip();
-        waitTimer = waitTimeAtPatrolPoint;
-        playerIgnoreTimer = waitTimeAtPatrolPoint + 2f;
-        EnterState(EnemyState.Patrol);
-    }
 
     void LookAtPlayer()
     {
@@ -791,7 +568,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     void CreateEdgeCheck()
     {
-        GameObject obj = new GameObject("EdgeCheckPoint");
+        GameObject obj = new GameObject("EdgeCheck");
         obj.transform.SetParent(transform);
         obj.transform.localPosition = new Vector3(0.8f, -0.5f, 0);
         edgeCheckPoint = obj.transform;
@@ -802,26 +579,14 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     public void RestoreFullHealth()
     {
         health = maxHealth;
-        if (healthBar) healthBar.UpdateHealth(health, maxHealth);
+        if (healthBar != null) healthBar.UpdateHealth(health, maxHealth);
     }
 
     void Die()
     {
-        Debug.Log($"{gameObject.name} murió");
-
-        if (healthBar != null)
-        {
-            healthBar.gameObject.SetActive(false);
-        }
-
-        if (EnemyManager.Instance != null)
-        {
-            EnemyManager.Instance.OnEnemyDeath(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        if (healthBar != null) healthBar.gameObject.SetActive(false);
+        if (EnemyManager.Instance != null) EnemyManager.Instance.OnEnemyDeath(gameObject);
+        else Destroy(gameObject);
     }
 
     void UpdateTimers()
@@ -832,26 +597,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         if (waitTimer > 0) waitTimer -= Time.deltaTime;
     }
 
-    void ResetTimers()
-    {
-        chaseTimer = 0;
-        guardTimer = 0;
-        edgeWaitTimer = 0;
-        totalEdgeTime = 0;
-    }
+    void ResetTimers() { chaseTimer = guardTimer = edgeWaitTimer = totalEdgeTime = 0; }
 
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRange);
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireSphere(transform.position, extendedChaseRange);
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
+        Gizmos.color = Color.yellow; Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.color = Color.red; Gizmos.DrawWireSphere(transform.position, attackRange);
         if (attackPoint) Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(transform.position, dashMinDistance);
-        Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(transform.position, dashMaxDistance);
     }
 }

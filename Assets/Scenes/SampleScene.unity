@@ -260,7 +260,6 @@ MonoBehaviour:
   dashMinDistance: 2
   dashMaxDistance: 10
   dashPredictionTime: 0.2
-  canDashThroughPlayer: 1
   dashColor: {r: 0.3, g: 0.8, b: 1, a: 1}
   showDashTrail: 1
   moveSpeed: 2
@@ -285,8 +284,6 @@ MonoBehaviour:
   animIsDashing: isDashing
   animIsCritical: isCritical
   animIsStunned: isStunned
-  animTakeDamage: takeDamage
-  animDie: die
   animAttackTrigger: attack
   guardEffect: {fileID: 0}
   attackEffect: {fileID: 1573622495}
@@ -2537,9 +2534,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 047c87be7b6cd2c4e9e9210eefc5857f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  barWidth: 200
-  barHeight: 20
-  worldScale: 0.02
+  barWidth: 0.8
+  barHeight: 0.1
+  backgroundColor: {r: 0.15, g: 0.15, b: 0.15, a: 1}
+  fillColor: {r: 0.8, g: 0.1, b: 0.1, a: 1}
 --- !u!1 &813666094
 GameObject:
   m_ObjectHideFlags: 0
@@ -7516,7 +7514,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2092389902}
-  - component: {fileID: 2092389901}
   m_Layer: 0
   m_Name: GameObject
   m_TagString: Untagged
@@ -7524,18 +7521,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &2092389901
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2092389900}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 427e60880273ea041b37ecc8bb8121b0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!4 &2092389902
 Transform:
   m_ObjectHideFlags: 0
