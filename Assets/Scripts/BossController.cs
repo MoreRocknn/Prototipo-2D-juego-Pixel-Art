@@ -15,6 +15,13 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     public float optimalDistance = 7f;
     public float retreatDistance = 3f;
 
+    [Header("=== OPTIMIZACIÓN DE MOVIMIENTO ===")]
+    [Tooltip("Suavizado del movimiento para evitar teletransporte")]
+    [Range(1f, 20f)]
+    public float movementSmoothing = 10f;
+    private Vector2 targetVelocity;
+    private Vector2 currentVelocity;
+
     [Header("=== MOVIMIENTO: PASO VIRAL ===")]
     public int hitsToTriggerTeleport = 4;
     public float teleportDelay = 0.5f;
@@ -92,6 +99,13 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     private bool isCircling = false;
     private float circleDirection = 1f;
 
+    // OPTIMIZACIÓN: Cache de componentes
+    private MainChar playerMainChar;
+    private Rigidbody2D playerRb;
+
+    // OPTIMIZACIÓN: Pool de objetos reutilizables
+    private Collider2D[] hitBuffer = new Collider2D[10];
+
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -102,7 +116,14 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
     void Start()
     {
-        player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj != null)
+        {
+            player = playerObj.transform;
+            playerMainChar = playerObj.GetComponent<MainChar>();
+            playerRb = playerObj.GetComponent<Rigidbody2D>();
+        }
+
         currentHealth = maxHealth;
         attackCooldownTimer = 1f;
 
@@ -135,7 +156,9 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     {
         int res = 32;
         Texture2D tex = new Texture2D(res, res);
-        for (int y = 0; y < res; y++) for (int x = 0; x < res; x++) tex.SetPixel(x, y, Color.red);
+        Color[] pixels = new Color[res * res];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.red;
+        tex.SetPixels(pixels);
         tex.Apply();
         bloodSprite = Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f));
     }
@@ -151,6 +174,8 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
             defaultGravity = rb.gravityScale;
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
             rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            // OPTIMIZACIÓN: Interpolación para movimiento suave
+            rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         }
     }
 
@@ -250,7 +275,8 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         {
             if (Time.time > lastBodyDamageTime + bodyDamageCooldown)
             {
-                collision.gameObject.GetComponent<MainChar>()?.TakeDamage(bodyContactDamage);
+                // OPTIMIZACIÓN: Usar referencia cacheada
+                playerMainChar?.TakeDamage(bodyContactDamage);
                 lastBodyDamageTime = Time.time;
             }
         }
@@ -276,23 +302,39 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         }
     }
 
+    // ========================================
+    // OPTIMIZACIÓN: Movimiento suavizado en FixedUpdate
+    // ========================================
+    void FixedUpdate()
+    {
+        if (isDead || player == null || isAttacking || isTeleporting) return;
+
+        // Aplicar velocidad suavizada
+        if (targetVelocity != Vector2.zero)
+        {
+            currentVelocity = Vector2.Lerp(currentVelocity, targetVelocity, movementSmoothing * Time.fixedDeltaTime);
+            rb.linearVelocity = new Vector2(currentVelocity.x, rb.linearVelocity.y);
+        }
+    }
+
     void HandleAggressiveMovement(float dist)
     {
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
         float dirX = Mathf.Sign(player.position.x - transform.position.x);
 
+        // OPTIMIZACIÓN: Calcular velocidad objetivo en vez de aplicarla directamente
         if (dist < retreatDistance)
         {
-            rb.linearVelocity = new Vector2(-dirX * repositionSpeed * 1.2f, rb.linearVelocity.y);
+            targetVelocity = new Vector2(-dirX * repositionSpeed * 1.2f, 0);
         }
         else if (dist > optimalDistance + 3f && dist <= detectionRange)
         {
             float dashMod = (currentPhase == BossPhase.Phase3 && Random.value < 0.3f) ? 1.8f : 1f;
-            rb.linearVelocity = new Vector2(dirX * moveSpeed * dashMod, rb.linearVelocity.y);
+            targetVelocity = new Vector2(dirX * moveSpeed * dashMod, 0);
         }
         else if (dist > detectionRange)
         {
-            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+            targetVelocity = Vector2.zero;
         }
         else
         {
@@ -304,13 +346,14 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
             }
 
             float moveMod = (circleDirection > 0) ? 0.5f : -0.3f;
-            rb.linearVelocity = new Vector2(dirX * repositionSpeed * moveMod, rb.linearVelocity.y);
+            targetVelocity = new Vector2(dirX * repositionSpeed * moveMod, 0);
         }
     }
 
     IEnumerator PerformDarkSoulsAttack(float dist)
     {
         isAttacking = true;
+        targetVelocity = Vector2.zero;
         rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
 
         int attackType = ChooseDarkSoulsAttack(dist);
@@ -435,14 +478,14 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
             yield return new WaitForSeconds(0.15f);
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
 
-            Collider2D[] hits = Physics2D.OverlapBoxAll(meleeAttackPoint.position, meleeAttackBoxSize, 0f);
-            foreach (var hit in hits)
+            // OPTIMIZACIÓN: Usar buffer de colisiones
+            int hitCount = Physics2D.OverlapBoxNonAlloc(meleeAttackPoint.position, meleeAttackBoxSize, 0f, hitBuffer);
+            for (int h = 0; h < hitCount; h++)
             {
-                if (hit.CompareTag("Player"))
+                if (hitBuffer[h].CompareTag("Player"))
                 {
-                    hit.GetComponent<MainChar>()?.TakeDamage(1);
-                    Rigidbody2D prb = hit.GetComponent<Rigidbody2D>();
-                    if (prb) prb.AddForce(dir * meleeKnockback * 0.5f, ForceMode2D.Impulse);
+                    playerMainChar?.TakeDamage(1);
+                    if (playerRb) playerRb.AddForce(dir * meleeKnockback * 0.5f, ForceMode2D.Impulse);
                 }
             }
             yield return new WaitForSeconds(0.15f);
@@ -483,14 +526,14 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         yield return new WaitForSeconds(0.25f);
         rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
 
-        Collider2D[] hits = Physics2D.OverlapBoxAll(meleeAttackPoint.position, meleeAttackBoxSize, 0f);
-        foreach (var hit in hits)
+        // OPTIMIZACIÓN: Usar buffer de colisiones
+        int hitCount = Physics2D.OverlapBoxNonAlloc(meleeAttackPoint.position, meleeAttackBoxSize, 0f, hitBuffer);
+        for (int i = 0; i < hitCount; i++)
         {
-            if (hit.CompareTag("Player"))
+            if (hitBuffer[i].CompareTag("Player"))
             {
-                hit.GetComponent<MainChar>()?.TakeDamage(meleeAttackDamage);
-                Rigidbody2D prb = hit.GetComponent<Rigidbody2D>();
-                if (prb) prb.AddForce(dir * meleeKnockback, ForceMode2D.Impulse);
+                playerMainChar?.TakeDamage(meleeAttackDamage);
+                if (playerRb) playerRb.AddForce(dir * meleeKnockback, ForceMode2D.Impulse);
             }
         }
         yield return new WaitForSeconds(0.2f);
@@ -603,7 +646,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
                 if (player == null) break;
                 Vector3 target = player.position;
 
-                Rigidbody2D playerRb = player.GetComponent<Rigidbody2D>();
+                // OPTIMIZACIÓN: Usar referencia cacheada
                 if (playerRb && playerRb.linearVelocity.x != 0)
                 {
                     float prediction = currentPhase == BossPhase.Phase3 ? 0.7f : 0.5f;
@@ -628,10 +671,14 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
         yield return new WaitForSeconds(geyserWarningTime);
 
-        Collider2D[] hits = Physics2D.OverlapBoxAll(pos + Vector3.up * 1f, new Vector2(1.5f, 2f), 0f);
-        foreach (var h in hits)
+        // OPTIMIZACIÓN: Usar buffer de colisiones
+        int hitCount = Physics2D.OverlapBoxNonAlloc(pos + Vector3.up * 1f, new Vector2(1.5f, 2f), 0f, hitBuffer);
+        for (int i = 0; i < hitCount; i++)
         {
-            if (h.CompareTag("Player")) h.GetComponent<MainChar>()?.TakeDamage(geyserDamage);
+            if (hitBuffer[i].CompareTag("Player"))
+            {
+                playerMainChar?.TakeDamage(geyserDamage);
+            }
         }
     }
 
@@ -644,6 +691,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
         rb.gravityScale = 0;
         rb.linearVelocity = Vector2.zero;
+        targetVelocity = Vector2.zero;
 
         while (t < 1f)
         {
@@ -701,6 +749,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     IEnumerator DefensiveTeleport()
     {
         isTeleporting = true;
+        targetVelocity = Vector2.zero;
         rb.linearVelocity = Vector2.zero;
 
         if (bossCollider) bossCollider.enabled = false;
@@ -800,6 +849,10 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         lastTeleportTime = -999f;
         arenaSealed = false;
         healthBarActivated = false;
+
+        // OPTIMIZACIÓN: Resetear velocidades
+        targetVelocity = Vector2.zero;
+        currentVelocity = Vector2.zero;
 
         if (spriteRenderer)
         {
