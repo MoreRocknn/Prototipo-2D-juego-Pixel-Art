@@ -44,7 +44,7 @@ public class EnemyManager : MonoBehaviour
         var enemies = GameObject.FindGameObjectsWithTag("Enemy");
         foreach (var enemy in enemies)
         {
-            registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation) 
+            registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation)
             { currentInstance = enemy });
         }
     }
@@ -52,7 +52,7 @@ public class EnemyManager : MonoBehaviour
     public void RegisterEnemy(GameObject enemy)
     {
         if (enemy == null) return;
-        registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation) 
+        registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation)
         { currentInstance = enemy });
     }
 
@@ -70,6 +70,7 @@ public class EnemyManager : MonoBehaviour
 
     void RespawnBosses()
     {
+        // Nota: Asegúrate de tener la clase BossController o ajusta este nombre
         foreach (var boss in FindObjectsOfType<BossController>(true))
             boss?.ResetState();
     }
@@ -78,33 +79,44 @@ public class EnemyManager : MonoBehaviour
     {
         foreach (var data in registeredEnemies)
         {
+            // Si tienes BossController, evita respawnearlo aquí si ya se manejó arriba
             if (data.currentInstance != null && data.currentInstance.GetComponent<BossController>() != null)
                 continue;
             RespawnEnemy(data);
         }
     }
 
+    // --- CORRECCIÓN AQUÍ ---
     void RespawnEnemy(EnemyData data)
     {
         if (data.currentInstance != null)
         {
-            if (data.currentInstance.activeInHierarchy)
+            // 1. Restaurar posición y rotación
+            data.currentInstance.transform.position = data.spawnPosition;
+            data.currentInstance.transform.rotation = data.spawnRotation;
+
+            // 2. Asegurar que el objeto esté activo para que sus scripts funcionen
+            data.currentInstance.SetActive(true);
+
+            // 3. Buscar ambos tipos de scripts (Terrestre y Volador)
+            var enemigoTerrestre = data.currentInstance.GetComponent<Enemigo>();
+            var enemigoVolador = data.currentInstance.GetComponent<EnemigoVolador>();
+
+            // 4. Ejecutar la restauración en el que exista
+            if (enemigoTerrestre != null)
             {
-                data.currentInstance.GetComponent<Enemigo>()?.RestoreFullHealth();
-                data.currentInstance.transform.position = data.spawnPosition;
-                data.currentInstance.transform.rotation = data.spawnRotation;
+                enemigoTerrestre.RestoreFullHealth();
+                enemigoTerrestre.enabled = true;
             }
-            else
+            else if (enemigoVolador != null)
             {
-                data.currentInstance.SetActive(true);
-                data.currentInstance.transform.position = data.spawnPosition;
-                data.currentInstance.transform.rotation = data.spawnRotation;
-                var e = data.currentInstance.GetComponent<Enemigo>();
-                if (e != null) { e.RestoreFullHealth(); e.enabled = true; }
+                enemigoVolador.RestoreFullHealth();
+                enemigoVolador.enabled = true;
             }
         }
         else if (data.enemyPrefab != null)
         {
+            // Si la instancia fue destruida, crear una nueva
             data.currentInstance = Instantiate(data.enemyPrefab, data.spawnPosition, data.spawnRotation);
             data.currentInstance.tag = "Enemy";
         }

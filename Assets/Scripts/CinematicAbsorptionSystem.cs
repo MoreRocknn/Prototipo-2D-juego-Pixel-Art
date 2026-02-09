@@ -17,7 +17,7 @@ public class CinematicAbsorptionSystem : MonoBehaviour
     [Header("⚙️ Configuración de Zoom")]
     [Tooltip("Tamaño de cámara al hacer zoom (MAYOR = menos zoom, MENOR = más zoom)")]
     [Range(2f, 8f)]
-    public float zoomedOrthographicSize = 4.5f; // CAMBIADO: Valor por defecto más lejano
+    public float zoomedOrthographicSize = 4.5f;
     [Tooltip("Velocidad del zoom")]
     [Range(0.1f, 2f)]
     public float zoomDuration = 0.5f;
@@ -53,6 +53,11 @@ public class CinematicAbsorptionSystem : MonoBehaviour
     public bool enableSlowMotion = true;
     [Range(0.1f, 1f)]
     public float slowMotionScale = 0.5f;
+
+    [Header("⏱️ Tiempo de pausa tras absorber")]
+    [Tooltip("Segundos que se mantiene el zoom después de ejecutar la absorción (efecto dramático)")]
+    [Range(0.1f, 2f)]
+    public float postAbsorptionPause = 0.5f;
 
     [Header("Audio (Opcional)")]
     public AudioSource cinematicAudioSource;
@@ -246,6 +251,11 @@ public class CinematicAbsorptionSystem : MonoBehaviour
         StartCoroutine(CinematicModeSequence(target, onAbsorptionComplete));
     }
 
+    /// <summary>
+    /// Secuencia cinematográfica completa.
+    /// UN SOLO input E activa todo: zoom → absorción automática → salida.
+    /// No espera un segundo input.
+    /// </summary>
     IEnumerator CinematicModeSequence(Transform target, System.Action onComplete)
     {
         isInCinematicMode = true;
@@ -270,7 +280,7 @@ public class CinematicAbsorptionSystem : MonoBehaviour
         if (player != null)
         {
             player.SetInputLock(true);
-            player.StopPhysics(); // Detener movimiento
+            player.StopPhysics();
         }
 
         // Mostrar bordes negros
@@ -281,37 +291,26 @@ public class CinematicAbsorptionSystem : MonoBehaviour
         // Hacer zoom hacia el objetivo
         yield return StartCoroutine(ZoomToTarget(target.position));
 
-        // Mostrar prompt de absorción
-        absorptionPromptPanel.SetActive(true);
-        yield return StartCoroutine(FadePrompt(true));
+        // ============================================
+        // EJECUTAR ABSORCIÓN AUTOMÁTICAMENTE
+        // No espera otro input. El E ya fue presionado.
+        // ============================================
 
-        // Esperar a que el jugador presione E
-        bool absorbed = false;
-        while (!absorbed)
+        // Reproducir sonido de absorción
+        if (cinematicAudioSource != null && absorptionCompleteSound != null)
         {
-            if (Input.GetKeyDown(KeyCode.E))
-            {
-                absorbed = true;
-
-                // Reproducir sonido de absorción
-                if (cinematicAudioSource != null && absorptionCompleteSound != null)
-                {
-                    cinematicAudioSource.PlayOneShot(absorptionCompleteSound);
-                }
-
-                // Ocultar prompt
-                yield return StartCoroutine(FadePrompt(false));
-
-                // Ejecutar la absorción
-                onComplete?.Invoke();
-
-                // Esperar un momento para efecto dramático
-                yield return new WaitForSecondsRealtime(0.5f);
-            }
-            yield return null;
+            cinematicAudioSource.PlayOneShot(absorptionCompleteSound);
         }
 
-        // Salir del modo cinemático
+        // Ejecutar la absorción (callback del manager)
+        onComplete?.Invoke();
+
+        // Pausa dramática después de absorber (configurable desde Inspector)
+        yield return new WaitForSecondsRealtime(postAbsorptionPause);
+
+        // ============================================
+        // SALIR DEL MODO CINEMÁTICO
+        // ============================================
         yield return StartCoroutine(ExitCinematicMode());
     }
 
