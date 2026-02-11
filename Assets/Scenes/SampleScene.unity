@@ -1609,10 +1609,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1662633297}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.08800001, y: 0.89325887}
+  m_AnchorMin: {x: 0.08800001, y: 0.91200006}
   m_AnchorMax: {x: 0.40100002, y: 0.95800006}
-  m_AnchoredPosition: {x: -3.5, y: 7.200012}
-  m_SizeDelta: {x: -501, y: 30}
+  m_AnchoredPosition: {x: -3.5, y: -2.7999878}
+  m_SizeDelta: {x: -501, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &408015597
 MonoBehaviour:
@@ -2152,7 +2152,7 @@ Camera:
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
   m_TargetEye: 0
-  m_HDR: 1
+  m_HDR: 0
   m_AllowMSAA: 0
   m_AllowDynamicResolution: 0
   m_ForceIntoRT: 0
@@ -2191,7 +2191,7 @@ MonoBehaviour:
   verticalDeadzone: 1.5
   offset: {x: 0, y: 1, z: -1.7}
   enModoBoss: 0
-  offsetBossY: 2.93
+  offsetBossY: 1.01
 --- !u!114 &519420034
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6129,7 +6129,7 @@ MonoBehaviour:
   comboResetTime: 1
   attackAnimationDuration: 0.3
   attackPoint: {fileID: 251638998}
-  attackRange: 0.69
+  attackRange: 0.84
   enemyLayer:
     serializedVersion: 2
     m_Bits: 128
@@ -6828,7 +6828,7 @@ MonoBehaviour:
   cinematicAudioSource: {fileID: 0}
   absorptionStartSound: {fileID: 0}
   absorptionCompleteSound: {fileID: 0}
-  showDebugInfo: 1
+  showDebugInfo: 0
 --- !u!4 &1327264186
 Transform:
   m_ObjectHideFlags: 0
@@ -9300,10 +9300,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_UiScaleMode: 0
+  m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
+  m_ReferenceResolution: {x: 480, y: 270}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0
   m_PhysicalUnit: 3
@@ -9377,15 +9377,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9052630094857792727, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.34014
+      value: -0.2
       objectReference: {fileID: 0}
     - target: {fileID: 9052630094857792727, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.34014
+      value: -0.2
       objectReference: {fileID: 0}
     - target: {fileID: 9052630094857792727, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.34014
+      value: -0.2
       objectReference: {fileID: 0}
     - target: {fileID: 9052630094857792727, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
       propertyPath: m_LocalPosition.x
@@ -9426,6 +9426,10 @@ PrefabInstance:
     - target: {fileID: 9052630094857792727, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9052630094857792727, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
