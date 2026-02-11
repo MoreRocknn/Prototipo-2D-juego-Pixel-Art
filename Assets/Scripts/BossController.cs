@@ -66,7 +66,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     [Header("UI BOSS")]
     public GameObject bossHealthBarPrefab;
     public string bossName = "EL REY PACIENTE";
-    private BossHealthBar bossHealthBarUI;
+    public BossHealthBar bossHealthBarUI;
     private bool arenaSealed = false;
     private bool healthBarActivated = false;
 
@@ -851,6 +851,21 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     public void ResetState()
     {
         StopAllCoroutines();
+
+        // 🎯 DESTRUIR LA BARRA DE VIDA PRIMERO
+        if (bossHealthBarUI != null)
+        {
+            Destroy(bossHealthBarUI.gameObject);
+            bossHealthBarUI = null;
+        }
+
+        // 🎯 DESACTIVAR MODO BOSS EN CÁMARA
+        CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
+        if (camara != null)
+        {
+            camara.enModoBoss = false;
+        }
+
         currentHealth = maxHealth;
         transform.position = initialPosition;
         transform.localScale = new Vector3(Mathf.Abs(transform.localScale.x), transform.localScale.y, 1);
@@ -865,9 +880,8 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         consecutiveRangedAttacks = 0;
         lastTeleportTime = -999f;
         arenaSealed = false;
-        healthBarActivated = false;
+        healthBarActivated = false; // 🎯 IMPORTANTE: Resetear esto también
 
-        // OPTIMIZACIÓN: Resetear velocidades
         targetVelocity = Vector2.zero;
         currentVelocity = Vector2.zero;
 
@@ -882,12 +896,6 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         {
             rb.gravityScale = defaultGravity;
             rb.linearVelocity = Vector2.zero;
-        }
-
-        if (bossHealthBarUI)
-        {
-            Destroy(bossHealthBarUI.gameObject);
-            bossHealthBarUI = null;
         }
 
         SetDoorsState(false);

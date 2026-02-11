@@ -1,4 +1,4 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 using System.Collections.Generic;
 
 public class EnemyManager : MonoBehaviour
@@ -70,39 +70,52 @@ public class EnemyManager : MonoBehaviour
 
     void RespawnBosses()
     {
-        // Nota: Aseg˙rate de tener la clase BossController o ajusta este nombre
+        // Nota: Aseg√∫rate de tener la clase BossController o ajusta este nombre
         foreach (var boss in FindObjectsOfType<BossController>(true))
-            boss?.ResetState();
+        {
+            if (boss != null)
+            {
+                // üéØ DESTRUIR LA BARRA DE VIDA ANTES DE RESETEAR
+                if (boss.bossHealthBarUI != null)
+                {
+                    Destroy(boss.bossHealthBarUI.gameObject);
+                    boss.bossHealthBarUI = null;
+                }
+
+                // Resetear el estado del boss
+                boss.ResetState();
+            }
+        }
     }
 
-    void RespawnNormalEnemies()
+        void RespawnNormalEnemies()
     {
         foreach (var data in registeredEnemies)
         {
-            // Si tienes BossController, evita respawnearlo aquÌ si ya se manejÛ arriba
+            // Si tienes BossController, evita respawnearlo aqu√≠ si ya se manej√≥ arriba
             if (data.currentInstance != null && data.currentInstance.GetComponent<BossController>() != null)
                 continue;
             RespawnEnemy(data);
         }
     }
 
-    // --- CORRECCI”N AQUÕ ---
+    // --- CORRECCI√ìN AQU√ç ---
     void RespawnEnemy(EnemyData data)
     {
         if (data.currentInstance != null)
         {
-            // 1. Restaurar posiciÛn y rotaciÛn
+            // 1. Restaurar posici√≥n y rotaci√≥n
             data.currentInstance.transform.position = data.spawnPosition;
             data.currentInstance.transform.rotation = data.spawnRotation;
 
-            // 2. Asegurar que el objeto estÈ activo para que sus scripts funcionen
+            // 2. Asegurar que el objeto est√© activo para que sus scripts funcionen
             data.currentInstance.SetActive(true);
 
             // 3. Buscar ambos tipos de scripts (Terrestre y Volador)
             var enemigoTerrestre = data.currentInstance.GetComponent<Enemigo>();
             var enemigoVolador = data.currentInstance.GetComponent<EnemigoVolador>();
 
-            // 4. Ejecutar la restauraciÛn en el que exista
+            // 4. Ejecutar la restauraci√≥n en el que exista
             if (enemigoTerrestre != null)
             {
                 enemigoTerrestre.RestoreFullHealth();
