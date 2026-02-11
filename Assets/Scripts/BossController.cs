@@ -259,7 +259,18 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
             bossHealthBarUI.Initialize(bossName, maxHealth);
             healthBarActivated = true;
             Debug.Log("✅ Barra de vida inicializada correctamente");
+
+            CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
+            if (camara != null)
+            {
+                camara.enModoBoss = true;
+
+                camara.SnapToPlayer();
+
+            }
         }
+
+
         else
         {
             Debug.LogError("❌ El prefab no tiene componente BossHealthBar");
@@ -819,6 +830,12 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         isDead = true;
         UnsealArena();
         if (bossHealthBarUI) bossHealthBarUI.Hide();
+
+        CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
+        if (camara != null)
+        {
+            camara.enModoBoss = false;
+        }
         StopAllCoroutines();
         gameObject.SetActive(false);
     }
