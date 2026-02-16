@@ -936,4 +936,22 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(transform.position, retreatDistance);
     }
+    private float GetGroundY(float xPosition)
+    {
+        // Raycast hacia abajo para detectar el suelo
+        RaycastHit2D hit = Physics2D.Raycast(
+            new Vector2(xPosition, transform.position.y + 10f),
+            Vector2.down,
+            50f,
+            LayerMask.GetMask("Ground")
+        );
+
+        if (hit.collider != null)
+        {
+            return hit.point.y;
+        }
+
+        // Si no detecta suelo, usar posición del boss
+        return transform.position.y - 3f;
+    }
 }
