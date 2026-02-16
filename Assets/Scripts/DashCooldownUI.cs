@@ -6,52 +6,69 @@ public class DashCooldownUI : MonoBehaviour
     [Header("Arrastra aquí la imagen Fill de tu barra")]
     public Image fillImage;
 
-    [Header("Jugador (opcional, busca automáticamente)")]
-    public GameObject playerObject;
-
     private AbilityHolder abilityHolder;
-    private DashAbility dashAbility;
-
-    void Start()
-    {
-        if (playerObject == null)
-            playerObject = GameObject.FindGameObjectWithTag("Player");
-
-        if (playerObject != null)
-            abilityHolder = playerObject.GetComponent<AbilityHolder>();
-    }
+    private MainChar playerChar;
 
     void Update()
     {
         if (fillImage == null) return;
 
-        // Buscar AbilityHolder si no lo tenemos
-        if (abilityHolder == null && playerObject != null)
-            abilityHolder = playerObject.GetComponent<AbilityHolder>();
+        // 1. FORZAMOS la búsqueda del jugador REAL en la escena 
+        // (Esto evita el 100% de los problemas de Tags o Prefabs desconectados)
+        if (playerChar == null)
+        {
+            playerChar = FindObjectOfType<MainChar>();
+            if (playerChar != null)
+            {
+                abilityHolder = playerChar.GetComponent<AbilityHolder>();
+            }
+        }
 
-        // Sin jugador o sin habilidad = barra vacía
-        if (abilityHolder == null || abilityHolder.currentAbility == null)
+        // Si no detecta al jugador en el nivel, barra a 0
+        if (playerChar == null || abilityHolder == null)
         {
             fillImage.fillAmount = 0f;
             return;
         }
 
-        // Verificar que sea DashAbility
-        dashAbility = abilityHolder.currentAbility as DashAbility;
-        if (dashAbility == null)
+        // 2. Obtenemos la habilidad actual del jugador
+        Ability currentAbility = abilityHolder.GetAbility();
+
+        // Si el jugador no tiene nada equipado, o lo que tiene NO es el Dash, barra a 0
+        if (currentAbility == null || currentAbility.abilityType != AbilityType.Dash)
         {
             fillImage.fillAmount = 0f;
             return;
         }
 
-        // Calcular fill
-        float cooldown = dashAbility.GetCooldownRemaining();
-        float maxCooldown = dashAbility.dashCooldown;
+        // 3. Confirmamos la habilidad como Dash
+        DashAbility dashSkill = currentAbility as DashAbility;
+        if (dashSkill == null)
+        {
+            fillImage.fillAmount = 0f;
+            return;
+        }
 
-        // Fill: 0 = vacío (en cooldown), 1 = lleno (listo)
-        if (cooldown <= 0f)
+        // 4. Calculamos el tiempo de recarga
+        float cooldown = dashSkill.GetCooldownRemaining();
+        float maxCooldown = dashSkill.dashCooldown;
+
+        // Protección matemática
+        if (maxCooldown <= 0f)
+        {
             fillImage.fillAmount = 1f;
+            return;
+        }
+
+        // 5. Aplicar visualmente
+        if (cooldown <= 0f)
+        {
+            fillImage.fillAmount = 1f;  // Listo para usar = Lleno (Amarillo)
+        }
         else
+        {
+            // Barra recargándose progresivamente
             fillImage.fillAmount = 1f - (cooldown / maxCooldown);
+        }
     }
 }

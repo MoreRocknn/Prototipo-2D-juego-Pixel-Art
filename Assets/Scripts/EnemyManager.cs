@@ -39,15 +39,31 @@ public class EnemyManager : MonoBehaviour
     }
 
     public void RegisterAllEnemiesInScene()
+{
+    registeredEnemies.Clear();
+    
+    // Registrar enemigos normales
+    var enemies = GameObject.FindGameObjectsWithTag("Enemy");
+    foreach (var enemy in enemies)
     {
-        registeredEnemies.Clear();
-        var enemies = GameObject.FindGameObjectsWithTag("Enemy");
-        foreach (var enemy in enemies)
+        registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation)
+        { currentInstance = enemy });
+    }
+    
+    // ✅ NUEVO: Registrar bosses explícitamente
+    var bosses = FindObjectsOfType<BossController>(true);
+    foreach (var boss in bosses)
+    {
+        if (!registeredEnemies.Exists(e => e.currentInstance == boss.gameObject))
         {
-            registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation)
-            { currentInstance = enemy });
+            registeredEnemies.Add(new EnemyData(
+                boss.gameObject, 
+                boss.transform.position, 
+                boss.transform.rotation
+            ) { currentInstance = boss.gameObject });
         }
     }
+}
 
     public void RegisterEnemy(GameObject enemy)
     {
@@ -57,10 +73,10 @@ public class EnemyManager : MonoBehaviour
     }
 
     public void RespawnAllEnemies()
-    {
-        if (resetBossOnPlayerDeath) RespawnBosses();
-        RespawnNormalEnemies();
-    }
+{
+    RespawnBosses(); // ✅ SIEMPRE resetear bosses
+    RespawnNormalEnemies();
+}
 
     public void RespawnAllEnemiesIncludingBoss()
     {
@@ -70,22 +86,23 @@ public class EnemyManager : MonoBehaviour
 
     void RespawnBosses()
     {
-        // Nota: Asegúrate de tener la clase BossController o ajusta este nombre
-        foreach (var boss in FindObjectsOfType<BossController>(true))
+    foreach (var boss in FindObjectsOfType<BossController>(true))
+    {
+        if (boss != null)
         {
-            if (boss != null)
+            Debug.Log("🔄 Reseteando boss: " + boss.name);
+            
+            // Destruir barra de vida vieja
+            if (boss.bossHealthBarUI != null)
             {
-                // 🎯 DESTRUIR LA BARRA DE VIDA ANTES DE RESETEAR
-                if (boss.bossHealthBarUI != null)
-                {
-                    Destroy(boss.bossHealthBarUI.gameObject);
-                    boss.bossHealthBarUI = null;
-                }
-
-                // Resetear el estado del boss
-                boss.ResetState();
+                Destroy(boss.bossHealthBarUI.gameObject);
+                boss.bossHealthBarUI = null;
             }
+
+            // Resetear estado
+            boss.ResetState();
         }
+    }
     }
 
         void RespawnNormalEnemies()

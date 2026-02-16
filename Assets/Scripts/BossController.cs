@@ -69,10 +69,16 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     public BossHealthBar bossHealthBarUI;
     private bool arenaSealed = false;
     private bool healthBarActivated = false;
+    public float resetCooldown = 10f; 
+
 
     [Header("PREFABS DE ATAQUE")]
     public GameObject FallingSwords;
     public GameObject GroundSpikes;
+
+    [Header("CONFIGURACIÓN DEL SUELO")]
+[Tooltip("Altura Y donde está el suelo. Déjalo en 0 para detectar automáticamente.")]
+public float groundYPosition = 0f;
 
     private float minArenaX;
     private float maxArenaX;
@@ -90,6 +96,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     private enum BossPhase { Phase1, Phase2, Phase3 }
     private BossPhase currentPhase = BossPhase.Phase1;
     private Sprite bloodSprite;
+    private float lastResetTime = -999f;
 
     private int lastAttackType = -1;
     private int consecutiveMeleeAttacks = 0;
@@ -191,33 +198,39 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     void Update()
+{
+    if (isDead || player == null) return;
+
+    // ✅ NO HACER NADA durante el cooldown post-reset
+    if (Time.time < lastResetTime + resetCooldown)
     {
-        if (isDead || player == null) return;
-
-        if (!isTeleporting && !isAttacking)
-        {
-            EnsureVisibility();
-        }
-
-        ClampToArena();
-
-        float dist = Vector2.Distance(transform.position, player.position);
-
-        if (!healthBarActivated && dist <= detectionRange)
-        {
-            ActivateBossHealthBar();
-        }
-
-        if (!arenaSealed && dist <= doorCloseDistance) SealArena();
-
-        if (dist <= detectionRange)
-        {
-            HandleCombat(dist);
-            if (!isAttacking && !isTeleporting) FlipTowardsPlayer();
-        }
-
-        UpdatePhase();
+        return;
     }
+
+    if (!isTeleporting && !isAttacking)
+    {
+        EnsureVisibility();
+    }
+
+    ClampToArena();
+
+    float dist = Vector2.Distance(transform.position, player.position);
+
+    if (!healthBarActivated && dist <= detectionRange)
+    {
+        ActivateBossHealthBar();
+    }
+
+    if (!arenaSealed && dist <= doorCloseDistance) SealArena();
+
+    if (dist <= detectionRange)
+    {
+        HandleCombat(dist);
+        if (!isAttacking && !isTeleporting) FlipTowardsPlayer();
+    }
+
+    UpdatePhase();
+}
 
     void EnsureVisibility()
     {
@@ -246,38 +259,39 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     void ActivateBossHealthBar()
+{
+    if (healthBarActivated || bossHealthBarPrefab == null) return;
+    
+    // ✅ Usar la variable configurable
+    if (Time.time < lastResetTime + resetCooldown) 
     {
-        if (healthBarActivated || bossHealthBarPrefab == null) return;
-
-        Debug.Log("Activando barra de vida del boss...");
-
-        GameObject barObj = Instantiate(bossHealthBarPrefab);
-
-        bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
-        if (bossHealthBarUI != null)
-        {
-            bossHealthBarUI.Initialize(bossName, maxHealth);
-            healthBarActivated = true;
-            Debug.Log("✅ Barra de vida inicializada correctamente");
-
-            CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
-            if (camara != null)
-            {
-                camara.enModoBoss = true;
-
-                camara.SnapToPlayer();
-
-            }
-        }
-
-
-        else
-        {
-            Debug.LogError("❌ El prefab no tiene componente BossHealthBar");
-            Destroy(barObj);
-        }
+        return; // Salir silenciosamente
     }
 
+    Debug.Log("Activando barra de vida del boss...");
+
+    GameObject barObj = Instantiate(bossHealthBarPrefab);
+
+    bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
+    if (bossHealthBarUI != null)
+    {
+        bossHealthBarUI.Initialize(bossName, maxHealth);
+        healthBarActivated = true;
+        Debug.Log("✅ Barra de vida inicializada correctamente");
+
+        CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
+        if (camara != null)
+        {
+            camara.enModoBoss = true;
+            camara.SnapToPlayer();
+        }
+    }
+    else
+    {
+        Debug.LogError("❌ El prefab no tiene componente BossHealthBar");
+        Destroy(barObj);
+    }
+}
     private void OnCollisionStay2D(Collision2D collision)
     {
         if (isDead || isTeleporting) return;
@@ -849,57 +863,65 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     public void ResetState()
+{
+    lastResetTime = Time.time;
+    
+    StopAllCoroutines();
+
+    // 🎯 Destruir barra de vida
+    if (bossHealthBarUI != null)
     {
-        StopAllCoroutines();
-
-        // 🎯 DESTRUIR LA BARRA DE VIDA PRIMERO
-        if (bossHealthBarUI != null)
-        {
-            Destroy(bossHealthBarUI.gameObject);
-            bossHealthBarUI = null;
-        }
-
-        // 🎯 DESACTIVAR MODO BOSS EN CÁMARA
-        CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
-        if (camara != null)
-        {
-            camara.enModoBoss = false;
-        }
-
-        currentHealth = maxHealth;
-        transform.position = initialPosition;
-        transform.localScale = new Vector3(Mathf.Abs(transform.localScale.x), transform.localScale.y, 1);
-        gameObject.SetActive(true);
-
-        isDead = false;
-        isAttacking = false;
-        isTeleporting = false;
-        isInvulnerable = false;
-        currentHitCounter = 0;
-        consecutiveMeleeAttacks = 0;
-        consecutiveRangedAttacks = 0;
-        lastTeleportTime = -999f;
-        arenaSealed = false;
-        healthBarActivated = false; // 🎯 IMPORTANTE: Resetear esto también
-
-        targetVelocity = Vector2.zero;
-        currentVelocity = Vector2.zero;
-
-        if (spriteRenderer)
-        {
-            spriteRenderer.enabled = true;
-            spriteRenderer.color = Color.white;
-        }
-        if (bossCollider) bossCollider.enabled = true;
-
-        if (rb)
-        {
-            rb.gravityScale = defaultGravity;
-            rb.linearVelocity = Vector2.zero;
-        }
-
-        SetDoorsState(false);
+        Destroy(bossHealthBarUI.gameObject);
+        bossHealthBarUI = null;
     }
+
+    // 🎯 Desactivar modo boss en cámara
+    CamaraScript camara = Camera.main?.GetComponent<CamaraScript>();
+    if (camara != null)
+    {
+        camara.enModoBoss = false;
+    }
+
+    // Resetear stats
+    currentHealth = maxHealth;
+    transform.position = initialPosition;
+    transform.localScale = new Vector3(Mathf.Abs(transform.localScale.x), transform.localScale.y, 1);
+    gameObject.SetActive(true);
+
+    isDead = false;
+    isAttacking = false;
+    isTeleporting = false;
+    isInvulnerable = false;
+    currentHitCounter = 0;
+    consecutiveMeleeAttacks = 0;
+    consecutiveRangedAttacks = 0;
+    lastTeleportTime = -999f;
+    arenaSealed = false;  // ✅ IMPORTANTE
+    healthBarActivated = false;
+    
+    // ✅ FORZAR APERTURA DE PUERTAS
+    UnsealArena();
+    
+    // Resetear física
+    targetVelocity = Vector2.zero;
+    currentVelocity = Vector2.zero;
+
+    if (spriteRenderer)
+    {
+        spriteRenderer.enabled = true;
+        spriteRenderer.color = Color.white;
+    }
+    
+    if (bossCollider) bossCollider.enabled = true;
+    
+    if (rb)
+    {
+        rb.gravityScale = defaultGravity;
+        rb.linearVelocity = Vector2.zero;
+    }
+    
+    Debug.Log("✅ Boss reseteado - Puertas abiertas - Cooldown: " + resetCooldown + "s");
+}
 
     public bool CanBeAbsorbed() => isDead;
     public void OnAbsorbed() { Destroy(gameObject); }
@@ -936,22 +958,32 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(transform.position, retreatDistance);
     }
-    private float GetGroundY(float xPosition)
+   private float GetGroundY(float xPosition)
+{
+    // Punto de inicio MUY arriba
+    Vector2 rayStart = new Vector2(xPosition, transform.position.y + 30f);
+    
+    // Raycast hacia abajo con TODOS los layers que podrían ser suelo
+    RaycastHit2D hit = Physics2D.Raycast(
+        rayStart,
+        Vector2.down,
+        100f, // Distancia muy larga
+        ~0 // Detectar TODOS los layers
+    );
+
+    // Debug visual (línea verde si detecta, roja si no)
+    if (hit.collider != null)
     {
-        // Raycast hacia abajo para detectar el suelo
-        RaycastHit2D hit = Physics2D.Raycast(
-            new Vector2(xPosition, transform.position.y + 10f),
-            Vector2.down,
-            50f,
-            LayerMask.GetMask("Ground")
-        );
-
-        if (hit.collider != null)
-        {
-            return hit.point.y;
-        }
-
-        // Si no detecta suelo, usar posición del boss
-        return transform.position.y - 3f;
+        Debug.DrawLine(rayStart, hit.point, Color.green, 1f);
+        return hit.point.y;
     }
+    else
+    {
+        Debug.DrawLine(rayStart, rayStart + Vector2.down * 100f, Color.red, 1f);
+        Debug.LogWarning($"⚠️ GetGroundY no detectó suelo en X={xPosition}");
+        
+        // Fallback: usar la Y inicial del boss
+        return initialPosition.y;
+    }
+}
 }
