@@ -562,8 +562,8 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     void CheckEdge()
     {
         if (!edgeCheckPoint) return;
-        Vector2 origin = new Vector2(transform.position.x + (0.8f * (isFacingRight ? 1 : -1)), edgeCheckPoint.position.y);
-        isAtEdge = !Physics2D.Raycast(origin, Vector2.down, 0.5f, groundLayer);
+        Vector2 origin = new Vector2(transform.position.x + (2f * (isFacingRight ? 1 : -1)), edgeCheckPoint.position.y);
+        isAtEdge = !Physics2D.Raycast(origin, Vector2.down, 1f, groundLayer);
     }
 
     void CreateEdgeCheck()
