@@ -3202,6 +3202,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 703856566}
+  - component: {fileID: 703856567}
   m_Layer: 9
   m_Name: GroundCheck
   m_TagString: ground
@@ -3218,12 +3219,30 @@ Transform:
   m_GameObject: {fileID: 703856565}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.01, y: -0.987, z: 0.050425526}
+  m_LocalPosition: {x: -0.01, y: -1.07, z: 0.050425526}
   m_LocalScale: {x: 35.64964, y: 0.6419076, z: 0.6419076}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1623637577}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &703856567
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 703856565}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 49b4abff52f967e4380726360539a50e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  groundCheck: {fileID: 703856566}
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 8
+  checkRadius: 0.2
+  isGrounded: 0
 --- !u!1 &709846084
 GameObject:
   m_ObjectHideFlags: 0
@@ -7672,9 +7691,16 @@ GameObject:
   - component: {fileID: 1623637576}
   - component: {fileID: 1623637575}
   - component: {fileID: 1623637574}
-  - component: {fileID: 1623637573}
-  - component: {fileID: 1623637572}
   - component: {fileID: 1623637571}
+  - component: {fileID: 1623637586}
+  - component: {fileID: 1623637585}
+  - component: {fileID: 1623637584}
+  - component: {fileID: 1623637583}
+  - component: {fileID: 1623637582}
+  - component: {fileID: 1623637581}
+  - component: {fileID: 1623637580}
+  - component: {fileID: 1623637579}
+  - component: {fileID: 1623637578}
   m_Layer: 9
   m_Name: PLAYER
   m_TagString: Player
@@ -7706,106 +7732,6 @@ MonoBehaviour:
   absorptionPromptUI: {fileID: 0}
   absorptionText: {fileID: 0}
   absorptionIndicatorPrefab: {fileID: 0}
---- !u!114 &1623637572
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1623637570}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: dfa98a3cea06ba44489586b0458d0ee3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  maxHealingVials: 3
-  currentHealingVials: 3
-  healKey: 102
-  healPercentage: 0.5
-  healAnimationDuration: 1.35
-  healEffect: {fileID: 0}
-  healSound: {fileID: 0}
-  healFlashColor: {r: 0.3, g: 1, b: 0.3, a: 1}
-  healFlashDuration: 0.5
---- !u!114 &1623637573
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1623637570}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 34507ea1cd2e14845bebad534c15fb1e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  moveSpeed: 8
-  jumpForce: 14
-  groundCheck: {fileID: 703856566}
-  wallCheck: {fileID: 302557618}
-  checkRadius: 0.1
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 8
-  wallLayer:
-    serializedVersion: 2
-    m_Bits: 64
-  wallSlideSpeed: 2.5
-  wallJumpForce: {x: 12, y: 12}
-  wallJumpLockTime: 0.15
-  wallJumpControlTime: 0.25
-  canWallGrab: 1
-  wallGrabKey: 324
-  wallGrabStaminaMax: 3
-  combo1Damage: 2
-  combo2Damage: 2
-  combo3Damage: 4
-  comboResetTime: 1
-  attackAnimationDuration: 0.3
-  attackPoint: {fileID: 251638998}
-  attackRange: 0.84
-  enemyLayer:
-    serializedVersion: 2
-    m_Bits: 128
-  playerKnockbackForce: 3
-  sideAttackEffect: {fileID: 6262776865070091550}
-  combo1Effect: {fileID: 1573622495}
-  combo2Effect: {fileID: 1573622495}
-  combo3Effect: {fileID: 1573622495}
-  combo1Color: {r: 1, g: 1, b: 1, a: 1}
-  combo2Color: {r: 1, g: 0.8, b: 0, a: 1}
-  combo3Color: {r: 1, g: 0, b: 0, a: 1}
-  enableCombo3Shake: 1
-  combo3ShakeDuration: 0.25
-  combo3ShakeMagnitude: 0.5
-  combo3ShakeFrequency: 30
-  useImpactShake: 1
-  enableDownAttack: 0
-  downAttackPoint: {fileID: 0}
-  downAttackEffect: {fileID: 0}
-  fallGravityMultiplier: 2.5
-  lowJumpMultiplier: 2.5
-  wallSlideGravityMultiplier: 0.3
-  coyoteTime: 0.12
-  jumpBufferTime: 0.15
-  jumpCutMultiplier: 0.5
-  airControlMultiplier: 1
-  maxFallSpeed: 22
-  wallJumpAirDrag: 0.92
-  downAttackBounceForce: 25
-  downAttackSmallBounceForce: 12
-  maxConsecutiveBounces: 3
-  bounceResetTime: 0.5
-  maxHealth: 6
-  currentHealth: 6
-  damageInvincibilityTime: 1
-  damageKnockbackForce: {x: 5, y: 5}
-  damageColor: {r: 1, g: 0.3, b: 0.3, a: 1}
-  abilityUseKey: 122
-  dashTrailEffect: {fileID: 0}
-  dashColor: {r: 0.4056604, g: 0.4056604, b: 0.4056604, a: 1}
-  showGhostTrail: 1
-  ghostTrailFrequency: 0.05
 --- !u!50 &1623637574
 Rigidbody2D:
   serializedVersion: 5
@@ -7947,12 +7873,211 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 703856566}
   - {fileID: 302557618}
   - {fileID: 251638998}
   - {fileID: 1447884630}
+  - {fileID: 703856566}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1623637578
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6a458c2e982d8f64b84d41d119c81071, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rb: {fileID: 0}
+--- !u!114 &1623637579
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7bdc3b95423912449c6960967011cac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 3
+  currentHealth: 0
+  damageInvincibilityTime: 1
+  damageKnockbackForce: {x: 5, y: 5}
+  damageColor: {r: 1, g: 0.3, b: 0.3, a: 1}
+  showHealthBar: 1
+  healthBarOffset: {x: 0, y: 1.2, z: 0}
+--- !u!114 &1623637580
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08ff2124585781e4e863c7065dedf16c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  dashTrailEffect: {fileID: 0}
+  dashColor: {r: 0.3, g: 0.8, b: 1, a: 1}
+  showGhostTrail: 1
+  ghostTrailFrequency: 0.05
+--- !u!114 &1623637581
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e1a7c9131ac27844afdef09940ba98a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fallGravityMultiplier: 2.5
+  lowJumpMultiplier: 2.5
+  wallSlideGravityMultiplier: 0.3
+--- !u!114 &1623637582
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e05e115410f19ad4fab7fb6d28fb10a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  wallCheck: {fileID: 302557618}
+  checkRadius: 0.2
+  wallLayer:
+    serializedVersion: 2
+    m_Bits: 64
+  wallSlideSpeed: 2.5
+  canWallGrab: 1
+  wallGrabKey: 304
+  wallGrabStaminaMax: 3
+  groundCheck: {fileID: 703856567}
+--- !u!114 &1623637583
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 98e3dfc9a0ae67948b7444d17784a509, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  jumpForce: 14
+  jumpCutMultiplier: 0.5
+  maxFallSpeed: 22
+  coyoteTime: 0.12
+  jumpBufferTime: 0.15
+  wallJumpForce: {x: 13, y: 17}
+  wallJumpControlTime: 0.25
+  groundCheck: {fileID: 703856567}
+--- !u!114 &1623637584
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ab8f3224605a5b469bdb388ce0d9ba3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 8
+  airControlMultiplier: 1
+  wallJumpAirDrag: 0.92
+  wallJumpLockTime: 0.15
+  groundCheck: {fileID: 703856567}
+--- !u!114 &1623637585
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3bcf02be595a5244aa646e002d8905b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  combo1Damage: 1
+  combo2Damage: 1
+  combo3Damage: 3
+  comboResetTime: 1
+  attackAnimationDuration: 0.3
+  attackPoint: {fileID: 251638998}
+  attackRange: 0.5
+  enemyLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 8
+  playerKnockbackForce: 3
+  sideAttackEffect: {fileID: 0}
+  combo1Effect: {fileID: 0}
+  combo2Effect: {fileID: 0}
+  combo3Effect: {fileID: 0}
+  combo1Color: {r: 1, g: 1, b: 1, a: 1}
+  combo2Color: {r: 1, g: 0.8, b: 0, a: 1}
+  combo3Color: {r: 1, g: 0, b: 0, a: 1}
+  enableCombo3Shake: 1
+  combo3ShakeDuration: 0.25
+  combo3ShakeMagnitude: 0.5
+  combo3ShakeFrequency: 30
+  useImpactShake: 1
+  enableDownAttack: 0
+  downAttackPoint: {fileID: 0}
+  downAttackBounceForce: 25
+  downAttackSmallBounceForce: 12
+  maxConsecutiveBounces: 3
+  bounceResetTime: 0.5
+  groundCheck: {fileID: 703856567}
+--- !u!114 &1623637586
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1623637570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c7bf2178fcb6fd47832886ae96ad789, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveInput: 0
+  isFacingRight: 1
+  wallSide: 1
+  isTouchingWall: 0
+  isWallSliding: 0
+  isWallGrabbing: 0
+  coyoteTimeCounter: 0
+  jumpBufferCounter: 0
+  jumpReleased: 1
+  wasWallJumping: 0
+  wallJumpCounter: 0
+  isDashing: 0
+  isAttacking: 0
+  isAttackingDown: 0
+  isInputLocked: 0
+  currentComboStep: 0
+  lastAttackTime: -999
+  consecutiveBounces: 0
+  lastBounceTime: -1
+  isDamageInvincible: 0
 --- !u!1 &1626381172
 GameObject:
   m_ObjectHideFlags: 0
@@ -9837,11 +9962,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
---- !u!1 &6262776865070091550 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 683578737312369425, guid: f9824a7cfdc671441a0669df2bac1d8e, type: 3}
-  m_PrefabInstance: {fileID: 6262776865070091549}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

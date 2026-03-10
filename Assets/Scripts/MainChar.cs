@@ -10,7 +10,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private float moveInput;
 
     [Header("Detección")]
-    public Transform groundCheck;
+    public GroundCheck groundCheck;
     public Transform wallCheck;
     public float checkRadius = 0.2f;
     public LayerMask groundLayer;
@@ -31,7 +31,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
     private float wallGrabStamina;
     private bool isWallGrabbing = false;
 
-    private bool isGrounded;
     private bool isTouchingWall;
     private bool isWallSliding;
     private bool isFacingRight = true;
@@ -222,10 +221,10 @@ public class MainChar : MonoBehaviour, IDashExecutor
         else if (!isWallSliding && !isAttacking)
         {
             float targetX = moveInput * moveSpeed;
-            float appliedX = isGrounded ? targetX : targetX * airControlMultiplier;
+            float appliedX = groundCheck.isGrounded ? targetX : targetX * airControlMultiplier;
             rb.linearVelocity = new Vector2(appliedX, rb.linearVelocity.y);
         }
-        else if (isAttacking && isGrounded)
+        else if (isAttacking && groundCheck.isGrounded)
         {
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
@@ -279,7 +278,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
         if (Input.GetKeyDown(KeyCode.X) && !isAttacking)
         {
-            if (enableDownAttack && verticalInput < 0 && !isGrounded)
+            if (enableDownAttack && verticalInput < 0 && !groundCheck.isGrounded)
                 isAttackingDown = true;
 
             StartCoroutine(PerformComboAttack());
@@ -300,7 +299,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
         isAttacking = true;
         lastAttackTime = Time.time;
 
-        if (isGrounded)
+        if (groundCheck.isGrounded)
         {
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
@@ -378,7 +377,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
             Destroy(effectInstance, attackAnimationDuration + 0.5f);
         }
 
-        if (!isAttackingDown && !isGrounded)
+        if (!isAttackingDown && !groundCheck.isGrounded)
         {
             float knockbackDir = isFacingRight ? -1 : 1;
             float knockbackAmount = playerKnockbackForce * (currentComboStep == 2 ? 0.3f : 0.5f);
@@ -414,10 +413,9 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
     private void UpdatePhysicsChecks()
     {
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer);
         isTouchingWall = Physics2D.OverlapCircle(wallCheck.position, checkRadius, wallLayer);
 
-        if (isGrounded)
+        if (groundCheck.isGrounded)
         {
             wasWallJumping = false;
             consecutiveBounces = 0;
@@ -458,7 +456,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
         bool isPushingWall = (moveInput * wallSide > 0);
         bool wantsToGrab = canWallGrab && Input.GetKey(wallGrabKey);
 
-        if (isTouchingWall && !isGrounded && wantsToGrab)
+        if (isTouchingWall && !groundCheck.isGrounded && wantsToGrab)
         {
             isWallGrabbing = true;
             isWallSliding = false;
@@ -470,7 +468,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
                     isWallGrabbing = false;
             }
         }
-        else if (isTouchingWall && !isGrounded && rb.linearVelocity.y < 0f && isPushingWall)
+        else if (isTouchingWall &&  !groundCheck.isGrounded && rb.linearVelocity.y < 0f && isPushingWall)
         {
             isWallGrabbing = false;
             isWallSliding = (Input.GetKey(KeyCode.DownArrow)) ? false : true;
@@ -496,7 +494,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
     private void HandleBounceReset()
     {
-        if (Time.time - lastBounceTime > bounceResetTime && !isGrounded)
+        if (Time.time - lastBounceTime > bounceResetTime && !groundCheck.isGrounded)
             consecutiveBounces = 0;
     }
 
@@ -504,7 +502,7 @@ public class MainChar : MonoBehaviour, IDashExecutor
     {
         if (jumpBufferCounter > 0f && !jumpReleased)
         {
-            if (isTouchingWall && !isGrounded && wallJumpCounter <= 0f)
+            if (isTouchingWall && !groundCheck.isGrounded && wallJumpCounter <= 0f)
             {
                 bool isPushingTowardsWall = (moveInput * wallSide > 0);
                 float xForce = -wallSide * wallJumpForce.x * (isPushingTowardsWall || Mathf.Abs(moveInput) < 0.1f ? 0.7f : 1f);
@@ -819,11 +817,6 @@ public class MainChar : MonoBehaviour, IDashExecutor
 
     void OnDrawGizmos()
     {
-        if (groundCheck != null)
-        {
-            Gizmos.color = Color.green;
-            Gizmos.DrawWireSphere(groundCheck.position, checkRadius);
-        }
         if (wallCheck != null)
         {
             Gizmos.color = Color.blue;

@@ -14,7 +14,7 @@ public class BossHealthBar : MonoBehaviour
     public Color midHealthColor = new Color(1f, 0.5f, 0f); // Naranja
     public Color lowHealthColor = new Color(0.5f, 0f, 0f); // Rojo oscuro
 
-    private int maxHealth;
+    public int maxHealth;
     private CanvasGroup canvasGroup;
 
     void Awake()
