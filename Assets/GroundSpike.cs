@@ -1,93 +1,199 @@
-﻿using UnityEngine;
+﻿// ============================================================
+// GroundSpike.cs — con soporte para Animator
+//
+// ANIMACIONES QUE NECESITA EL PREFAB (créalas en Unity):
+//
+//   "SpikeWarning"  → marca roja parpadeando en el suelo
+//                     Anima: SpriteRenderer/Color (alpha 0↔1)
+//                     Loop Time: ON
+//
+//   "SpikeEmerge"   → el pincho sube del suelo
+//                     Anima: Transform/Position Y (groundY-2 → groundY)
+//                     Loop Time: OFF
+//
+//   "SpikeSink"     → el pincho se hunde de vuelta
+//                     Anima: Transform/Position Y (groundY → groundY-2)
+//                     Loop Time: OFF
+//
+// PASOS EN UNITY:
+//   1. Abre el prefab GroundSpikes (doble clic)
+//   2. Window → Animation → Animation → Create
+//   3. Guarda el .anim con el nombre "SpikeWarning"
+//   4. Add Property → SpriteRenderer → Color
+//   5. En frame 0: alpha=0 | frame 5: alpha=1 | frame 10: alpha=0
+//   6. Repite para crear "SpikeEmerge" y "SpikeSink"
+//   7. En el Animator (Window → Animation → Animator):
+//      - Conecta los estados pero SIN transiciones automáticas
+//      - El código los llama con anim.Play() directamente
+// ============================================================
+
+using UnityEngine;
 using System.Collections;
 
 public class GroundSpike : MonoBehaviour
 {
-    private float damage;
-    private bool hasDealtDamage = false;
-    private float lifetime = 2f;
+    [Header("=== NOMBRES DE ANIMACIONES ===")]
+    [Tooltip("Debe coincidir EXACTAMENTE con el nombre del clip en el Animator")]
+    public string warningAnimName = "SpikeWarning";
+    public string emergeAnimName  = "SpikeEmerge";
+    public string sinkAnimName    = "SpikeSink";
 
-    public void Initialize(float dmg)
+    [Header("=== TIEMPOS ===")]
+    [Tooltip("Duración del aviso antes de emerger")]
+    public float warningDuration = 1.0f;
+
+    [Tooltip("Duración del clip SpikeEmerge — debe coincidir con el clip")]
+    public float emergeDuration  = 0.4f;
+
+    [Tooltip("Tiempo visible tras emerger")]
+    public float stayDuration    = 1.5f;
+
+    [Tooltip("Duración del clip SpikeSink — debe coincidir con el clip")]
+    public float sinkDuration    = 0.3f;
+
+    // ─────────────────────────────────────────────────────────
+    // PRIVADAS
+    // ─────────────────────────────────────────────────────────
+    private int   damage         = 1;
+    private bool  hasDealtDamage = false;
+
+    private Animator       anim;
+    private Collider2D     col;
+    private SpriteRenderer sr;
+
+    // =========================================================
+    // INITIALIZE — llamado por BossAttackSystem
+    // =========================================================
+    public void Initialize(int dmg)
     {
         damage = dmg;
-
-        // Rotación correcta para que el spike apunte hacia arriba
-        transform.rotation = Quaternion.identity;
+        anim   = GetComponent<Animator>();
+        col    = GetComponent<Collider2D>();
+        sr     = GetComponent<SpriteRenderer>();
 
         StartCoroutine(SpikeLifecycle());
     }
 
+    // =========================================================
+    // CICLO DE VIDA COMPLETO
+    // =========================================================
     IEnumerator SpikeLifecycle()
     {
-        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        // ── 1. Detectar suelo real con Raycast ─────────────────
+        // Así el pincho siempre aparece en el suelo correcto
+        // sin importar la Y desde donde fue spawneado.
+        RaycastHit2D hit = Physics2D.Raycast(
+            transform.position + Vector3.up * 5f,  // origen: 5u arriba
+            Vector2.down,                           // dirección: abajo
+            20f,                                    // distancia max
+            LayerMask.GetMask("ground", "Ground", "Suelo")
+        );
 
-        // Efecto de advertencia parpadeante
-        if (sr != null)
-        {
-            Color originalColor = sr.color;
-            Color warningColor = new Color(1f, 0f, 0f, 0.5f); // Rojo semi-transparente
+        float groundY = hit.collider != null
+            ? hit.point.y
+            : transform.position.y;
 
-            for (int i = 0; i < 6; i++)
-            {
-                sr.color = warningColor;
-                yield return new WaitForSeconds(0.1f);
-                sr.color = originalColor;
-                yield return new WaitForSeconds(0.1f);
-            }
+        // Colocar en el suelo (enterrado al inicio)
+        transform.position = new Vector3(transform.position.x, groundY - 2f, 0f);
 
-            // Restaurar color original
-            sr.color = originalColor;
-        }
+        // Invisible y sin colisión hasta que emerja
+        if (col) col.enabled = false;
+        if (sr)  sr.enabled  = false;
 
-        // Esperar antes de destruir
-        yield return new WaitForSeconds(lifetime);
+        // ── 2. AVISO — animación o fallback por código ─────────
+        if (sr) sr.enabled = true;
 
-        // Fade out rápido
-        if (sr != null)
-        {
-            float elapsed = 0f;
-            float fadeTime = 0.2f;
-            Color startColor = sr.color;
+        if (HasAnimation(warningAnimName))
+            anim.Play(warningAnimName);  // reproduce el clip del Animator
+        else
+            yield return StartCoroutine(FallbackWarning()); // parpadeo por código
 
-            while (elapsed < fadeTime)
-            {
-                elapsed += Time.deltaTime;
-                float alpha = Mathf.Lerp(1f, 0f, elapsed / fadeTime);
-                sr.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
-                yield return null;
-            }
-        }
+        yield return new WaitForSeconds(warningDuration);
+
+        // ── 3. EMERGER ─────────────────────────────────────────
+        // Mover al suelo primero (la animación lo sube desde aquí)
+        transform.position = new Vector3(transform.position.x, groundY - 2f, 0f);
+
+        if (HasAnimation(emergeAnimName))
+            anim.Play(emergeAnimName);
+
+        // Activar colisión al empezar a emerger
+        if (col) col.enabled = true;
+
+        yield return new WaitForSeconds(emergeDuration);
+
+        // ── 4. ESPERAR ─────────────────────────────────────────
+        yield return new WaitForSeconds(stayDuration);
+
+        // ── 5. HUNDIRSE ────────────────────────────────────────
+        if (col) col.enabled = false; // sin daño al retirarse
+
+        if (HasAnimation(sinkAnimName))
+            anim.Play(sinkAnimName);
+        else
+            yield return StartCoroutine(FallbackSink(groundY));
+
+        yield return new WaitForSeconds(sinkDuration);
 
         Destroy(gameObject);
     }
 
-    void OnTriggerEnter2D(Collider2D collision)
+    // =========================================================
+    // FALLBACKS — se usan si el prefab aún no tiene animaciones
+    // Puedes borrarlos cuando tengas los clips listos en Unity.
+    // =========================================================
+
+    IEnumerator FallbackWarning()
     {
-        if (!hasDealtDamage && collision.CompareTag("Player"))
+        if (sr == null) yield break;
+        Color original = sr.color;
+        Color flash    = new Color(1f, 0.1f, 0.1f, 0.8f);
+        for (int i = 0; i < 5; i++)
         {
-            MainChar player = collision.GetComponent<MainChar>();
-            if (player != null)
-            {
-                player.TakeDamage((int)damage);
-                hasDealtDamage = true;
-                Debug.Log("¡Pincho golpeó al jugador!");
-            }
+            sr.color = flash;
+            yield return new WaitForSeconds(0.1f);
+            sr.color = original;
+            yield return new WaitForSeconds(0.1f);
         }
     }
 
-    void OnTriggerStay2D(Collider2D collision)
+    IEnumerator FallbackSink(float groundY)
     {
-        if (collision.CompareTag("Player"))
+        float   elapsed   = 0f;
+        Vector3 startPos  = transform.position;
+        Vector3 hiddenPos = new Vector3(transform.position.x, groundY - 2f, 0f);
+
+        while (elapsed < sinkDuration)
         {
-            if (!hasDealtDamage)
-            {
-                MainChar player = collision.GetComponent<MainChar>();
-                if (player != null)
-                {
-                    player.TakeDamage((int)damage);
-                    hasDealtDamage = true;
-                }
-            }
+            elapsed += Time.deltaTime;
+            transform.position = Vector3.Lerp(startPos, hiddenPos, elapsed / sinkDuration);
+            yield return null;
         }
+    }
+
+    // =========================================================
+    // UTILIDAD — comprueba si el Animator tiene ese clip
+    // =========================================================
+    bool HasAnimation(string clipName)
+    {
+        if (anim == null || anim.runtimeAnimatorController == null) return false;
+        foreach (var clip in anim.runtimeAnimatorController.animationClips)
+            if (clip.name == clipName) return true;
+        return false;
+    }
+
+    // =========================================================
+    // DAÑO
+    // =========================================================
+    void OnTriggerEnter2D(Collider2D c) => DealDamage(c);
+    void OnTriggerStay2D (Collider2D c) => DealDamage(c);
+
+    void DealDamage(Collider2D c)
+    {
+        if (hasDealtDamage || !c.CompareTag("Player")) return;
+        MainChar player = c.GetComponent<MainChar>();
+        if (player == null) return;
+        player.TakeDamage(damage);
+        hasDealtDamage = true;
     }
 }

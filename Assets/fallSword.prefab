@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 4622424621577418681}
   - component: {fileID: 6622318240579583484}
   - component: {fileID: 6601161813709696502}
+  - component: {fileID: 8925254065781864613}
   m_Layer: 0
   m_Name: fallSword
   m_TagString: Untagged
@@ -29,7 +30,7 @@ Transform:
   m_GameObject: {fileID: 2838053733939832622}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -0.5422, y: -0.218, z: 0}
   m_LocalScale: {x: 0.5375, y: 0.725, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -79,7 +80,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 5
-  m_Sprite: {fileID: -1491729119, guid: 3f2bdc89db4e22249aa74abe0ebdf867, type: 3}
+  m_Sprite: {fileID: 7354229154281373603, guid: 4e774689ca7b873408071d26187603f5, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -124,17 +125,17 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: -0.17, y: -0.5}
+  m_Offset: {x: 0, y: -0.03}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 3.05, y: 11.44}
+    oldSize: {x: 1.35, y: 3.98}
     newSize: {x: 3.05, y: 11.44}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 1.36, y: 8.99}
+  m_Size: {x: 1.15, y: 4.02}
   m_EdgeRadius: 0
 --- !u!114 &6622318240579583484
 MonoBehaviour:
@@ -148,6 +149,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ac214e7c9430e04da1c3f02715f9795, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  appearAnimName: SwordAppear
+  fallAnimName: SwordFall
+  impactAnimName: SwordImpact
+  fallSpeed: 22
+  damage: 1
+  stickTime: 1.5
+  impactDuration: 0.4
 --- !u!50 &6601161813709696502
 Rigidbody2D:
   serializedVersion: 5
@@ -175,3 +183,25 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
+--- !u!95 &8925254065781864613
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2838053733939832622}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 62df9b847f273fc4b8bcc1b352d9dbbf, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0

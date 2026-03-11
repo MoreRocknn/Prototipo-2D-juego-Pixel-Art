@@ -59,15 +59,14 @@ public class PlayerHealth : MonoBehaviour
         SpawnHealthBar();
     }
 
-    // ── Crear la barra de vida al iniciar ──
+    // ── Crear la barra de vida al iniciar ──────────────────────
     private void SpawnHealthBar()
     {
         if (!showHealthBar) return;
 
         if (HealthBarFactory.Instance == null)
         {
-            Debug.LogWarning("[PlayerHealth] No hay HealthBarFactory en la escena. " +
-                             "Crea un GameObject vacío y añádele el componente HealthBarFactory.");
+            Debug.LogWarning("[PlayerHealth] No hay HealthBarFactory en la escena.");
             return;
         }
 
@@ -75,12 +74,23 @@ public class PlayerHealth : MonoBehaviour
             transform, currentHealth, maxHealth, healthBarOffset
         );
 
-        // La barra del jugador siempre está visible (los enemigos la ocultan hasta recibir daño)
         healthBar.alwaysShow = true;
-        healthBar.ForceShow();
+
+        // FIX: Esperar un frame antes de forzar la actualización.
+        // Unity necesita un frame para que Awake/Start de HealthBarUI
+        // guarde originalFillScaleX correctamente. Si llamamos ForceShow()
+        // en el mismo frame de Initialize(), la escala todavía es 0.
+        StartCoroutine(InitHealthBarNextFrame());
     }
 
-    // ── Recibir daño ──
+    private IEnumerator InitHealthBarNextFrame()
+    {
+        yield return null; // esperar un frame
+        healthBar?.UpdateHealth(currentHealth, maxHealth);
+        healthBar?.ForceShow();
+    }
+
+    // ── Recibir daño ───────────────────────────────────────────
     public void TakeDamage(int damage)
     {
         if (state.isDamageInvincible)
@@ -89,17 +99,11 @@ public class PlayerHealth : MonoBehaviour
             return;
         }
 
-        // Restar vida (mínimo 0)
         currentHealth = Mathf.Max(currentHealth - damage, 0);
         Debug.Log($"Daño recibido: {damage} → Vida: {currentHealth}/{maxHealth}");
 
-        // Actualizar la barra
         healthBar?.UpdateHealth(currentHealth, maxHealth);
-
-        // Resetear el combo al recibir golpe
         combat?.ResetCombo();
-
-        // Empujar al jugador lejos del enemigo más cercano
         ApplyKnockback();
 
         if (currentHealth <= 0)
@@ -108,7 +112,7 @@ public class PlayerHealth : MonoBehaviour
             StartCoroutine(DamageInvincibility());
     }
 
-    // ── Curar al jugador ──
+    // ── Curar al jugador ────────────────────────────────────────
     public void Heal(int amount)
     {
         currentHealth = Mathf.Min(currentHealth + amount, maxHealth);
@@ -116,23 +120,19 @@ public class PlayerHealth : MonoBehaviour
         Debug.Log($"Curado: +{amount} → Vida: {currentHealth}/{maxHealth}");
     }
 
-    // ── Calcular y aplicar el knockback ──
+    // ── Knockback ───────────────────────────────────────────────
     private void ApplyKnockback()
     {
-        // Por defecto, el jugador vuela hacia la derecha
         float knockbackDir = 1f;
 
-        // Buscar el enemigo más cercano para saber de dónde viene el golpe
         GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
         float closest = Mathf.Infinity;
-
         foreach (GameObject enemy in enemies)
         {
             float dist = Vector2.Distance(transform.position, enemy.transform.position);
             if (dist < closest)
             {
                 closest = dist;
-                // Si el jugador está a la derecha del enemigo, volar a la derecha
                 knockbackDir = transform.position.x > enemy.transform.position.x ? 1f : -1f;
             }
         }
@@ -143,13 +143,13 @@ public class PlayerHealth : MonoBehaviour
         );
     }
 
-    // ── Parpadeo de invencibilidad ──
+    // ── Parpadeo de invencibilidad ──────────────────────────────
     private IEnumerator DamageInvincibility()
     {
         state.isDamageInvincible = true;
 
         Color originalColor = spriteRenderer != null ? spriteRenderer.color : Color.white;
-        float interval = damageInvincibilityTime / 10f; // 5 parpadeos
+        float interval = damageInvincibilityTime / 10f;
 
         for (int i = 0; i < 5; i++)
         {
@@ -160,15 +160,13 @@ public class PlayerHealth : MonoBehaviour
         }
 
         state.isDamageInvincible = false;
-        Debug.Log("Invencibilidad terminada");
     }
 
-    // ── Muerte ──
+    // ── Muerte ──────────────────────────────────────────────────
     private void Die()
     {
         Debug.Log("¡Jugador murió!");
 
-        // Notificar a otros sistemas
         AbilityAbsorptionManager.Instance?.OnPlayerDeath();
         GetComponent<HealingSystem>()?.OnPlayerDeath();
         GetComponent<BloodPoolTransform>()?.ResetUses();
@@ -177,39 +175,31 @@ public class PlayerHealth : MonoBehaviour
         if (GameManager.Instance != null)
             StartCoroutine(RespawnAfterDeath());
         else
-            // Sin GameManager: recargar la escena actual
             UnityEngine.SceneManagement.SceneManager.LoadScene(
                 UnityEngine.SceneManagement.SceneManager.GetActiveScene().name
             );
     }
 
-    // ── Respawn desde el último checkpoint ──
+    // ── Respawn ─────────────────────────────────────────────────
     private IEnumerator RespawnAfterDeath()
     {
-        // Desactivar el jugador y ocultarlo
         enabled = false;
         if (spriteRenderer != null) spriteRenderer.enabled = false;
 
-        yield return new WaitForSeconds(1f); // Pequeña pausa antes de reaparecer
+        yield return new WaitForSeconds(1f);
 
-        // Restaurar estado
         currentHealth = maxHealth;
         state.currentComboStep = 0;
         state.isDamageInvincible = false;
 
-        // Mover al checkpoint
         if (GameManager.Instance != null)
             transform.position = GameManager.Instance.GetRespawnPosition();
 
-        // Reactivar
         if (spriteRenderer != null) spriteRenderer.enabled = true;
         rb.linearVelocity = Vector2.zero;
         enabled = true;
 
-        // Actualizar la barra de vida
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         healthBar?.ForceShow();
-
-        Debug.Log("Jugador respawneado");
     }
 }

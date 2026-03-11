@@ -1045,7 +1045,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.0073865964, y: 0}
   m_AnchorMax: {x: 0.92800003, y: 1}
-  m_AnchoredPosition: {x: -1.3267059, y: -0.000022888184}
+  m_AnchoredPosition: {x: -1.3267212, y: -0.000022888184}
   m_SizeDelta: {x: 3.4864, y: -0.557}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &233518835
@@ -1734,7 +1734,17 @@ GameObject:
   - component: {fileID: 451731776}
   - component: {fileID: 451731775}
   - component: {fileID: 451731774}
-  - component: {fileID: 451731773}
+  - component: {fileID: 451731783}
+  - component: {fileID: 451731782}
+  - component: {fileID: 451731781}
+  - component: {fileID: 451731780}
+  - component: {fileID: 451731779}
+  - component: {fileID: 451731778}
+  - component: {fileID: 451731788}
+  - component: {fileID: 451731787}
+  - component: {fileID: 451731786}
+  - component: {fileID: 451731785}
+  - component: {fileID: 451731784}
   m_Layer: 7
   m_Name: Boss
   m_TagString: Enemy
@@ -1742,54 +1752,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &451731773
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 451731771}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 93bf3f24dd2b3444e9aabe61762229c9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  maxHealth: 60
-  moveSpeed: 5
-  detectionRange: 18.9
-  repositionSpeed: 12
-  optimalDistance: 7
-  retreatDistance: 3
-  movementSmoothing: 10
-  hitsToTriggerTeleport: 3
-  teleportDelay: 0.15
-  minAttackCooldown: 0.6
-  maxAttackCooldown: 1.2
-  bodyContactDamage: 1
-  bodyDamageCooldown: 1
-  meleeAttackPoint: {fileID: 972853156}
-  meleeAttackBoxSize: {x: 1.31, y: 2.22}
-  meleeAttackDamage: 2
-  meleeWindup: 0.4
-  meleeDashForce: 50
-  meleeKnockback: 20
-  swordsCount: 10
-  swordSpeed: 22
-  geysersCount: 6
-  geyserWarningTime: 0.6
-  geyserDamage: 1
-  bloodProjectiles: 20
-  bloodSpeed: 11
-  leftDoor: {fileID: 316258986}
-  rightDoor: {fileID: 1152376265}
-  doorCloseDistance: 15
-  bossHealthBarPrefab: {fileID: 1530732374279662711, guid: 019bd4d12e1891c45bd87846120e8e79, type: 3}
-  bossName: EL REY PACIENTE
-  bossHealthBarUI: {fileID: 0}
-  resetCooldown: 10
-  FallingSwords: {fileID: 2838053733939832622, guid: 6e1340d69a37823439072a4c01f83291, type: 3}
-  GroundSpikes: {fileID: 4607953794918522256, guid: f2a267290e9b3f44499dff8b1e49153e, type: 3}
-  groundYPosition: -10.667
 --- !u!70 &451731774
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -1926,6 +1888,216 @@ Transform:
   - {fileID: 972853156}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &451731778
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b70d26b7e1cf63e45bdf75f97795230e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minAttackCooldown: 1.2
+  maxAttackCooldown: 2
+  consecutiveMeleeAttacks: 0
+  consecutiveRangedAttacks: 0
+  data: {fileID: 0}
+  rb: {fileID: 0}
+  spriteRenderer: {fileID: 0}
+  movement: {fileID: 0}
+--- !u!114 &451731779
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34771e435b2377c44a3eb235c5e2710b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  detectionRange: 19
+  doorCloseDistance: 15
+  leftDoor: {fileID: 316258986}
+  rightDoor: {fileID: 1152376265}
+  bossHealthBarPrefab: {fileID: 0}
+  bossName: SO
+  data: {fileID: 0}
+  health: {fileID: 0}
+  movement: {fileID: 0}
+  attacks: {fileID: 0}
+  teleport: {fileID: 0}
+--- !u!114 &451731780
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b5c3113238ba3e4e8d338434e62d92f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  isDead: 0
+  isAttacking: 0
+  isTeleporting: 0
+  isInvulnerable: 0
+  arenaSealed: 0
+  healthBarActivated: 0
+  player: {fileID: 0}
+  playerMainChar: {fileID: 0}
+  playerRb: {fileID: 0}
+  minArenaX: 0
+  maxArenaX: 0
+  initialPosition: {x: 0, y: 0, z: 0}
+  defaultGravity: 0
+  currentPhase: 0
+  hitBuffer:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+--- !u!114 &451731781
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c1aa213d9b131684a934ae67e22687fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 32
+  bodyContactDamage: 1
+  bodyDamageCooldown: 1
+  currentHealth: 0
+  bossHealthBarUI: {fileID: 0}
+--- !u!114 &451731782
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37be6377286f8c947ad452703fe64e42, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 8
+  repositionSpeed: 12
+  optimalDistance: 7
+  retreatDistance: 3
+  movementSmoothing: 10
+--- !u!114 &451731783
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8f2c5fc4cfa0a54797163235dc7170e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hitsToTriggerTeleport: 4
+  teleportDelay: 0.5
+--- !u!114 &451731784
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 816687edd1019744ab67c0c5237909ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bloodProjectiles: 20
+  bloodSpeed: 11
+--- !u!114 &451731785
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e2522d4ee101cd14a9055ba6b5a21b4e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  meleeAttackPoint: {fileID: 0}
+  meleeAttackBoxSize: {x: 6, y: 4}
+  dashForce: 35
+  knockback: 10
+--- !u!114 &451731786
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 857b16ecb1335ee4599b495212c9c4b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fallingSwordPrefab: {fileID: 0}
+  swordsCount: 10
+  swordSpeed: 22
+  groundY: -3
+  spawnHeight: 10
+--- !u!114 &451731787
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3bb62237142610e488eb8cae8ded15c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  groundSpikePrefab: {fileID: 0}
+  geysersCount: 6
+  spikeDamage: 1
+  groundY: -3
+  spawnHeight: 10
+--- !u!114 &451731788
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ead0db2b0db7bb84db2b1c70d0d2435b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  meleeAttackPoint: {fileID: 0}
+  meleeAttackBoxSize: {x: 6, y: 4}
+  meleeAttackDamage: 2
+  meleeWindup: 0.4
+  meleeDashForce: 50
+  meleeKnockback: 20
 --- !u!1 &460938816
 GameObject:
   m_ObjectHideFlags: 0
@@ -5045,7 +5217,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 2.658, z: 0}
   m_AnchorMin: {x: 0.08800001, y: 0.90622175}
   m_AnchorMax: {x: 0.40100002, y: 0.95800006}
-  m_AnchoredPosition: {x: -3.999939, y: 0.19293213}
+  m_AnchoredPosition: {x: -4, y: 0.19293213}
   m_SizeDelta: {x: -30.788025, y: 17.098}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1029546658
@@ -7958,7 +8130,7 @@ MonoBehaviour:
   damageInvincibilityTime: 1
   damageKnockbackForce: {x: 5, y: 5}
   damageColor: {r: 1, g: 0.3, b: 0.3, a: 1}
-  showHealthBar: 1
+  showHealthBar: 0
   healthBarOffset: {x: 0, y: 1.2, z: 0}
 --- !u!114 &1623637580
 MonoBehaviour:
