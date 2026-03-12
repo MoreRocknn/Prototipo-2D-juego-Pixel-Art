@@ -22,19 +22,19 @@ public class BossData : MonoBehaviour
     // ─────────────────────────────────────────────────────────
 
     // ¿Está muerto? → todos los componentes paran de funcionar
-    [HideInInspector] public bool isDead         = false;
+    [HideInInspector] public bool isDead = false;
 
     // ¿Está ejecutando un ataque? → el movimiento se detiene
-    [HideInInspector] public bool isAttacking    = false;
+    [HideInInspector] public bool isAttacking = false;
 
     // ¿Está teletransportándose? → nada más puede ocurrir
-    [HideInInspector] public bool isTeleporting  = false;
+    [HideInInspector] public bool isTeleporting = false;
 
     // ¿Es invulnerable? → ocurre durante el ataque definitivo
     [HideInInspector] public bool isInvulnerable = false;
 
     // ¿Están las puertas cerradas?
-    [HideInInspector] public bool arenaSealed    = false;
+    [HideInInspector] public bool arenaSealed = false;
 
     // ¿Ya se activó la barra de vida en la UI?
     [HideInInspector] public bool healthBarActivated = false;
@@ -44,8 +44,8 @@ public class BossData : MonoBehaviour
     // Se cachean UNA vez en BossController.Start() y se
     // comparten con todos los demás componentes desde aquí.
     // ─────────────────────────────────────────────────────────
-    [HideInInspector] public Transform   player;
-    [HideInInspector] public MainChar    playerMainChar;
+    [HideInInspector] public Transform player;
+    [HideInInspector] public PlayerCore playerMainChar;
     [HideInInspector] public Rigidbody2D playerRb;
 
     // ─────────────────────────────────────────────────────────
@@ -54,10 +54,10 @@ public class BossData : MonoBehaviour
     // MovementAI (para circular) y AttackSystem (para spawnear
     // ataques dentro de la arena).
     // ─────────────────────────────────────────────────────────
-    [HideInInspector] public float   minArenaX;
-    [HideInInspector] public float   maxArenaX;
+    [HideInInspector] public float minArenaX;
+    [HideInInspector] public float maxArenaX;
     [HideInInspector] public Vector3 initialPosition;
-    [HideInInspector] public float   defaultGravity;
+    [HideInInspector] public float defaultGravity;
 
     // ─────────────────────────────────────────────────────────
     // FASE ACTUAL

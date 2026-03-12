@@ -191,7 +191,7 @@ public class GroundSpike : MonoBehaviour
     void DealDamage(Collider2D c)
     {
         if (hasDealtDamage || !c.CompareTag("Player")) return;
-        MainChar player = c.GetComponent<MainChar>();
+        PlayerCore player = c.GetComponent<PlayerCore>();
         if (player == null) return;
         player.TakeDamage(damage);
         hasDealtDamage = true;

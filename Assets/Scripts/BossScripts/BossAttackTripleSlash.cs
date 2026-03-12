@@ -10,20 +10,20 @@ public class BossAttackTripleSlash : MonoBehaviour
 {
     [Header("=== TRIPLE SLASH ===")]
     public Transform meleeAttackPoint;
-    public Vector2   meleeAttackBoxSize = new Vector2(6f, 4f);
-    public float     dashForce          = 35f;
-    public float     knockback          = 10f;
+    public Vector2 meleeAttackBoxSize = new Vector2(6f, 4f);
+    public float dashForce = 35f;
+    public float knockback = 10f;
 
-    private BossData       data;
-    private Rigidbody2D    rb;
+    private BossData data;
+    private Rigidbody2D rb;
     private SpriteRenderer sr;
     private BossMovementAI movement;
 
     void Start()
     {
-        data     = GetComponent<BossData>();
-        rb       = GetComponent<Rigidbody2D>();
-        sr       = GetComponent<SpriteRenderer>();
+        data = GetComponent<BossData>();
+        rb = GetComponent<Rigidbody2D>();
+        sr = GetComponent<SpriteRenderer>();
         movement = GetComponent<BossMovementAI>();
 
         // Reutilizar el punto de melee si existe

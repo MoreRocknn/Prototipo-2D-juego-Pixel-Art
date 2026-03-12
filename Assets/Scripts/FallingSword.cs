@@ -100,7 +100,7 @@ public class FallingSword : MonoBehaviour
         if (collision.CompareTag("Player"))
         {
             // Golpeó al jugador
-            MainChar player = collision.GetComponent<MainChar>();
+            PlayerCore player = collision.GetComponent<PlayerCore>();
             if (player != null) player.TakeDamage((int)damage);
 
             hasHit = true;

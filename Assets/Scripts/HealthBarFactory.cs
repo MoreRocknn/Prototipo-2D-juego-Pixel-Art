@@ -24,7 +24,7 @@ public class HealthBarFactory : MonoBehaviour
         GameObject root = new GameObject($"HealthBar_{target.name}");
         root.transform.position = target.position + offset;
 
-        // BACKGROUND (fondo oscuro)
+        // BACKGROUND
         GameObject bgObj = new GameObject("Background");
         bgObj.transform.SetParent(root.transform, false);
         bgObj.transform.localPosition = Vector3.zero;
@@ -35,28 +35,30 @@ public class HealthBarFactory : MonoBehaviour
         bgSr.color = backgroundColor;
         bgSr.sortingOrder = 99;
 
-        // FILL (barra roja)
+        // FILL
+        float fillScaleX = barWidth * 0.95f; // guardamos este valor explícitamente
+
         GameObject fillObj = new GameObject("Fill");
         fillObj.transform.SetParent(root.transform, false);
         fillObj.transform.localPosition = Vector3.zero;
-        fillObj.transform.localScale = new Vector3(barWidth * 0.95f, barHeight * 0.7f, 1f);
+        fillObj.transform.localScale = new Vector3(fillScaleX, barHeight * 0.7f, 1f);
 
         SpriteRenderer fillSr = fillObj.AddComponent<SpriteRenderer>();
         fillSr.sprite = CreateSquareSprite();
         fillSr.color = fillColor;
         fillSr.sortingOrder = 100;
 
-        // COMPONENTE
+        // COMPONENTE — pasamos fillScaleX directamente para evitar
+        // el problema de leerlo desde localScale en el mismo frame
         HealthBarUI hb = root.AddComponent<HealthBarUI>();
         hb.backgroundSr = bgSr;
         hb.fillSr = fillSr;
         hb.offset = offset;
-        hb.Initialize(target, currentHealth, maxHealth);
+        hb.Initialize(target, currentHealth, maxHealth, fillScaleX);
 
         return hb;
     }
 
-    // Crear un sprite cuadrado blanco de 1x1
     private Sprite CreateSquareSprite()
     {
         Texture2D tex = new Texture2D(1, 1);

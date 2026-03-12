@@ -10,22 +10,22 @@ public class BossAttackMelee : MonoBehaviour
 {
     [Header("=== MELEE ===")]
     public Transform meleeAttackPoint;
-    public Vector2   meleeAttackBoxSize = new Vector2(6f, 4f);
-    public int       meleeAttackDamage  = 2;
-    public float     meleeWindup        = 0.4f;
-    public float     meleeDashForce     = 50f;
-    public float     meleeKnockback     = 20f;
+    public Vector2 meleeAttackBoxSize = new Vector2(6f, 4f);
+    public int meleeAttackDamage = 2;
+    public float meleeWindup = 0.4f;
+    public float meleeDashForce = 50f;
+    public float meleeKnockback = 20f;
 
-    private BossData       data;
-    private Rigidbody2D    rb;
+    private BossData data;
+    private Rigidbody2D rb;
     private SpriteRenderer sr;
     private BossMovementAI movement;
 
     void Start()
     {
-        data     = GetComponent<BossData>();
-        rb       = GetComponent<Rigidbody2D>();
-        sr       = GetComponent<SpriteRenderer>();
+        data = GetComponent<BossData>();
+        rb = GetComponent<Rigidbody2D>();
+        sr = GetComponent<SpriteRenderer>();
         movement = GetComponent<BossMovementAI>();
 
         if (meleeAttackPoint == null)

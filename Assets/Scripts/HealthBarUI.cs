@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class HealthBarUI : MonoBehaviour
 {
@@ -8,37 +8,46 @@ public class HealthBarUI : MonoBehaviour
     public bool alwaysShow = false;
 
     private Transform target;
-    private Vector3 originalScale;
     private float originalFillScaleX;
     private int maxHealth;
     private int currentHealth;
 
-    public void Initialize(Transform targetTransform, int health, int max)
+    // ── Initialize ─────────────────────────────────────────────
+    // FIX: Recibe fillScaleX directamente desde HealthBarFactory
+    // en vez de intentar leerlo de localScale (que aún no está
+    // aplicado por Unity en el mismo frame).
+    public void Initialize(Transform targetTransform, int health, int max, float fillScaleX)
     {
         target = targetTransform;
         maxHealth = max;
         currentHealth = health;
-
-        originalScale = transform.localScale;
-        if (fillSr != null)
-            originalFillScaleX = fillSr.transform.localScale.x;
+        originalFillScaleX = fillScaleX; // valor real pasado desde la Factory
 
         UpdateFillBar();
-        SetVisible(false);
+
+        // Solo ocultar si no es "always show"
+        if (!alwaysShow)
+            SetVisible(false);
+    }
+
+    // Sobrecarga de compatibilidad con código antiguo (sin fillScaleX)
+    // Lee la escala del fill en el momento de llamar — funciona si
+    // se llama desde un Start() o con yield return null antes.
+    public void Initialize(Transform targetTransform, int health, int max)
+    {
+        float scaleX = fillSr != null ? fillSr.transform.localScale.x : 1f;
+        Initialize(targetTransform, health, max, scaleX);
     }
 
     void LateUpdate()
     {
         if (target == null) { Destroy(gameObject); return; }
 
-        // Seguir al target
         transform.position = target.position + offset;
-
-        // Mantener rotaci�n fija
         transform.rotation = Quaternion.identity;
 
-        // Mantener escala positiva
-        Vector3 scale = originalScale;
+        // Mantener escala positiva (el jugador puede flipear)
+        Vector3 scale = transform.localScale;
         scale.x = Mathf.Abs(scale.x);
         transform.localScale = scale;
     }
@@ -55,19 +64,15 @@ public class HealthBarUI : MonoBehaviour
     {
         if (fillSr == null) return;
 
-        float percent = maxHealth > 0 ? (float)currentHealth / maxHealth : 0f;
-        percent = Mathf.Clamp01(percent);
+        float percent = maxHealth > 0 ? Mathf.Clamp01((float)currentHealth / maxHealth) : 0f;
 
-        // Escalar el fill en X seg�n el porcentaje de vida
         Vector3 fillScale = fillSr.transform.localScale;
         fillScale.x = originalFillScaleX * percent;
         fillSr.transform.localScale = fillScale;
 
-        // Mover el fill para que se reduzca desde la derecha
+        // Alinear a la izquierda: mover el fill para que se reduzca por la derecha
         Vector3 fillPos = fillSr.transform.localPosition;
-        float fullWidth = originalFillScaleX;
-        float currentWidth = fillScale.x;
-        fillPos.x = -(fullWidth - currentWidth) / 2f;
+        fillPos.x = -(originalFillScaleX - fillScale.x) / 2f;
         fillSr.transform.localPosition = fillPos;
     }
 
@@ -84,6 +89,6 @@ public class HealthBarUI : MonoBehaviour
     {
         currentHealth = maxHealth;
         UpdateFillBar();
-        SetVisible(false);
+        SetVisible(alwaysShow);
     }
 }

@@ -77,7 +77,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         if (playerObj != null)
         {
             data.player = playerObj.transform;
-            data.playerMainChar = playerObj.GetComponent<MainChar>();
+            data.playerMainChar = playerObj.GetComponent<PlayerCore>();
             data.playerRb = playerObj.GetComponent<Rigidbody2D>();
         }
 
@@ -216,13 +216,12 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         if (data.healthBarActivated || bossHealthBarPrefab == null) return;
 
         GameObject barObj = Instantiate(bossHealthBarPrefab);
-        bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
+        health.bossHealthBarUI = barObj.GetComponent<BossHealthBar>();
 
-        if (bossHealthBarUI != null)
+        if (health.bossHealthBarUI != null)
         {
-            bossHealthBarUI.Initialize(bossName, health.maxHealth);
+            health.bossHealthBarUI.Initialize(bossName, health.maxHealth);
             data.healthBarActivated = true;
-            health.bossHealthBarUI = bossHealthBarUI;
 
             CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
             if (camara != null) { camara.enModoBoss = true; camara.SnapToPlayer(); }
@@ -236,19 +235,21 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
     // =========================================================
     // COMPATIBILIDAD CON SCRIPTS EXTERNOS
-    // PlayerCombat.cs y MainChar.cs llaman boss.TakeDamage()
-    // EnemyManager.cs accede a boss.bossHealthBarUI
-    // Estos métodos reenvían las llamadas a los componentes
-    // correctos sin necesidad de modificar esos scripts.
+    // PlayerCombat.cs llama bossController.TakeDamage()
+    // Este método reenvía la llamada a BossHealth.
+    // Así no hay que modificar ningún script externo.
     // =========================================================
 
+    // TakeDamage: llamado por PlayerCombat al golpear al boss
     public void TakeDamage(int dmg, int dir)
     {
         health.TakeDamage(dmg, dir);
+        // Registrar el golpe en el sistema de teletransporte
         teleport.RegisterHit(data.isAttacking);
     }
 
-    // Propiedad que EnemyManager usa para acceder/limpiar la barra de vida
+    // bossHealthBarUI: EnemyManager accede a esta propiedad directamente.
+    // La exponemos aquí como propiedad pública que apunta a BossHealth.
     public BossHealthBar bossHealthBarUI
     {
         get => health != null ? health.bossHealthBarUI : null;
@@ -270,10 +271,10 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         StopAllCoroutines();
 
         // Destruir barra de vida de la UI
-        if (bossHealthBarUI != null)
+        if (health.bossHealthBarUI != null)
         {
-            Destroy(bossHealthBarUI.gameObject);
-            bossHealthBarUI = null;
+            Destroy(health.bossHealthBarUI.gameObject);
+            health.bossHealthBarUI = null;
         }
 
         // Restaurar cámara

@@ -33,15 +33,15 @@ public class PlayerCombat : MonoBehaviour
 
     [Header("Camera Shake - Combo 3")]
     public bool enableCombo3Shake = true;
-    [Range(0.05f, 0.5f)]  public float combo3ShakeDuration  = 0.25f;
-    [Range(0.1f,  2f)]    public float combo3ShakeMagnitude = 0.5f;
-    [Range(10f,   50f)]   public float combo3ShakeFrequency = 30f;
+    [Range(0.05f, 0.5f)] public float combo3ShakeDuration = 0.25f;
+    [Range(0.1f, 2f)] public float combo3ShakeMagnitude = 0.5f;
+    [Range(10f, 50f)] public float combo3ShakeFrequency = 30f;
     public bool useImpactShake = false;
 
     [Header("Down Attack")]
     public bool enableDownAttack = false;
     public Transform downAttackPoint;
-    public float downAttackBounceForce      = 25f;
+    public float downAttackBounceForce = 25f;
     public float downAttackSmallBounceForce = 12f;
 
     [Header("Límite de Rebotes")]
@@ -57,7 +57,7 @@ public class PlayerCombat : MonoBehaviour
     void Awake()
     {
         state = GetComponent<PlayerState>();
-        rb    = GetComponent<Rigidbody2D>();
+        rb = GetComponent<Rigidbody2D>();
     }
 
     void Update()
@@ -113,37 +113,37 @@ public class PlayerCombat : MonoBehaviour
 
     private IEnumerator PerformComboAttack()
     {
-        state.isAttacking    = true;
+        state.isAttacking = true;
         state.lastAttackTime = Time.time;
 
         if (groundCheck.isGrounded)
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
 
-        int damage               = 0;
-        GameObject effectPrefab  = null;
-        Color flashColor         = Color.white;
+        int damage = 0;
+        GameObject effectPrefab = null;
+        Color flashColor = Color.white;
         float knockbackMultiplier = 1f;
 
         switch (state.currentComboStep)
         {
             case 0:
-                damage            = combo1Damage;
-                effectPrefab      = combo1Effect ?? sideAttackEffect;
-                flashColor        = combo1Color;
+                damage = combo1Damage;
+                effectPrefab = combo1Effect ?? sideAttackEffect;
+                flashColor = combo1Color;
                 knockbackMultiplier = 1f;
                 Debug.Log("⚔️ COMBO 1 - Golpe ligero");
                 break;
             case 1:
-                damage            = combo2Damage;
-                effectPrefab      = combo2Effect ?? sideAttackEffect;
-                flashColor        = combo2Color;
+                damage = combo2Damage;
+                effectPrefab = combo2Effect ?? sideAttackEffect;
+                flashColor = combo2Color;
                 knockbackMultiplier = 1.2f;
                 Debug.Log("⚔️⚔️ COMBO 2 - Golpe medio");
                 break;
             case 2:
-                damage            = combo3Damage;
-                effectPrefab      = combo3Effect ?? sideAttackEffect;
-                flashColor        = combo3Color;
+                damage = combo3Damage;
+                effectPrefab = combo3Effect ?? sideAttackEffect;
+                flashColor = combo3Color;
                 knockbackMultiplier = 2f;
                 Debug.Log("💥⚔️⚔️⚔️ COMBO 3 - GOLPE FINAL!");
 
@@ -168,7 +168,7 @@ public class PlayerCombat : MonoBehaviour
         // Knockback al jugador en aire
         if (!state.isAttackingDown && !groundCheck.isGrounded)
         {
-            float knockDir    = state.isFacingRight ? -1 : 1;
+            float knockDir = state.isFacingRight ? -1 : 1;
             float knockAmount = playerKnockbackForce * (state.currentComboStep == 2 ? 0.3f : 0.5f);
             rb.AddForce(new Vector2(knockDir * knockAmount, 0), ForceMode2D.Impulse);
         }
@@ -226,7 +226,7 @@ public class PlayerCombat : MonoBehaviour
         if (downAttackPoint == null) return;
 
         Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(downAttackPoint.position, attackRange, enemyLayer);
-        Collider2D[] hitGround  = Physics2D.OverlapCircleAll(downAttackPoint.position, attackRange, groundLayer);
+        Collider2D[] hitGround = Physics2D.OverlapCircleAll(downAttackPoint.position, attackRange, groundLayer);
 
         bool hitSomething = false;
 
@@ -263,7 +263,7 @@ public class PlayerCombat : MonoBehaviour
         var enemy = col.GetComponent<Enemigo>();
         if (enemy != null) { enemy.TakeDamage(damage, knockbackDir); return true; }
 
-        var flyingEnemy = col.GetComponent<EnemigoVolador>();
+        var flyingEnemy = col.GetComponent<EnemigoVoladorHealth>();
         if (flyingEnemy != null) { flyingEnemy.TakeDamage(damage, knockbackDir); return true; }
 
         var boss = col.GetComponent<BossController>();

@@ -75,19 +75,7 @@ public class PlayerHealth : MonoBehaviour
         );
 
         healthBar.alwaysShow = true;
-
-        // FIX: Esperar un frame antes de forzar la actualización.
-        // Unity necesita un frame para que Awake/Start de HealthBarUI
-        // guarde originalFillScaleX correctamente. Si llamamos ForceShow()
-        // en el mismo frame de Initialize(), la escala todavía es 0.
-        StartCoroutine(InitHealthBarNextFrame());
-    }
-
-    private IEnumerator InitHealthBarNextFrame()
-    {
-        yield return null; // esperar un frame
-        healthBar?.UpdateHealth(currentHealth, maxHealth);
-        healthBar?.ForceShow();
+        healthBar.ForceShow();
     }
 
     // ── Recibir daño ───────────────────────────────────────────

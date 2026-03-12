@@ -39,10 +39,8 @@ public class CheckPoint : MonoBehaviour
 
     [Header("=== CINEMATICA ===")]
     public bool useCinematic = true;
-    [Range(2f, 8f)]
-    public float zoomSize = 4.5f;
-    [Range(0.1f, 1f)]
-    public float zoomDuration = 0.35f;
+    [Range(2f, 8f)] public float zoomSize = 4.5f;
+    [Range(0.1f, 1f)] public float zoomDuration = 0.35f;
 
     [Header("=== PAUSA ===")]
     public bool freezeWorld = true;
@@ -61,14 +59,15 @@ public class CheckPoint : MonoBehaviour
     public Color normalButtonColor = new Color(0.8f, 0.75f, 0.65f);
     public Color selectedButtonColor = new Color(0.76f, 0.6f, 0.23f);
 
-    // Estado interno
     private bool playerNearby = false;
     private bool menuActive = false;
     private bool resting = false;
     private bool menuLocked = false;
 
     private GameObject player;
-    private MainChar playerCtrl;
+    // FIX: PlayerCore + PlayerHealth en vez de MainChar
+    private PlayerCore playerCore;
+    private PlayerHealth playerHealth;
     private Rigidbody2D playerRb;
     private HealingSystem healingSys;
     private Vector3 savedPlayerPos;
@@ -83,43 +82,24 @@ public class CheckPoint : MonoBehaviour
     {
         audioSource = GetComponent<AudioSource>() ?? gameObject.AddComponent<AudioSource>();
         cam = Camera.main;
-
         UpdateVisuals();
         SetupUI();
     }
 
     void SetupUI()
     {
-        // Prompt
         if (promptCanvas)
         {
             promptCanvas.gameObject.SetActive(false);
             if (promptKeyText) promptKeyText.text = interactKey.ToString();
             if (promptActionText) promptActionText.text = "Interactuar";
         }
-
-        // Menu
         if (menuCanvas)
         {
             menuCanvas.gameObject.SetActive(false);
-
-            if (restButton)
-            {
-                restButton.onClick.RemoveAllListeners();
-                restButton.onClick.AddListener(DoRest);
-            }
-
-            if (exitButton)
-            {
-                exitButton.onClick.RemoveAllListeners();
-                exitButton.onClick.AddListener(DoExit);
-            }
-
-            // Asegurar que el panel tiene CanvasGroup
-            if (menuPanel && !menuPanel.GetComponent<CanvasGroup>())
-            {
-                menuPanel.AddComponent<CanvasGroup>();
-            }
+            if (restButton) { restButton.onClick.RemoveAllListeners(); restButton.onClick.AddListener(DoRest); }
+            if (exitButton) { exitButton.onClick.RemoveAllListeners(); exitButton.onClick.AddListener(DoExit); }
+            if (menuPanel && !menuPanel.GetComponent<CanvasGroup>()) menuPanel.AddComponent<CanvasGroup>();
         }
     }
 
@@ -130,52 +110,35 @@ public class CheckPoint : MonoBehaviour
             if (player != null)
             {
                 player.transform.position = savedPlayerPos;
-                if (playerRb != null)
-                {
-                    playerRb.linearVelocity = Vector2.zero;
-                    playerRb.angularVelocity = 0f;
-                }
+                if (playerRb != null) { playerRb.linearVelocity = Vector2.zero; playerRb.angularVelocity = 0f; }
             }
 
             if (menuActive && !resting)
             {
-                if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))
-                    SelectBtn(0);
-                if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
-                    SelectBtn(1);
-                if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space))
-                    PressBtn(selectedBtn);
-                if (Input.GetKeyDown(KeyCode.Escape))
-                    DoExit();
+                if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) SelectBtn(0);
+                if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) SelectBtn(1);
+                if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space)) PressBtn(selectedBtn);
+                if (Input.GetKeyDown(KeyCode.Escape)) DoExit();
             }
-
             return;
         }
 
         if (playerNearby && isActivated && canRestHere)
-        {
-            if (Input.GetKeyDown(interactKey))
-                OpenMenu();
-        }
+            if (Input.GetKeyDown(interactKey)) OpenMenu();
     }
 
     void OnTriggerEnter2D(Collider2D other)
     {
-        if (menuLocked) return;
-        if (!other.CompareTag("Player")) return;
-
+        if (menuLocked || !other.CompareTag("Player")) return;
         playerNearby = true;
         CachePlayer(other.gameObject);
-
         if (!isActivated) Activate();
         if (isActivated && canRestHere) ShowPrompt();
     }
 
     void OnTriggerExit2D(Collider2D other)
     {
-        if (menuLocked) return;
-        if (!other.CompareTag("Player")) return;
-
+        if (menuLocked || !other.CompareTag("Player")) return;
         playerNearby = false;
         HidePrompt();
     }
@@ -183,7 +146,9 @@ public class CheckPoint : MonoBehaviour
     void CachePlayer(GameObject p)
     {
         player = p;
-        playerCtrl = p.GetComponent<MainChar>();
+        // FIX: PlayerCore + PlayerHealth en vez de MainChar
+        playerCore = p.GetComponent<PlayerCore>();
+        playerHealth = p.GetComponent<PlayerHealth>();
         playerRb = p.GetComponent<Rigidbody2D>();
         healingSys = p.GetComponent<HealingSystem>();
     }
@@ -203,27 +168,17 @@ public class CheckPoint : MonoBehaviour
         if (activeVisual) activeVisual.SetActive(isActivated);
     }
 
-    void ShowPrompt()
-    {
-        if (promptCanvas) promptCanvas.gameObject.SetActive(true);
-    }
-
-    void HidePrompt()
-    {
-        if (promptCanvas) promptCanvas.gameObject.SetActive(false);
-    }
+    void ShowPrompt() { if (promptCanvas) promptCanvas.gameObject.SetActive(true); }
+    void HidePrompt() { if (promptCanvas) promptCanvas.gameObject.SetActive(false); }
 
     void SelectBtn(int idx)
     {
         selectedBtn = idx;
-
         if (restButtonText && exitButtonText)
         {
             restButtonText.color = (idx == 0) ? selectedButtonColor : normalButtonColor;
             exitButtonText.color = (idx == 1) ? selectedButtonColor : normalButtonColor;
         }
-
-        // Opcional: Cambiar escala de botones
         if (restButton && exitButton)
         {
             restButton.transform.localScale = (idx == 0) ? Vector3.one * 1.1f : Vector3.one;
@@ -234,57 +189,40 @@ public class CheckPoint : MonoBehaviour
     void PressBtn(int idx)
     {
         if (audioSource && menuSelectSound) audioSource.PlayOneShot(menuSelectSound);
-        if (idx == 0) DoRest();
-        else DoExit();
+        if (idx == 0) DoRest(); else DoExit();
     }
 
     void OpenMenu()
     {
         if (menuLocked) return;
-
         menuLocked = true;
         menuActive = true;
 
         if (player) savedPlayerPos = player.transform.position;
-        if (cam)
-        {
-            savedCamSize = cam.orthographicSize;
-            savedCamPos = cam.transform.position;
-        }
+        if (cam) { savedCamSize = cam.orthographicSize; savedCamPos = cam.transform.position; }
 
-        if (playerRb)
-        {
-            playerRb.linearVelocity = Vector2.zero;
-            playerRb.angularVelocity = 0;
-            playerRb.constraints = RigidbodyConstraints2D.FreezeAll;
-        }
-        if (playerCtrl) playerCtrl.enabled = false;
+        if (playerRb) { playerRb.linearVelocity = Vector2.zero; playerRb.angularVelocity = 0; playerRb.constraints = RigidbodyConstraints2D.FreezeAll; }
+        // FIX: desactivar PlayerCore en vez de MainChar
+        if (playerCore) playerCore.enabled = false;
 
-        if (freezeWorld)
-        {
-            savedTimeScale = Time.timeScale;
-            Time.timeScale = 0;
-        }
+        if (freezeWorld) { savedTimeScale = Time.timeScale; Time.timeScale = 0; }
 
         HidePrompt();
         if (audioSource && menuOpenSound) audioSource.PlayOneShot(menuOpenSound);
-
         if (menuCanvas) menuCanvas.gameObject.SetActive(true);
         selectedBtn = 0;
         SelectBtn(0);
         StartCoroutine(AnimMenu(true));
     }
 
-    void CloseMenu()
-    {
-        StartCoroutine(AnimMenu(false));
-    }
+    void CloseMenu() => StartCoroutine(AnimMenu(false));
+    void DoRest() => StartCoroutine(RestSequence());
+    void DoExit() => CloseMenu();
 
     IEnumerator AnimMenu(bool open)
     {
         float dur = open ? zoomDuration : zoomDuration * 0.6f;
         float t = 0;
-
         Color overlayColor = overlayImage ? overlayImage.color : Color.black;
         float targetAlpha = open ? 0.9f : 0f;
         CanvasGroup menuCG = menuPanel ? menuPanel.GetComponent<CanvasGroup>() : null;
@@ -295,23 +233,13 @@ public class CheckPoint : MonoBehaviour
             float p = t / dur;
             if (!open) p = 1 - p;
 
-            // Fade overlay
-            if (overlayImage)
-            {
-                Color c = overlayColor;
-                c.a = targetAlpha * p;
-                overlayImage.color = c;
-            }
-
-            // Fade menu panel
+            if (overlayImage) { Color c = overlayColor; c.a = targetAlpha * p; overlayImage.color = c; }
             if (menuCG) menuCG.alpha = p;
-
-            // Zoom camera
             if (useCinematic && cam)
             {
                 cam.orthographicSize = Mathf.Lerp(savedCamSize, zoomSize, p);
-                Vector3 target = new Vector3(transform.position.x, transform.position.y + 0.5f, savedCamPos.z);
-                cam.transform.position = Vector3.Lerp(savedCamPos, target, p);
+                Vector3 tgt = new Vector3(transform.position.x, transform.position.y + 0.5f, savedCamPos.z);
+                cam.transform.position = Vector3.Lerp(savedCamPos, tgt, p);
             }
             yield return null;
         }
@@ -319,45 +247,26 @@ public class CheckPoint : MonoBehaviour
         if (!open)
         {
             if (menuCanvas) menuCanvas.gameObject.SetActive(false);
-
             if (freezeWorld) Time.timeScale = savedTimeScale > 0 ? savedTimeScale : 1;
-
             if (playerRb) playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
-            if (playerCtrl) playerCtrl.enabled = true;
-
+            // FIX: reactivar PlayerCore
+            if (playerCore) playerCore.enabled = true;
             menuActive = false;
             menuLocked = false;
             playerNearby = true;
-
             ShowPrompt();
         }
-    }
-
-    void DoRest()
-    {
-        StartCoroutine(RestSequence());
-    }
-
-    void DoExit()
-    {
-        CloseMenu();
     }
 
     IEnumerator RestSequence()
     {
         resting = true;
 
-        // Fade out menu
         CanvasGroup menuCG = menuPanel ? menuPanel.GetComponent<CanvasGroup>() : null;
         if (menuCG)
         {
             float t = 0;
-            while (t < 0.2f)
-            {
-                t += Time.unscaledDeltaTime;
-                menuCG.alpha = 1 - t / 0.2f;
-                yield return null;
-            }
+            while (t < 0.2f) { t += Time.unscaledDeltaTime; menuCG.alpha = 1 - t / 0.2f; yield return null; }
         }
 
         if (restEffect) restEffect.Play();
@@ -367,10 +276,13 @@ public class CheckPoint : MonoBehaviour
         yield return new WaitForSecondsRealtime(restDuration);
 
         GameManager.Instance?.SetCheckpoint(transform.position);
-        if (healOnRest && playerCtrl) playerCtrl.currentHealth = playerCtrl.maxHealth;
+
+        // FIX: curar via PlayerHealth en vez de asignar directamente
+        if (healOnRest && playerHealth != null)
+            playerHealth.Heal(playerHealth.maxHealth); // cura vida completa
+
         if (refillVialsOnRest && healingSys) healingSys.RefillVials();
         if (resetEnemiesOnRest) EnemyManager.Instance?.RespawnAllEnemies();
-
         if (audioSource && refillSound) audioSource.PlayOneShot(refillSound);
 
         resting = false;

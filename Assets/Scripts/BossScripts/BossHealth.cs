@@ -19,23 +19,23 @@ public class BossHealth : MonoBehaviour
 
     [Header("=== DAÑO POR CONTACTO ===")]
     // Daño que hace el boss simplemente tocando al jugador
-    public int   bodyContactDamage  = 1;
+    public int bodyContactDamage = 1;
     public float bodyDamageCooldown = 1.0f; // segundos entre daños por contacto
 
     // ─────────────────────────────────────────────────────────
     // ESTADO INTERNO
     // ─────────────────────────────────────────────────────────
-    [HideInInspector] public int          currentHealth;
+    [HideInInspector] public int currentHealth;
     [HideInInspector] public BossHealthBar bossHealthBarUI;
 
     private float lastBodyDamageTime;
 
     // Referencias a otros componentes (asignadas en Initialize)
-    private BossData         data;
-    private Rigidbody2D      rb;
-    private SpriteRenderer   spriteRenderer;
-    private Collider2D       bossCollider;
-    private BossController   controller; // para llamar a UnsealArena y Die
+    private BossData data;
+    private Rigidbody2D rb;
+    private SpriteRenderer spriteRenderer;
+    private Collider2D bossCollider;
+    private BossController controller; // para llamar a UnsealArena y Die
 
     // =========================================================
     // INITIALIZE — Llamado por BossController en Start()
@@ -46,12 +46,12 @@ public class BossHealth : MonoBehaviour
                            SpriteRenderer sr, Collider2D col,
                            BossController controller)
     {
-        this.data           = data;
-        this.rb             = rb;
+        this.data = data;
+        this.rb = rb;
         this.spriteRenderer = sr;
-        this.bossCollider   = col;
-        this.controller     = controller;
-        currentHealth       = maxHealth;
+        this.bossCollider = col;
+        this.controller = controller;
+        currentHealth = maxHealth;
     }
 
     // =========================================================
@@ -134,7 +134,7 @@ public class BossHealth : MonoBehaviour
     // =========================================================
     public void ResetHealth()
     {
-        currentHealth      = maxHealth;
+        currentHealth = maxHealth;
         lastBodyDamageTime = 0f;
     }
 }

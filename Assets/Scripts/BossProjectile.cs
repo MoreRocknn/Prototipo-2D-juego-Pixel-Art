@@ -62,7 +62,7 @@ public class BossProjectile : MonoBehaviour
         // 1. CHOQUE CON JUGADOR
         if (other.CompareTag("Player"))
         {
-            MainChar playerScript = other.GetComponent<MainChar>();
+            PlayerCore playerScript = other.GetComponent<PlayerCore>();
             if (playerScript != null)
             {
                 playerScript.TakeDamage(damage);

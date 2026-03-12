@@ -294,7 +294,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
             foreach (var hit in hits)
             {
                 if (hit.CompareTag("Player"))
-                    hit.GetComponent<MainChar>()?.TakeDamage(attackDamage);
+                    hit.GetComponent<PlayerCore>()?.TakeDamage(attackDamage);
             }
         }
 

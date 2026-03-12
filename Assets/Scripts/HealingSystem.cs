@@ -22,10 +22,9 @@ public class HealingSystem : MonoBehaviour
     public float healFlashDuration = 0.5f;
 
     private AudioSource audioSource;
-    private MainChar playerController;
+    private PlayerHealth playerHealth;   // FIX: usar PlayerHealth en vez de MainChar
+    private PlayerCore playerCore;     // para SetInputLock y StopPhysics
     private bool isHealing = false;
-
-    // VARIABLE NUEVA
     private Color baseColor;
 
     void Awake()
@@ -39,32 +38,40 @@ public class HealingSystem : MonoBehaviour
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
 
-        playerController = GetComponent<MainChar>();
+        // FIX: buscar PlayerHealth y PlayerCore en vez de MainChar
+        playerHealth = GetComponent<PlayerHealth>();
+        playerCore = GetComponent<PlayerCore>();
 
-        // GUARDAR COLOR ORIGINAL
+        if (playerHealth == null)
+            Debug.LogError("[HealingSystem] No se encontró PlayerHealth en este GameObject.");
+
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
-        if (sr != null) baseColor = sr.color;
-        else baseColor = Color.white;
+        baseColor = sr != null ? sr.color : Color.white;
     }
 
     void Update()
     {
         if (Input.GetKeyDown(healKey))
-        {
             TryUseHealingVial();
-        }
     }
 
     public void TryUseHealingVial()
     {
         if (isHealing) return;
+
+        if (playerHealth == null)
+        {
+            Debug.LogError("[HealingSystem] playerHealth es null.");
+            return;
+        }
+
         if (currentHealingVials <= 0)
         {
             Debug.Log("¡No tienes viales de curación!");
             return;
         }
 
-        if (playerController.currentHealth >= playerController.maxHealth)
+        if (playerHealth.currentHealth >= playerHealth.maxHealth)
         {
             Debug.Log("¡Vida completa!");
             return;
@@ -77,42 +84,28 @@ public class HealingSystem : MonoBehaviour
     {
         isHealing = true;
 
-        if (playerController != null)
-        {
-            playerController.SetInputLock(true);
-            playerController.StopPhysics();
-        }
+        // Bloquear input durante la animación de curación
+        playerCore?.SetInputLock(true);
+        playerCore?.StopPhysics();
 
         if (audioSource != null && healSound != null)
-        {
             audioSource.PlayOneShot(healSound);
-        }
 
         Debug.Log("Usando vial...");
-
         yield return new WaitForSeconds(healAnimationDuration);
 
         currentHealingVials--;
 
-        int healAmount = Mathf.CeilToInt(playerController.maxHealth * healPercentage);
-        if (healAmount < 1) healAmount = 1;
+        // FIX: usar PlayerHealth.Heal() para que actualice la barra automáticamente
+        int healAmount = Mathf.Max(1, Mathf.CeilToInt(playerHealth.maxHealth * healPercentage));
+        playerHealth.Heal(healAmount);
 
-        playerController.currentHealth += healAmount;
-        if (playerController.currentHealth > playerController.maxHealth)
-        {
-            playerController.currentHealth = playerController.maxHealth;
-        }
-
-        Debug.Log($"¡Curado! (+{healAmount} HP). Vida: {playerController.currentHealth}/{playerController.maxHealth}");
+        Debug.Log($"¡Curado! (+{healAmount} HP). Vida: {playerHealth.currentHealth}/{playerHealth.maxHealth}");
 
         if (healEffect != null) healEffect.Play();
         StartCoroutine(FlashSprite());
 
-        if (playerController != null)
-        {
-            playerController.SetInputLock(false);
-        }
-
+        playerCore?.SetInputLock(false);
         isHealing = false;
     }
 
@@ -123,33 +116,22 @@ public class HealingSystem : MonoBehaviour
         Debug.Log($"¡Viales recargados! {currentHealingVials}/{maxHealingVials}");
     }
 
-    public void OnPlayerDeath()
-    {
-        RefillVials();
-    }
+    public void OnPlayerDeath() => RefillVials();
 
     IEnumerator FlashSprite()
     {
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
-        if (sr != null)
+        if (sr == null) yield break;
+
+        float elapsed = 0f;
+        while (elapsed < healFlashDuration)
         {
-            float elapsed = 0f;
-
-            while (elapsed < healFlashDuration)
-            {
-                float t = elapsed / healFlashDuration;
-                // Lerp hacia baseColor (Blanco) en lugar del color actual
-                sr.color = Color.Lerp(healFlashColor, baseColor, t);
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
-
-            sr.color = baseColor; // Asegurar blanco al final
+            sr.color = Color.Lerp(healFlashColor, baseColor, elapsed / healFlashDuration);
+            elapsed += Time.deltaTime;
+            yield return null;
         }
+        sr.color = baseColor;
     }
 
-    public string GetVialsInfo()
-    {
-        return $"Viales: {currentHealingVials}/{maxHealingVials}";
-    }
+    public string GetVialsInfo() => $"Viales: {currentHealingVials}/{maxHealingVials}";
 }

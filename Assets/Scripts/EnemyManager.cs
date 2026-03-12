@@ -39,31 +39,15 @@ public class EnemyManager : MonoBehaviour
     }
 
     public void RegisterAllEnemiesInScene()
-{
-    registeredEnemies.Clear();
-    
-    // Registrar enemigos normales
-    var enemies = GameObject.FindGameObjectsWithTag("Enemy");
-    foreach (var enemy in enemies)
     {
-        registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation)
-        { currentInstance = enemy });
-    }
-    
-    // ✅ NUEVO: Registrar bosses explícitamente
-    var bosses = FindObjectsOfType<BossController>(true);
-    foreach (var boss in bosses)
-    {
-        if (!registeredEnemies.Exists(e => e.currentInstance == boss.gameObject))
+        registeredEnemies.Clear();
+        var enemies = GameObject.FindGameObjectsWithTag("Enemy");
+        foreach (var enemy in enemies)
         {
-            registeredEnemies.Add(new EnemyData(
-                boss.gameObject, 
-                boss.transform.position, 
-                boss.transform.rotation
-            ) { currentInstance = boss.gameObject });
+            registeredEnemies.Add(new EnemyData(enemy, enemy.transform.position, enemy.transform.rotation)
+            { currentInstance = enemy });
         }
     }
-}
 
     public void RegisterEnemy(GameObject enemy)
     {
@@ -73,10 +57,10 @@ public class EnemyManager : MonoBehaviour
     }
 
     public void RespawnAllEnemies()
-{
-    RespawnBosses(); // ✅ SIEMPRE resetear bosses
-    RespawnNormalEnemies();
-}
+    {
+        if (resetBossOnPlayerDeath) RespawnBosses();
+        RespawnNormalEnemies();
+    }
 
     public void RespawnAllEnemiesIncludingBoss()
     {
@@ -86,26 +70,25 @@ public class EnemyManager : MonoBehaviour
 
     void RespawnBosses()
     {
-    foreach (var boss in FindObjectsOfType<BossController>(true))
-    {
-        if (boss != null)
+        // Nota: Asegúrate de tener la clase BossController o ajusta este nombre
+        foreach (var boss in FindObjectsByType<BossController>(FindObjectsSortMode.None))
         {
-            Debug.Log("🔄 Reseteando boss: " + boss.name);
-            
-            // Destruir barra de vida vieja
-            if (boss.bossHealthBarUI != null)
+            if (boss != null)
             {
-                Destroy(boss.bossHealthBarUI.gameObject);
-                boss.bossHealthBarUI = null;
-            }
+                // 🎯 DESTRUIR LA BARRA DE VIDA ANTES DE RESETEAR
+                if (boss.bossHealthBarUI != null)
+                {
+                    Destroy(boss.bossHealthBarUI.gameObject);
+                    boss.bossHealthBarUI = null;
+                }
 
-            // Resetear estado
-            boss.ResetState();
+                // Resetear el estado del boss
+                boss.ResetState();
+            }
         }
     }
-    }
 
-        void RespawnNormalEnemies()
+    void RespawnNormalEnemies()
     {
         foreach (var data in registeredEnemies)
         {
@@ -130,7 +113,7 @@ public class EnemyManager : MonoBehaviour
 
             // 3. Buscar ambos tipos de scripts (Terrestre y Volador)
             var enemigoTerrestre = data.currentInstance.GetComponent<Enemigo>();
-            var enemigoVolador = data.currentInstance.GetComponent<EnemigoVolador>();
+            var enemigoVolador = data.currentInstance.GetComponent<EnemigoVoladorHealth>();
 
             // 4. Ejecutar la restauración en el que exista
             if (enemigoTerrestre != null)
@@ -141,7 +124,6 @@ public class EnemyManager : MonoBehaviour
             else if (enemigoVolador != null)
             {
                 enemigoVolador.RestoreFullHealth();
-                enemigoVolador.enabled = true;
             }
         }
         else if (data.enemyPrefab != null)

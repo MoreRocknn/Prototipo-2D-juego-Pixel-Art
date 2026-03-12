@@ -276,7 +276,7 @@ public class CinematicAbsorptionSystem : MonoBehaviour
         }
 
         // Lockear input del jugador
-        MainChar player = GameObject.FindGameObjectWithTag("Player")?.GetComponent<MainChar>();
+        PlayerCore player = GameObject.FindGameObjectWithTag("Player")?.GetComponent<PlayerCore>();
         if (player != null)
         {
             player.SetInputLock(true);
@@ -330,7 +330,7 @@ public class CinematicAbsorptionSystem : MonoBehaviour
         Time.timeScale = 1f;
 
         // Desbloquear input del jugador
-        MainChar player = GameObject.FindGameObjectWithTag("Player")?.GetComponent<MainChar>();
+        PlayerCore player = GameObject.FindGameObjectWithTag("Player")?.GetComponent<PlayerCore>();
         if (player != null)
         {
             player.SetInputLock(false);

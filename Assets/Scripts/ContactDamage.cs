@@ -22,7 +22,7 @@ public class ContactDamage : MonoBehaviour
 
     private float lastDamageTime = -999f;
     private Enemigo enemigo;
-    private EnemigoVolador enemigoVolador;
+    private EnemigoVoladorData EnemigoVoladorData;
     private BossController boss;
 
     void Start()
@@ -35,7 +35,7 @@ public class ContactDamage : MonoBehaviour
 
         // Obtener script del enemigo para verificar estados
         enemigo = GetComponent<Enemigo>();
-        enemigoVolador = GetComponent<EnemigoVolador>();
+        EnemigoVoladorData = GetComponent<EnemigoVoladorData>();
         boss = GetComponent<BossController>();
 
         if (damageCollider == null)
@@ -89,7 +89,7 @@ public class ContactDamage : MonoBehaviour
                 isAggressive = true; // Simplificado
             }
             // Para Enemigo Volador
-            else if (enemigoVolador != null)
+            else if (EnemigoVoladorData != null)
             {
                 isAggressive = true; // Simplificado
             }
@@ -104,7 +104,7 @@ public class ContactDamage : MonoBehaviour
         }
 
         // Hacer daño al jugador
-        MainChar player = target.GetComponent<MainChar>();
+        PlayerCore player = target.GetComponent<PlayerCore>();
         if (player != null)
         {
             player.TakeDamage(contactDamage);
