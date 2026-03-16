@@ -49,12 +49,22 @@ public class BossAttackSwords : MonoBehaviour
 
     IEnumerator SpawnSword(float x)
     {
-        // Raycast para encontrar el suelo real en esa X
-        float realGroundY = groundY; // fallback al valor del Inspector
+        // Raycast desde muy arriba solo contra el layer Ground
+        float realGroundY = groundY;
         int groundMask = LayerMask.GetMask("Ground");
-        if (groundMask == 0) groundMask = ~0;
-        RaycastHit2D hit = Physics2D.Raycast(new Vector2(x, 20f), Vector2.down, 40f, groundMask);
-        if (hit.collider != null) realGroundY = hit.point.y;
+        if (groundMask != 0)
+        {
+            RaycastHit2D hit = Physics2D.Raycast(new Vector2(x, 50f), Vector2.down, 100f, groundMask);
+            if (hit.collider != null)
+            {
+                realGroundY = hit.point.y;
+                Debug.Log("[Sword] Suelo detectado en Y=" + realGroundY + " objeto=" + hit.collider.name);
+            }
+            else
+                Debug.LogWarning("[Sword] Raycast no encontró suelo en X=" + x + " usando groundY=" + groundY);
+        }
+        else
+            Debug.LogWarning("[Sword] Layer Ground no encontrado, usando groundY=" + groundY);
 
         // Marcador en el suelo real
         Vector3 groundPos = new Vector3(x, realGroundY, 0f);
@@ -66,7 +76,7 @@ public class BossAttackSwords : MonoBehaviour
         Vector3 spawnPos = new Vector3(x, realGroundY + spawnHeight, 0f);
         GameObject sword = Instantiate(fallingSwordPrefab, spawnPos, Quaternion.identity);
         FallingSword fs = sword.GetComponent<FallingSword>() ?? sword.AddComponent<FallingSword>();
-        fs.Initialize(swordSpeed, 1);
+        fs.Initialize(swordSpeed, 1, realGroundY);
 
         if (warning) Destroy(warning);
     }

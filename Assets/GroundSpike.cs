@@ -35,30 +35,30 @@ public class GroundSpike : MonoBehaviour
     [Header("=== NOMBRES DE ANIMACIONES ===")]
     [Tooltip("Debe coincidir EXACTAMENTE con el nombre del clip en el Animator")]
     public string warningAnimName = "SpikeWarning";
-    public string emergeAnimName  = "SpikeEmerge";
-    public string sinkAnimName    = "SpikeSink";
+    public string emergeAnimName = "SpikeEmerge";
+    public string sinkAnimName = "SpikeSink";
 
     [Header("=== TIEMPOS ===")]
     [Tooltip("Duración del aviso antes de emerger")]
     public float warningDuration = 1.0f;
 
     [Tooltip("Duración del clip SpikeEmerge — debe coincidir con el clip")]
-    public float emergeDuration  = 0.4f;
+    public float emergeDuration = 0.4f;
 
     [Tooltip("Tiempo visible tras emerger")]
-    public float stayDuration    = 1.5f;
+    public float stayDuration = 1.5f;
 
     [Tooltip("Duración del clip SpikeSink — debe coincidir con el clip")]
-    public float sinkDuration    = 0.3f;
+    public float sinkDuration = 0.3f;
 
     // ─────────────────────────────────────────────────────────
     // PRIVADAS
     // ─────────────────────────────────────────────────────────
-    private int   damage         = 1;
-    private bool  hasDealtDamage = false;
+    private int damage = 1;
+    private bool hasDealtDamage = false;
 
-    private Animator       anim;
-    private Collider2D     col;
+    private Animator anim;
+    private Collider2D col;
     private SpriteRenderer sr;
 
     // =========================================================
@@ -67,9 +67,9 @@ public class GroundSpike : MonoBehaviour
     public void Initialize(int dmg)
     {
         damage = dmg;
-        anim   = GetComponent<Animator>();
-        col    = GetComponent<Collider2D>();
-        sr     = GetComponent<SpriteRenderer>();
+        anim = GetComponent<Animator>();
+        col = GetComponent<Collider2D>();
+        sr = GetComponent<SpriteRenderer>();
 
         StartCoroutine(SpikeLifecycle());
     }
@@ -82,11 +82,13 @@ public class GroundSpike : MonoBehaviour
         // ── 1. Detectar suelo real con Raycast ─────────────────
         // Así el pincho siempre aparece en el suelo correcto
         // sin importar la Y desde donde fue spawneado.
+        int spikeMask = LayerMask.GetMask("Ground");
+        if (spikeMask == 0) spikeMask = ~0; // fallback: todo
         RaycastHit2D hit = Physics2D.Raycast(
-            transform.position + Vector3.up * 5f,  // origen: 5u arriba
-            Vector2.down,                           // dirección: abajo
-            20f,                                    // distancia max
-            LayerMask.GetMask("ground", "Ground", "Suelo")
+            new Vector2(transform.position.x, 50f), // siempre desde arriba
+            Vector2.down,
+            120f,                                    // distancia grande
+            spikeMask
         );
 
         float groundY = hit.collider != null
@@ -98,7 +100,7 @@ public class GroundSpike : MonoBehaviour
 
         // Invisible y sin colisión hasta que emerja
         if (col) col.enabled = false;
-        if (sr)  sr.enabled  = false;
+        if (sr) sr.enabled = false;
 
         // ── 2. AVISO — animación o fallback por código ─────────
         if (sr) sr.enabled = true;
@@ -147,7 +149,7 @@ public class GroundSpike : MonoBehaviour
     {
         if (sr == null) yield break;
         Color original = sr.color;
-        Color flash    = new Color(1f, 0.1f, 0.1f, 0.8f);
+        Color flash = new Color(1f, 0.1f, 0.1f, 0.8f);
         for (int i = 0; i < 5; i++)
         {
             sr.color = flash;
@@ -159,8 +161,8 @@ public class GroundSpike : MonoBehaviour
 
     IEnumerator FallbackSink(float groundY)
     {
-        float   elapsed   = 0f;
-        Vector3 startPos  = transform.position;
+        float elapsed = 0f;
+        Vector3 startPos = transform.position;
         Vector3 hiddenPos = new Vector3(transform.position.x, groundY - 2f, 0f);
 
         while (elapsed < sinkDuration)
@@ -186,7 +188,7 @@ public class GroundSpike : MonoBehaviour
     // DAÑO
     // =========================================================
     void OnTriggerEnter2D(Collider2D c) => DealDamage(c);
-    void OnTriggerStay2D (Collider2D c) => DealDamage(c);
+    void OnTriggerStay2D(Collider2D c) => DealDamage(c);
 
     void DealDamage(Collider2D c)
     {

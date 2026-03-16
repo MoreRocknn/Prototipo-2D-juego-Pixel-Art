@@ -2198,7 +2198,7 @@ MonoBehaviour:
   swordsCount: 8
   swordSpeed: 22
   groundY: -10.667
-  spawnHeight: 3
+  spawnHeight: 11.48
 --- !u!114 &451731787
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2214,8 +2214,6 @@ MonoBehaviour:
   groundSpikePrefab: {fileID: 4607953794918522256, guid: f2a267290e9b3f44499dff8b1e49153e, type: 3}
   geysersCount: 4
   spikeDamage: 1
-  groundY: -10.667
-  spawnHeight: 3
 --- !u!114 &451731788
 MonoBehaviour:
   m_ObjectHideFlags: 0
