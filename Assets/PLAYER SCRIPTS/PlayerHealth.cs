@@ -155,6 +155,9 @@ public class PlayerHealth : MonoBehaviour
     {
         Debug.Log("¡Jugador murió!");
 
+        // Mostrar pantalla de muerte estilo Dark Souls
+        DeathScreen.Instance?.Show();
+
         AbilityAbsorptionManager.Instance?.OnPlayerDeath();
         GetComponent<HealingSystem>()?.OnPlayerDeath();
         GetComponent<BloodPoolTransform>()?.ResetUses();

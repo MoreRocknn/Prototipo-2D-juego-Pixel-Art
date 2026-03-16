@@ -14,17 +14,10 @@ public class BossAttackSpikes : MonoBehaviour
     public int geysersCount = 6;
     public int spikeDamage = 1;
 
-    [Header("=== POSICIÓN ===")]
-    [Tooltip("Y del suelo donde aparecen los pinchos. Mira la Y del suelo en tu escena y ponla aquí.")]
-    public float groundY = -3f;
-
-    [Tooltip("Altura de spawn por encima del suelo (el GroundSpike hace el raycast desde aquí).")]
-    public float spawnHeight = 10f;
-
     private BossData data;
     private SpriteRenderer sr;
 
-    void Start()
+    void Awake()
     {
         data = GetComponent<BossData>();
         sr = GetComponent<SpriteRenderer>();
@@ -51,7 +44,7 @@ public class BossAttackSpikes : MonoBehaviour
             }
             x = Mathf.Clamp(x, data.minArenaX, data.maxArenaX);
 
-            Spawn(new Vector3(x, groundY + spawnHeight, 0f));
+            Spawn(new Vector3(x, data.player.position.y + 15f, 0f));
             yield return new WaitForSeconds(0.15f);
         }
     }
@@ -64,7 +57,7 @@ public class BossAttackSpikes : MonoBehaviour
         if (groundSpikePrefab == null) yield break;
 
         float centerX = data.player.position.x;
-        float spawnY = groundY + spawnHeight;
+        float spawnY = data.player.position.y + 15f;
 
         for (int i = -4; i <= 4; i++)
         {
