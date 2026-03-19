@@ -51,6 +51,10 @@ public class GroundSpike : MonoBehaviour
     [Tooltip("Duración del clip SpikeSink — debe coincidir con el clip")]
     public float sinkDuration = 0.3f;
 
+    [Header("=== POSICIÓN ===")]
+    [Tooltip("Offset Y sobre el suelo donde emerge el pincho. Ajusta si aparece flotando o enterrado.")]
+    public float groundOffset = 0f;
+
     // ─────────────────────────────────────────────────────────
     // PRIVADAS
     // ─────────────────────────────────────────────────────────
@@ -96,7 +100,7 @@ public class GroundSpike : MonoBehaviour
             : transform.position.y;
 
         // Colocar en el suelo (enterrado al inicio)
-        transform.position = new Vector3(transform.position.x, groundY - 2f, 0f);
+        transform.position = new Vector3(transform.position.x, groundY + groundOffset - 2f, 0f);
 
         // Invisible y sin colisión hasta que emerja
         if (col) col.enabled = false;
@@ -114,7 +118,7 @@ public class GroundSpike : MonoBehaviour
 
         // ── 3. EMERGER ─────────────────────────────────────────
         // Mover al suelo primero (la animación lo sube desde aquí)
-        transform.position = new Vector3(transform.position.x, groundY - 2f, 0f);
+        transform.position = new Vector3(transform.position.x, groundY + groundOffset - 2f, 0f);
 
         if (HasAnimation(emergeAnimName))
             anim.Play(emergeAnimName);

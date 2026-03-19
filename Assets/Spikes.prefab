@@ -147,3 +147,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 767f60071bd804e42803c4a11b9f7fc1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  warningAnimName: SpikeWarning
+  emergeAnimName: SpikeEmerge
+  sinkAnimName: SpikeSink
+  warningDuration: 1
+  emergeDuration: 0.4
+  stayDuration: 1.5
+  sinkDuration: 0.3
+  groundOffset: 2.02
