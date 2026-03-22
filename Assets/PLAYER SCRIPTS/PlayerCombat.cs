@@ -8,6 +8,10 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerState))]
 public class PlayerCombat : MonoBehaviour
 {
+    [Header("=== SLASH EFFECT ===")]
+    [Tooltip("Prefab del efecto de slash blanco estilo Hollow Knight")]
+    public GameObject slashEffectPrefab;
+
     [Header("Sistema de Combos")]
     public int combo1Damage = 1;
     public int combo2Damage = 1;
@@ -165,6 +169,15 @@ public class PlayerCombat : MonoBehaviour
         // Instanciar efecto
         SpawnAttackEffect(effectPrefab);
 
+        // Slash effect estilo Hollow Knight
+        if (slashEffectPrefab != null && attackPoint != null)
+        {
+            int slashDir = state.isFacingRight ? 1 : -1;
+            float slashSize = state.currentComboStep == 2 ? 1.5f : 1f;
+            GameObject slash = Instantiate(slashEffectPrefab, attackPoint.position, Quaternion.identity);
+            slash.GetComponent<SlashEffect>()?.Play(slashDir, slashSize);
+        }
+
         // Knockback al jugador en aire
         if (!state.isAttackingDown && !groundCheck.isGrounded)
         {
@@ -261,13 +274,32 @@ public class PlayerCombat : MonoBehaviour
     private bool TryDealDamage(Collider2D col, int knockbackDir, int damage, float knockbackMultiplier = 1f)
     {
         var enemy = col.GetComponent<Enemigo>();
-        if (enemy != null) { enemy.TakeDamage(damage, knockbackDir); return true; }
+        if (enemy != null)
+        {
+            enemy.TakeDamage(damage, knockbackDir);
+            // Golpe final del combo = Heavy, resto = Light
+            bool isFinal = state != null && state.currentComboStep == 0;
+            SpriteRenderer sr = col.GetComponent<SpriteRenderer>();
+            HitImpactSystem.Instance?.OnHit(
+                isFinal ? HitImpactSystem.HitType.Heavy : HitImpactSystem.HitType.Light, sr);
+            return true;
+        }
 
         var flyingEnemy = col.GetComponent<EnemigoVoladorHealth>();
-        if (flyingEnemy != null) { flyingEnemy.TakeDamage(damage, knockbackDir); return true; }
+        if (flyingEnemy != null)
+        {
+            flyingEnemy.TakeDamage(damage, knockbackDir);
+            HitImpactSystem.Instance?.OnLightHit(col.GetComponent<SpriteRenderer>());
+            return true;
+        }
 
         var boss = col.GetComponent<BossController>();
-        if (boss != null) { boss.TakeDamage(damage, knockbackDir); return true; }
+        if (boss != null)
+        {
+            boss.TakeDamage(damage, knockbackDir);
+            HitImpactSystem.Instance?.OnHeavyHit(col.GetComponent<SpriteRenderer>());
+            return true;
+        }
 
         return false;
     }

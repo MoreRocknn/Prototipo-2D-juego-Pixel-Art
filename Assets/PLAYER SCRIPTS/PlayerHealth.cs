@@ -90,6 +90,9 @@ public class PlayerHealth : MonoBehaviour
         currentHealth = Mathf.Max(currentHealth - damage, 0);
         Debug.Log($"Daño recibido: {damage} → Vida: {currentHealth}/{maxHealth}");
 
+        // Game feel: hitstop + shake cuando el jugador recibe daño
+        HitImpactSystem.Instance?.OnPlayerHit(GetComponent<SpriteRenderer>());
+
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         combat?.ResetCombo();
         ApplyKnockback();
