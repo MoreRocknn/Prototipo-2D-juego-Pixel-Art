@@ -1,42 +1,50 @@
 // ============================================================
-// CameraLookDown.cs — Mirar hacia abajo manteniendo tecla
-// Pon este script en el mismo GameObject que CinemachineFollow
-// o en un GameObject vacío en la escena.
+// CameraLookDown.cs — Look down combinando ScreenPosition + FollowOffset
+// Unity 6 + Cinemachine 3.x — Cámara Ortográfica 2D
 // ============================================================
 using UnityEngine;
 using Unity.Cinemachine;
-using System.Collections;
 
 public class CameraLookDown : MonoBehaviour
 {
-    [Header("=== CONFIGURACIÓN ===")]
-    [Tooltip("Tecla para mirar hacia abajo")]
+    [Header("=== TECLAS ===")]
     public KeyCode lookDownKey = KeyCode.DownArrow;
-
-    [Tooltip("Tecla para mirar hacia arriba")]
     public KeyCode lookUpKey = KeyCode.UpArrow;
 
-    [Tooltip("Cuánto baja la cámara al mirar abajo")]
-    public float lookDownOffset = -4f;
+    [Header("=== SCREEN POSITION (0.5 max por Cinemachine) ===")]
+    [Tooltip("Screen Y al mirar abajo — el jugador sube en pantalla")]
+    [Range(-0.49f, 0f)]
+    public float lookDownScreenY = -0.49f;
 
-    [Tooltip("Cuánto sube la cámara al mirar arriba")]
-    public float lookUpOffset = 4f;
+    [Tooltip("Screen Y al mirar arriba")]
+    [Range(0f, 0.49f)]
+    public float lookUpScreenY = 0.49f;
 
-    [Tooltip("Velocidad de transición suave")]
+    [Header("=== FOLLOW OFFSET EXTRA (para bajar más) ===")]
+    [Tooltip("Unidades extra que baja la cámara al mirar abajo (suma al Screen Position)")]
+    public float lookDownOffsetExtra = -4f;
+
+    [Tooltip("Unidades extra que sube la cámara al mirar arriba")]
+    public float lookUpOffsetExtra = 4f;
+
+    [Header("=== TIMING ===")]
+    public float holdDelay = 0.2f;
     public float smoothSpeed = 3f;
-
-    [Tooltip("Segundos que hay que mantener la tecla antes de que baje")]
-    public float holdDelay = 0.3f;
 
     [Header("=== REFERENCIAS ===")]
     public CinemachineCamera cinemachineCamera;
 
     // ── Privadas ──────────────────────────────────────────────
-    private CinemachineFollow followComponent;
+    private CinemachinePositionComposer composer;
+    private CinemachineFollow follow;
+    private float baseScreenY;
     private float baseOffsetY;
+    private float currentScreenY;
+    private float currentOffsetY;
+    private float targetScreenY;
     private float targetOffsetY;
-    private float holdTimer = 0f;
-    private bool isLooking = false;
+    private float holdTimer;
+    private bool isLooking;
 
     void Start()
     {
@@ -44,28 +52,35 @@ public class CameraLookDown : MonoBehaviour
             cinemachineCamera = FindFirstObjectByType<CinemachineCamera>();
 
         if (cinemachineCamera != null)
-            followComponent = cinemachineCamera.GetComponent<CinemachineFollow>();
+        {
+            composer = cinemachineCamera.GetComponent<CinemachinePositionComposer>();
+            follow = cinemachineCamera.GetComponent<CinemachineFollow>();
+        }
 
-        if (followComponent != null)
-            baseOffsetY = followComponent.FollowOffset.y;
+        if (composer != null) baseScreenY = composer.Composition.ScreenPosition.y;
+        if (follow != null) baseOffsetY = follow.FollowOffset.y;
 
+        currentScreenY = baseScreenY;
+        currentOffsetY = baseOffsetY;
+        targetScreenY = baseScreenY;
         targetOffsetY = baseOffsetY;
     }
 
     void Update()
     {
-        bool lookingDown = Input.GetKey(lookDownKey);
-        bool lookingUp = Input.GetKey(lookUpKey);
+        bool pressingDown = Input.GetKey(lookDownKey);
+        bool pressingUp = Input.GetKey(lookUpKey);
 
-        if (lookingDown || lookingUp)
+        if (pressingDown || pressingUp)
         {
             holdTimer += Time.deltaTime;
             if (holdTimer >= holdDelay)
             {
                 isLooking = true;
-                targetOffsetY = lookingDown
-                    ? baseOffsetY + lookDownOffset
-                    : baseOffsetY + lookUpOffset;
+                targetScreenY = pressingDown ? lookDownScreenY : lookUpScreenY;
+                targetOffsetY = pressingDown
+                    ? baseOffsetY + lookDownOffsetExtra
+                    : baseOffsetY + lookUpOffsetExtra;
             }
         }
         else
@@ -74,16 +89,27 @@ public class CameraLookDown : MonoBehaviour
             if (isLooking)
             {
                 isLooking = false;
+                targetScreenY = baseScreenY;
                 targetOffsetY = baseOffsetY;
             }
         }
 
-        // Aplicar suavemente
-        if (followComponent != null)
+        float t = Time.deltaTime * smoothSpeed;
+        currentScreenY = Mathf.Lerp(currentScreenY, targetScreenY, t);
+        currentOffsetY = Mathf.Lerp(currentOffsetY, targetOffsetY, t);
+
+        if (composer != null)
         {
-            Vector3 offset = followComponent.FollowOffset;
-            offset.y = Mathf.Lerp(offset.y, targetOffsetY, Time.deltaTime * smoothSpeed);
-            followComponent.FollowOffset = offset;
+            var comp = composer.Composition;
+            comp.ScreenPosition.y = currentScreenY;
+            composer.Composition = comp;
+        }
+
+        if (follow != null)
+        {
+            Vector3 offset = follow.FollowOffset;
+            offset.y = currentOffsetY;
+            follow.FollowOffset = offset;
         }
     }
 }

@@ -66,9 +66,11 @@ public class PlayerHUD : MonoBehaviour
     // ── Viales ───────────────────────────────────────────────
     void UpdateVials()
     {
-        if (vialsText == null || healingSystem == null) return;
-        vialsText.text = string.Format(vialsFormat, healingSystem.currentHealingVials, healingSystem.maxHealingVials);
-        vialsText.color = healingSystem.currentHealingVials > 0 ? Color.white : Color.red;
+        if (vialsText == null) return;
+        var hs = healingSystem ?? HealingSystem.Instance;
+        if (hs == null) return;
+        vialsText.text = string.Format(vialsFormat, hs.currentHealingVials, hs.maxHealingVials);
+        vialsText.color = hs.currentHealingVials > 0 ? Color.white : Color.red;
     }
 
     // ── Barra de Dash ────────────────────────────────────────
