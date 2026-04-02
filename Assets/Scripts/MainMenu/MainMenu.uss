@@ -1,0 +1,164 @@
+/* MainMenu.uss */
+
+#Root {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    background-color: rgba(0,0,0,0);
+}
+
+#Overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0);
+}
+
+#SideGradient {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 680px;
+    background-color: rgba(0,0,0,0.55);
+}
+
+.panel {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding-left: 130px;
+    padding-bottom: 120px;
+}
+
+#PanelSettings {
+    display: none;
+    justify-content: center;
+    padding-bottom: 0;
+}
+
+#PanelCredits {
+    display: none;
+    justify-content: center;
+    padding-bottom: 0;
+}
+
+/* ── Logo ─────────────────────────────────────────── */
+#Logo {
+    margin-bottom: 52px;
+}
+
+#TitleMain {
+    font-size: 72px;
+    color: #C9A84C;
+    letter-spacing: 7px;
+    -unity-font-style: bold;
+}
+
+#TitleSub {
+    font-size: 13px;
+    color: #7A6030;
+    letter-spacing: 11px;
+    margin-top: 8px;
+}
+
+#TitleDivider {
+    width: 300px;
+    height: 1px;
+    background-color: #4A3820;
+    margin-top: 16px;
+}
+
+/* ── Botones — usando Label, sin estilos Unity ────── */
+#ButtonList {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.menu-button {
+    color: #C4B49A;
+    font-size: 26px;
+    letter-spacing: 4px;
+    -unity-text-align: middle-left;
+    padding-top: 9px;
+    padding-bottom: 9px;
+    padding-left: 0;
+    padding-right: 60px;
+    margin-bottom: 2px;
+    cursor: hand;
+    background-color: rgba(0,0,0,0);
+    border-width: 0;
+}
+
+.menu-button:hover {
+    color: #E8C96A;
+}
+
+.menu-button:active {
+    color: #FFFFFF;
+}
+
+/* Continuar deshabilitado — se controla desde C# añadiendo clase */
+.menu-button.disabled {
+    color: #3A3020;
+    cursor: arrow;
+}
+
+/* ── Paneles secundarios ──────────────────────────── */
+.panel-title {
+    font-size: 38px;
+    color: #C9A84C;
+    letter-spacing: 7px;
+    margin-bottom: 48px;
+    -unity-font-style: bold;
+}
+
+.settings-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 24px;
+    min-width: 520px;
+}
+
+.settings-label {
+    color: #C4B49A;
+    font-size: 17px;
+    letter-spacing: 2px;
+    min-width: 220px;
+}
+
+.credits-role {
+    font-size: 11px;
+    color: #7A6030;
+    letter-spacing: 6px;
+    margin-top: 20px;
+}
+
+.credits-name {
+    font-size: 20px;
+    color: #C4B49A;
+    letter-spacing: 2px;
+}
+
+.back-button {
+    color: #C4B49A;
+    font-size: 17px;
+    letter-spacing: 4px;
+    border-color: #4A3C28;
+    border-width: 1px;
+    border-radius: 0;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 28px;
+    padding-right: 28px;
+    margin-top: 48px;
+    margin-right: 14px;
+    cursor: hand;
+    background-color: rgba(0,0,0,0);
+}
+
+.back-button:hover {
+    border-color: #C9A84C;
+    color: #E8C96A;
+}

@@ -41,8 +41,20 @@ TagManager:
   - 
   - 
   m_SortingLayers:
+  - name: 3
+    uniqueID: 307018875
+    locked: 0
+  - name: 2
+    uniqueID: 695037765
+    locked: 0
+  - name: 1
+    uniqueID: 2094920999
+    locked: 0
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Sground
+    uniqueID: 4273017875
     locked: 0
   m_RenderingLayers:
   - Default

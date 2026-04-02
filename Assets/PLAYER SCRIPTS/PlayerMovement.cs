@@ -7,6 +7,11 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerState))]
 public class PlayerMovement : MonoBehaviour
 {
+    [Header("Animator")]
+    private Animator anim;
+
+
+
     [Header("Movimiento")]
     public float moveSpeed = 8f;
     public float airControlMultiplier = 1f;
@@ -21,6 +26,7 @@ public class PlayerMovement : MonoBehaviour
 
     void Awake()
     {
+        anim = GetComponent<Animator>();
         state = GetComponent<PlayerState>();
         rb    = GetComponent<Rigidbody2D>();
     }
@@ -36,6 +42,16 @@ public class PlayerMovement : MonoBehaviour
         {
             state.moveInput = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f)
                             - (Input.GetKey(KeyCode.LeftArrow)  ? 1f : 0f);
+
+
+            if (state.moveInput != 0)
+            {
+                anim.SetBool("isWalking", true);
+            }
+            else
+            {
+                anim.SetBool("isWalking", false);
+            }
         }
     }
 

@@ -1,0 +1,81 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+
+    <ui:Style src="MainMenu.uss" />
+
+    <ui:VisualElement name="Root">
+
+        <ui:VisualElement name="Overlay" />
+        <ui:VisualElement name="SideGradient" />
+
+        <!-- PANEL PRINCIPAL -->
+        <ui:VisualElement name="PanelMain" class="panel">
+
+            <ui:VisualElement name="Logo">
+                <ui:Label name="TitleMain" text="ASHES OF UNDIYNG" />
+                <ui:Label name="TitleSub"  text="E L   C A M I N O   D E   L A   C E N I Z A" />
+                <ui:VisualElement name="TitleDivider" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="ButtonList">
+                <ui:Label name="BtnContinue" text="Continuar"     class="menu-button" focusable="true" />
+                <ui:Label name="BtnNewGame"  text="Nueva Partida" class="menu-button" focusable="true" />
+                <ui:Label name="BtnSettings" text="Opciones"      class="menu-button" focusable="true" />
+                <ui:Label name="BtnCredits"  text="Créditos"      class="menu-button" focusable="true" />
+                <ui:Label name="BtnQuit"     text="Salir"         class="menu-button" focusable="true" />
+            </ui:VisualElement>
+
+        </ui:VisualElement>
+
+        <!-- PANEL AJUSTES -->
+        <ui:VisualElement name="PanelSettings" class="panel">
+
+            <ui:Label text="OPCIONES" class="panel-title" />
+
+            <ui:VisualElement class="settings-row">
+                <ui:Label text="Música" class="settings-label" />
+                <ui:Slider name="SliderMusic" low-value="0" high-value="1" value="0.4" style="flex-grow:1;" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="settings-row">
+                <ui:Label text="Efectos de sonido" class="settings-label" />
+                <ui:Slider name="SliderSfx" low-value="0" high-value="1" value="1.0" style="flex-grow:1;" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="settings-row">
+                <ui:Label text="Pantalla completa" class="settings-label" />
+                <ui:Toggle name="ToggleFullscreen" value="true" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="settings-row">
+                <ui:Label text="Resolución" class="settings-label" />
+                <ui:DropdownField name="DropdownResolution" index="1" style="flex-grow:1;" />
+            </ui:VisualElement>
+
+            <ui:VisualElement style="flex-direction:row;">
+                <ui:Label name="BtnApply"        text="Aplicar" class="back-button" focusable="true" />
+                <ui:Label name="BtnSettingsBack" text="Volver"  class="back-button" focusable="true" />
+            </ui:VisualElement>
+
+        </ui:VisualElement>
+
+        <!-- PANEL CRÉDITOS -->
+        <ui:VisualElement name="PanelCredits" class="panel">
+
+            <ui:Label text="CRÉDITOS" class="panel-title" />
+
+            <ui:Label text="DIRECCIÓN Y DISEÑO" class="credits-role" />
+            <ui:Label text="Tu Nombre Aquí"     class="credits-name" />
+            <ui:Label text="PROGRAMACIÓN"       class="credits-role" />
+            <ui:Label text="Tu Nombre Aquí"     class="credits-name" />
+            <ui:Label text="ARTE Y ANIMACIÓN"   class="credits-role" />
+            <ui:Label text="Tu Nombre Aquí"     class="credits-name" />
+            <ui:Label text="MÚSICA Y SONIDO"    class="credits-role" />
+            <ui:Label text="Tu Nombre Aquí"     class="credits-name" />
+
+            <ui:Label name="BtnCreditsBack" text="Volver" class="back-button" focusable="true" />
+
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+
+</ui:UXML>
