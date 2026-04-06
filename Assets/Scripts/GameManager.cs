@@ -95,4 +95,16 @@ public class GameManager : MonoBehaviour
         lastCheckpoint = spawnInicial;
         Debug.Log("Progreso reseteado");
     }
+    public void RespawnPlayer()
+    {
+        // Resetear enemigos normales
+        EnemyManager.Instance?.RespawnAllEnemies();
+
+        // Resetear el boss si existe
+        BossController boss = FindFirstObjectByType<BossController>();
+        if (boss != null) boss.ResetState();
+
+        // Resetear cámara
+        CameraManager.instance?.RespawnToCamera(lastCheckpoint);
+    }
 }

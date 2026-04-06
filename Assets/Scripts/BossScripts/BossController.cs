@@ -43,7 +43,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
     private Collider2D bossCollider;
-
+    private float _detectionCooldown = 0f;
     // =========================================================
     // AWAKE — Obtener todos los componentes del mismo GameObject
     // =========================================================
@@ -100,6 +100,11 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     // =========================================================
     void Update()
     {
+        if (_detectionCooldown > 0f)
+        {
+            _detectionCooldown -= Time.deltaTime;
+            return; // no hacer nada hasta que pase el cooldown
+        }
         if (data.isDead || data.player == null) return;
 
         // Asegurar visibilidad si algo salió mal
@@ -307,7 +312,8 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         if (spriteRenderer) { spriteRenderer.enabled = true; spriteRenderer.color = Color.white; }
         if (bossCollider) bossCollider.enabled = true;
         if (rb) { rb.gravityScale = data.defaultGravity; rb.linearVelocity = Vector2.zero; }
-
+        data.healthBarActivated = false;
+        _detectionCooldown = 2f; // ← NUEVO
         SetDoorsState(false);
         gameObject.SetActive(true);
     }

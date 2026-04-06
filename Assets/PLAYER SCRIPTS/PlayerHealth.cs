@@ -201,6 +201,11 @@ public class PlayerHealth : MonoBehaviour
         if (GameManager.Instance != null)
             transform.position = GameManager.Instance.GetRespawnPosition();
 
+        // Resetear el boss DESPUÉS de reposicionar al jugador,
+        // así el boss no detecta al jugador en rango al resetearse
+        BossController boss = FindFirstObjectByType<BossController>();
+        if (boss != null) boss.ResetState();
+
         anim.Rebind();
         anim.Update(0f);
 
@@ -212,8 +217,6 @@ public class PlayerHealth : MonoBehaviour
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         healthBar?.ForceShow();
 
-        // Activar la cámara que corresponde a la posición del respawn
-        // en lugar de siempre volver a la cámara por defecto
         CameraManager.instance?.RespawnToCamera(transform.position);
 
         hasDied = false;

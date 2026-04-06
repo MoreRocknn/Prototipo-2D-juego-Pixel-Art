@@ -2746,7 +2746,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!61 &316258987
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -55171,7 +55171,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 130e9c6aba36f7943a6cd23366ec2829, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  absorbKey: 101
+  absorbKey: 113
   absorptionRange: 2
   absorptionTargetLayer:
     serializedVersion: 2
