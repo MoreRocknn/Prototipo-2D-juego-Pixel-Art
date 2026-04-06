@@ -93,6 +93,9 @@ public class DeathZone : MonoBehaviour
         if (sr) sr.enabled = true;
         if (playerCore) playerCore.enabled = true;
 
+        CameraManager.instance?.ResetToDefaultCamera();
+
+
         isRespawning = false;
     }
 }
