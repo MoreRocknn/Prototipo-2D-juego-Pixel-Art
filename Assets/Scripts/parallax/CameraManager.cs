@@ -24,6 +24,10 @@ public class CameraManager : MonoBehaviour
 
     private CinemachinePositionComposer _positionComposer;
     private CinemachineCamera _currentCamera;
+
+    // ¡NUEVO! Variable para recordar la cámara del último Checkpoint
+    private CinemachineCamera _savedCheckpointCamera;
+
     private float _normYPanAmount;
 
     private Dictionary<CinemachineCamera, Vector3> _cameraStartingOffsets = new Dictionary<CinemachineCamera, Vector3>();
@@ -55,7 +59,6 @@ public class CameraManager : MonoBehaviour
     }
 
     #region Lerp the Y Damping
-
     public void LerpYDamping(bool isPlayerFalling)
     {
         if (_lerpYPanCoroutine != null)
@@ -67,7 +70,6 @@ public class CameraManager : MonoBehaviour
     private IEnumerator LerpYAction(bool isPlayerFalling)
     {
         IsLerpingYDamping = true;
-
         float startDampAmount = _positionComposer.Damping.y;
         float endDampAmount;
 
@@ -94,11 +96,9 @@ public class CameraManager : MonoBehaviour
 
         IsLerpingYDamping = false;
     }
-
     #endregion
 
     #region Pan Camera
-
     public void PanCameraOnContact(float panDistance, float panTime, PanDirection panDirection, bool panToStartingPos)
     {
         _panCameraCoroutine = StartCoroutine(PanCamera(panDistance, panTime, panDirection, panToStartingPos));
@@ -137,18 +137,13 @@ public class CameraManager : MonoBehaviour
             yield return null;
         }
     }
-
     #endregion
 
     #region Swap Cameras
-
     public void SwapCamera(CinemachineCamera cameraFromLeft, CinemachineCamera cameraFromRight, Vector2 triggerExitDirection)
     {
-        // 1. EL ESCUDO: Si ha pasado menos de medio segundo desde el último cambio, ignorar.
         if (Time.time < _lastSwapTime + _swapCooldown)
-        {
             return;
-        }
 
         if (_currentCamera == cameraFromLeft)
         {
@@ -159,7 +154,7 @@ public class CameraManager : MonoBehaviour
             var composer = _currentCamera.GetComponent<CinemachinePositionComposer>();
             if (composer != null) _positionComposer = composer;
 
-            _lastSwapTime = Time.time; // 2. Guardamos la hora a la que se hizo el cambio
+            _lastSwapTime = Time.time;
         }
         else if (_currentCamera == cameraFromRight)
         {
@@ -170,21 +165,64 @@ public class CameraManager : MonoBehaviour
             var composer = _currentCamera.GetComponent<CinemachinePositionComposer>();
             if (composer != null) _positionComposer = composer;
 
-            _lastSwapTime = Time.time; // 2. Guardamos la hora a la que se hizo el cambio
+            _lastSwapTime = Time.time;
         }
     }
-
-
     #endregion
 
-    public void ResetToDefaultCamera()
+    #region Respawn Camera
+
+    public CinemachineCamera GetCurrentCamera()
     {
-        for (int i = 0; i < _allVirtualCameras.Length; i++)
+        return _currentCamera;
+    }
+
+    // ¡NUEVO! Permite al checkpoint guardar en memoria la cámara
+    public void SaveCheckpointCamera(CinemachineCamera cam)
+    {
+        _savedCheckpointCamera = cam;
+    }
+
+    public void RespawnToCamera(Vector2 spawnPos)
+    {
+        // 1. Si tenemos una cámara guardada del checkpoint, la usamos directamente.
+        if (_savedCheckpointCamera != null)
         {
-            _allVirtualCameras[i].gameObject.SetActive(_allVirtualCameras[i] == _defaultCamera);
+            ActivateCamera(_savedCheckpointCamera);
+            return;
         }
 
-        _currentCamera = _defaultCamera;
+        // 2. Fallback original: Busca si hay un collider (Casi nunca se cumplirá)
+        CinemachineCamera targetCamera = null;
+        foreach (var cam in _allVirtualCameras)
+        {
+            Collider2D zone = cam.GetComponent<Collider2D>();
+            if (zone != null && zone.OverlapPoint(spawnPos))
+            {
+                targetCamera = cam;
+                break;
+            }
+        }
+
+        // 3. Si no hay nada, usar la de por defecto
+        if (targetCamera == null)
+            targetCamera = _defaultCamera;
+
+        ActivateCamera(targetCamera);
+    }
+
+    public void RespawnToSpecificCamera(CinemachineCamera targetCamera)
+    {
+        if (targetCamera == null) targetCamera = _defaultCamera;
+        ActivateCamera(targetCamera);
+    }
+
+    private void ActivateCamera(CinemachineCamera targetCamera)
+    {
+        foreach (var cam in _allVirtualCameras)
+            cam.gameObject.SetActive(cam == targetCamera);
+
+        _currentCamera = targetCamera;
         _positionComposer = _currentCamera.GetComponent<CinemachinePositionComposer>();
 
         if (_positionComposer != null)
@@ -195,15 +233,18 @@ public class CameraManager : MonoBehaviour
             _normYPanAmount = _positionComposer.Damping.y;
         }
 
-        if (_panCameraCoroutine != null)
-            StopCoroutine(_panCameraCoroutine);
-        if (_lerpYPanCoroutine != null)
-            StopCoroutine(_lerpYPanCoroutine);
+        if (_panCameraCoroutine != null) StopCoroutine(_panCameraCoroutine);
+        if (_lerpYPanCoroutine != null) StopCoroutine(_lerpYPanCoroutine);
 
         IsLerpingYDamping = false;
         LerpedFromPlayerFalling = false;
 
-        // Bloquear swaps durante 2 segundos para que los triggers no sobreescriban el reset
         _lastSwapTime = Time.time + 2f;
+    }
+    #endregion
+
+    public void ResetToDefaultCamera()
+    {
+        ActivateCamera(_defaultCamera);
     }
 }

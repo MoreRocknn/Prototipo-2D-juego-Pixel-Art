@@ -1,24 +1,13 @@
-// ============================================================
-// BossAttackSwords.cs — ATAQUE 1: Lluvia de espadas
-// Marcador en el suelo → espada cae desde arriba
-// ============================================================
-
 using UnityEngine;
 using System.Collections;
 
 public class BossAttackSwords : MonoBehaviour
 {
-    [Header("=== ESPADAS ===")]
     public GameObject fallingSwordPrefab;
     public int swordsCount = 10;
     public float swordSpeed = 22f;
-
-    [Header("=== POSICIÓN ===")]
-    [Tooltip("Y del suelo donde aparece el marcador. Mira la Y del suelo en tu escena y ponla aquí.")]
-    public float groundY = -3f;
-
-    [Tooltip("Altura desde la que caen las espadas (por encima de groundY).")]
-    public float spawnHeight = 10f;
+    public float spawnSkyY = 20f;
+    public LayerMask groundLayer;
 
     private BossData data;
     private SpriteRenderer sr;
@@ -32,51 +21,59 @@ public class BossAttackSwords : MonoBehaviour
     public IEnumerator Execute()
     {
         if (sr) sr.color = Color.cyan;
-        yield return new WaitForSeconds(0.3f);
-        if (fallingSwordPrefab == null) yield break;
+        yield return new WaitForSeconds(0.5f);
 
-        int total = data.currentPhase == BossData.BossPhase.Phase3 ? swordsCount + 5 : swordsCount;
-        for (int i = 0; i < total; i++)
+        if (fallingSwordPrefab == null)
+        {
+            Debug.LogError("¡NO HAY PREFAB DE ESPADA ASIGNADO!");
+            yield break;
+        }
+
+        for (int i = 0; i < swordsCount; i++)
         {
             if (data.player == null) break;
-            float x = data.player.position.x + (i > 0 ? Random.Range(-4f, 4f) : 0f);
+
+            float x = data.player.position.x + Random.Range(-5f, 5f);
             x = Mathf.Clamp(x, data.minArenaX, data.maxArenaX);
-            StartCoroutine(SpawnSword(x));
-            yield return new WaitForSeconds(0.12f);
+
+            // EJECUCIÓN DIRECTA: Si el raycast falla, la espada sale igual
+            StartCoroutine(SpawnSwordSequence(x));
+            yield return new WaitForSeconds(0.15f);
         }
+
         if (sr) sr.color = Color.white;
     }
 
-    IEnumerator SpawnSword(float x)
+    IEnumerator SpawnSwordSequence(float x)
     {
-        // Raycast desde muy arriba solo contra el layer Ground
-        float realGroundY = groundY;
-        int groundMask = LayerMask.GetMask("Ground");
-        if (groundMask != 0)
+        // Forzamos un valor por defecto para que el código NO se detenga
+        float groundY = data.player.position.y;
+
+        // Raycast de depuración para ver qué está tocando el jefe
+        RaycastHit2D hit = Physics2D.Raycast(new Vector2(x, data.player.position.y + 5f), Vector2.down, 20f, groundLayer);
+
+        if (hit.collider != null)
         {
-            RaycastHit2D hit = Physics2D.Raycast(new Vector2(x, 50f), Vector2.down, 100f, groundMask);
-            if (hit.collider != null)
-            {
-                realGroundY = hit.point.y;
-                Debug.Log("[Sword] Suelo detectado en Y=" + realGroundY + " objeto=" + hit.collider.name);
-            }
-            else
-                Debug.LogWarning("[Sword] Raycast no encontró suelo en X=" + x + " usando groundY=" + groundY);
+            groundY = hit.point.y;
         }
         else
-            Debug.LogWarning("[Sword] Layer Ground no encontrado, usando groundY=" + groundY);
+        {
+            Debug.LogWarning("Raycast de espada no tocó suelo en X: " + x + ". Revisa el LayerMask.");
+        }
 
-        // Marcador en el suelo real
-        Vector3 groundPos = new Vector3(x, realGroundY, 0f);
-        GameObject warning = CreateWarning(groundPos);
-
+        // Crear aviso
+        GameObject warning = CreateWarning(new Vector3(x, groundY, 0));
         yield return new WaitForSeconds(0.6f);
 
-        // Espada cae desde arriba
-        Vector3 spawnPos = new Vector3(x, realGroundY + spawnHeight, 0f);
+        // INSTANCIAR: Asegúrate de que la Z sea 0
+        Vector3 spawnPos = new Vector3(x, spawnSkyY, 0f);
         GameObject sword = Instantiate(fallingSwordPrefab, spawnPos, Quaternion.identity);
-        FallingSword fs = sword.GetComponent<FallingSword>() ?? sword.AddComponent<FallingSword>();
-        fs.Initialize(swordSpeed, 1, realGroundY);
+
+        FallingSword fs = sword.GetComponent<FallingSword>();
+        if (fs != null)
+        {
+            fs.Initialize(swordSpeed, 1, groundY);
+        }
 
         if (warning) Destroy(warning);
     }
@@ -85,36 +82,19 @@ public class BossAttackSwords : MonoBehaviour
     {
         GameObject w = new GameObject("SwordWarning");
         w.transform.position = pos;
-        SpriteRenderer sr = w.AddComponent<SpriteRenderer>();
-        sr.sprite = MakeCircleSprite();
-        sr.color = new Color(1f, 0f, 0f, 0.6f);
-        sr.sortingOrder = 5;
-        StartCoroutine(Blink(sr));
+        SpriteRenderer wr = w.AddComponent<SpriteRenderer>();
+        wr.sprite = MakeCircleSprite();
+        wr.color = new Color(1f, 0f, 0f, 0.6f);
         return w;
-    }
-
-    IEnumerator Blink(SpriteRenderer sr)
-    {
-        for (int i = 0; i < 6; i++)
-        {
-            if (sr == null) yield break;
-            sr.enabled = !sr.enabled;
-            yield return new WaitForSeconds(0.1f);
-        }
-        if (sr) sr.enabled = true;
     }
 
     Sprite MakeCircleSprite()
     {
-        int res = 64; float r = res / 2f;
+        int res = 32;
         Texture2D tex = new Texture2D(res, res);
-        Vector2 c = new Vector2(r, r);
         for (int y = 0; y < res; y++)
             for (int x = 0; x < res; x++)
-            {
-                float d = Vector2.Distance(new Vector2(x, y), c);
-                tex.SetPixel(x, y, (d < r && d > r - 4f) ? Color.red : Color.clear);
-            }
+                tex.SetPixel(x, y, Vector2.Distance(new Vector2(x, y), new Vector2(16, 16)) < 16 ? Color.red : Color.clear);
         tex.Apply();
         return Sprite.Create(tex, new Rect(0, 0, res, res), new Vector2(0.5f, 0.5f));
     }

@@ -105,7 +105,7 @@ public class BossMovementAI : MonoBehaviour
             // El jugador está demasiado cerca. Huir en dirección opuesta.
             targetVelocity = new Vector2(-dirX * repositionSpeed * 1.2f, 0);
         }
-        else if (dist > optimalDistance + 3f && dist <= data.minArenaX)
+        else if (dist > optimalDistance + 3f)
         {
             // ── ACERCARSE ──
             // El jugador está lejos. En fase 3, posibilidad de dash.

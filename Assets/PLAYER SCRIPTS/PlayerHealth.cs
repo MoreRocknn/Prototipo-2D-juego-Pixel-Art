@@ -149,16 +149,13 @@ public class PlayerHealth : MonoBehaviour
         if (hasDied) return;
         hasDied = true;
 
-        // Cancelar todos los coroutines activos (invencibilidad, ataques, etc.)
         StopAllCoroutines();
 
-        // Resetear estados
         state.isAttacking = false;
         state.isDashing = false;
         state.isInputLocked = false;
         state.isDamageInvincible = false;
 
-        // Resetear color del sprite por si estaba parpadeando
         if (spriteRenderer != null)
             spriteRenderer.color = Color.white;
 
@@ -167,15 +164,14 @@ public class PlayerHealth : MonoBehaviour
 
         StartCoroutine(PlayDeathSequence());
     }
+
     private IEnumerator PlayDeathSequence()
     {
-        // Espera un frame para que el Animator procese el reset de estados
         yield return null;
 
         if (anim != null)
             anim.SetTrigger("isDead");
 
-        // Espera la duración de la animación de muerte
         yield return new WaitForSeconds(deathAnimationTime);
 
         DeathScreen.Instance?.Show();
@@ -194,10 +190,8 @@ public class PlayerHealth : MonoBehaviour
 
     private IEnumerator RespawnAfterDeath()
     {
-        // Espera a que el jugador pulse continuar en la DeathScreen
         yield return new WaitUntil(() => !DeathScreen.Instance.IsShowing);
 
-        // Ocultar solo en el momento de teletransportar
         if (spriteRenderer != null) spriteRenderer.enabled = false;
 
         currentHealth = maxHealth;
@@ -207,7 +201,6 @@ public class PlayerHealth : MonoBehaviour
         if (GameManager.Instance != null)
             transform.position = GameManager.Instance.GetRespawnPosition();
 
-        // Resetear el Animator para salir del estado de muerte
         anim.Rebind();
         anim.Update(0f);
 
@@ -218,7 +211,10 @@ public class PlayerHealth : MonoBehaviour
 
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         healthBar?.ForceShow();
-        CameraManager.instance?.ResetToDefaultCamera();
+
+        // Activar la cámara que corresponde a la posición del respawn
+        // en lugar de siempre volver a la cámara por defecto
+        CameraManager.instance?.RespawnToCamera(transform.position);
 
         hasDied = false;
     }

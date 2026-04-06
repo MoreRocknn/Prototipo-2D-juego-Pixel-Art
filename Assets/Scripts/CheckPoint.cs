@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using Unity.Cinemachine;
 
 public class CheckPoint : MonoBehaviour
 {
@@ -59,13 +60,14 @@ public class CheckPoint : MonoBehaviour
     public Color normalButtonColor = new Color(0.8f, 0.75f, 0.65f);
     public Color selectedButtonColor = new Color(0.76f, 0.6f, 0.23f);
 
+    [HideInInspector] public CinemachineCamera savedCamera;
+
     private bool playerNearby = false;
     private bool menuActive = false;
     private bool resting = false;
     private bool menuLocked = false;
 
     private GameObject player;
-    // FIX: PlayerCore + PlayerHealth en vez de MainChar
     private PlayerCore playerCore;
     private PlayerHealth playerHealth;
     private Rigidbody2D playerRb;
@@ -146,7 +148,6 @@ public class CheckPoint : MonoBehaviour
     void CachePlayer(GameObject p)
     {
         player = p;
-        // FIX: PlayerCore + PlayerHealth en vez de MainChar
         playerCore = p.GetComponent<PlayerCore>();
         playerHealth = p.GetComponent<PlayerHealth>();
         playerRb = p.GetComponent<Rigidbody2D>();
@@ -156,6 +157,14 @@ public class CheckPoint : MonoBehaviour
     void Activate()
     {
         isActivated = true;
+
+        if (CameraManager.instance != null)
+        {
+            savedCamera = CameraManager.instance.GetCurrentCamera();
+            // ¡NUEVO! Guardamos la cámara en el Manager
+            CameraManager.instance.SaveCheckpointCamera(savedCamera);
+        }
+
         GameManager.Instance?.SetCheckpoint(transform.position);
         UpdateVisuals();
         if (activationEffect) activationEffect.Play();
@@ -202,7 +211,6 @@ public class CheckPoint : MonoBehaviour
         if (cam) { savedCamSize = cam.orthographicSize; savedCamPos = cam.transform.position; }
 
         if (playerRb) { playerRb.linearVelocity = Vector2.zero; playerRb.angularVelocity = 0; playerRb.constraints = RigidbodyConstraints2D.FreezeAll; }
-        // FIX: desactivar PlayerCore en vez de MainChar
         if (playerCore) playerCore.enabled = false;
 
         if (freezeWorld) { savedTimeScale = Time.timeScale; Time.timeScale = 0; }
@@ -249,7 +257,6 @@ public class CheckPoint : MonoBehaviour
             if (menuCanvas) menuCanvas.gameObject.SetActive(false);
             if (freezeWorld) Time.timeScale = savedTimeScale > 0 ? savedTimeScale : 1;
             if (playerRb) playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
-            // FIX: reactivar PlayerCore
             if (playerCore) playerCore.enabled = true;
             menuActive = false;
             menuLocked = false;
@@ -277,13 +284,19 @@ public class CheckPoint : MonoBehaviour
 
         GameManager.Instance?.SetCheckpoint(transform.position);
 
-        // FIX: curar via PlayerHealth en vez de asignar directamente
         if (healOnRest && playerHealth != null)
-            playerHealth.Heal(playerHealth.maxHealth); // cura vida completa
+            playerHealth.Heal(playerHealth.maxHealth);
 
         if (refillVialsOnRest && healingSys) healingSys.RefillVials();
         if (resetEnemiesOnRest) EnemyManager.Instance?.RespawnAllEnemies();
         if (audioSource && refillSound) audioSource.PlayOneShot(refillSound);
+
+        if (CameraManager.instance != null)
+        {
+            savedCamera = CameraManager.instance.GetCurrentCamera();
+            // ¡NUEVO! Guardamos la cámara en el Manager
+            CameraManager.instance.SaveCheckpointCamera(savedCamera);
+        }
 
         resting = false;
         CloseMenu();

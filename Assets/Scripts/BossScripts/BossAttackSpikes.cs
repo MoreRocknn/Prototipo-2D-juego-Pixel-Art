@@ -1,9 +1,3 @@
-// ============================================================
-// BossAttackSpikes.cs — ATAQUES 2 y 5
-//   ExecuteGround() → pinchos con predicción de movimiento
-//   ExecuteCross()  → línea horizontal de 9 pinchos
-// ============================================================
-
 using UnityEngine;
 using System.Collections;
 
@@ -14,6 +8,10 @@ public class BossAttackSpikes : MonoBehaviour
     public int geysersCount = 6;
     public int spikeDamage = 1;
 
+    [Header("=== DETECCIÓN DE SUELO ===")]
+    public LayerMask groundLayer;
+    public float raycastMaxDistance = 10f;
+
     private BossData data;
     private SpriteRenderer sr;
 
@@ -23,7 +21,20 @@ public class BossAttackSpikes : MonoBehaviour
         sr = GetComponent<SpriteRenderer>();
     }
 
-    // ── ATAQUE 2: Pinchos con predicción ─────────────────────
+
+    float? GetGroundY(float x)
+    {
+
+        Vector2 origin = new Vector2(x, data.player.position.y + 2f);
+        RaycastHit2D hit = Physics2D.Raycast(origin, Vector2.down, raycastMaxDistance, groundLayer);
+
+        if (hit.collider != null)
+        {
+            return hit.point.y;
+        }
+        return null;
+    }
+
     public IEnumerator ExecuteGround()
     {
         if (sr) sr.color = new Color(0.5f, 0f, 0f);
@@ -36,7 +47,6 @@ public class BossAttackSpikes : MonoBehaviour
             if (data.player == null) break;
 
             float x = data.player.position.x;
-            // Predicción: apuntar donde ESTARÁ el jugador
             if (data.playerRb != null && data.playerRb.linearVelocity.x != 0)
             {
                 float pred = data.currentPhase == BossData.BossPhase.Phase3 ? 0.7f : 0.5f;
@@ -44,12 +54,14 @@ public class BossAttackSpikes : MonoBehaviour
             }
             x = Mathf.Clamp(x, data.minArenaX, data.maxArenaX);
 
-            Spawn(new Vector3(x, data.player.position.y + 15f, 0f));
+            float? groundY = GetGroundY(x);
+            if (groundY.HasValue)
+                Spawn(new Vector3(x, groundY.Value, 0f));
+
             yield return new WaitForSeconds(0.15f);
         }
     }
 
-    // ── ATAQUE 5: Línea horizontal de 9 pinchos ──────────────
     public IEnumerator ExecuteCross()
     {
         if (sr) sr.color = new Color(1f, 0f, 1f);
@@ -57,12 +69,14 @@ public class BossAttackSpikes : MonoBehaviour
         if (groundSpikePrefab == null) yield break;
 
         float centerX = data.player.position.x;
-        float spawnY = data.player.position.y + 15f;
 
         for (int i = -4; i <= 4; i++)
         {
             float x = Mathf.Clamp(centerX + i * 2f, data.minArenaX, data.maxArenaX);
-            Spawn(new Vector3(x, spawnY, 0f));
+            float? groundY = GetGroundY(x);
+            if (groundY.HasValue)
+                Spawn(new Vector3(x, groundY.Value, 0f));
+
             yield return new WaitForSeconds(0.08f);
         }
     }
