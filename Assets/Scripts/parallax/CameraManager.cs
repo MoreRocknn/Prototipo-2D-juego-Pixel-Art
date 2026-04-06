@@ -25,7 +25,6 @@ public class CameraManager : MonoBehaviour
     private CinemachinePositionComposer _positionComposer;
     private CinemachineCamera _currentCamera;
 
-    // ¡NUEVO! Variable para recordar la cámara del último Checkpoint
     private CinemachineCamera _savedCheckpointCamera;
 
     private float _normYPanAmount;
@@ -39,6 +38,7 @@ public class CameraManager : MonoBehaviour
         if (instance == null)
             instance = this;
 
+        // Solo guardamos los offsets, sin asumir cuál está activa
         for (int i = 0; i < _allVirtualCameras.Length; i++)
         {
             var cam = _allVirtualCameras[i];
@@ -46,16 +46,14 @@ public class CameraManager : MonoBehaviour
 
             if (composer != null)
                 _cameraStartingOffsets[cam] = composer.TargetOffset;
-
-            if (cam.isActiveAndEnabled)
-            {
-                _currentCamera = cam;
-                _positionComposer = composer;
-
-                if (_positionComposer != null)
-                    _normYPanAmount = _positionComposer.Damping.y;
-            }
         }
+    }
+
+    private void Start()
+    {
+        // Forzamos siempre la cámara por defecto al iniciar la escena,
+        // sin importar si venimos del menú principal o del Play directo.
+        ActivateCamera(_defaultCamera);
     }
 
     #region Lerp the Y Damping
@@ -177,7 +175,6 @@ public class CameraManager : MonoBehaviour
         return _currentCamera;
     }
 
-    // ¡NUEVO! Permite al checkpoint guardar en memoria la cámara
     public void SaveCheckpointCamera(CinemachineCamera cam)
     {
         _savedCheckpointCamera = cam;
@@ -192,7 +189,7 @@ public class CameraManager : MonoBehaviour
             return;
         }
 
-        // 2. Fallback original: Busca si hay un collider (Casi nunca se cumplirá)
+        // 2. Fallback: busca si hay un collider que contenga el punto de spawn
         CinemachineCamera targetCamera = null;
         foreach (var cam in _allVirtualCameras)
         {

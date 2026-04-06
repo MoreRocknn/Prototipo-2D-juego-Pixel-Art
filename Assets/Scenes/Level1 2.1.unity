@@ -9996,7 +9996,7 @@ MonoBehaviour:
   leftDoor: {fileID: 316258986}
   rightDoor: {fileID: 1152376265}
   bossHealthBarPrefab: {fileID: 6273604537016369849, guid: f7013170598de6a4e96a19e21519622f, type: 3}
-  bossName: The Undying
+  bossName: Blood Knight
   data: {fileID: 0}
   health: {fileID: 0}
   movement: {fileID: 0}
@@ -13689,7 +13689,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5255255266052494537, guid: c1405f5524fb2d94ca4b1369acfbdfd2, type: 3}
       propertyPath: m_text
-      value: Press          in air to reach the other side
+      value: Press          in the air to reach the other side
       objectReference: {fileID: 0}
     - target: {fileID: 5255255266052494537, guid: c1405f5524fb2d94ca4b1369acfbdfd2, type: 3}
       propertyPath: m_margin.w
@@ -55481,13 +55481,13 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 8
   playerKnockbackForce: 3
-  sideAttackEffect: {fileID: 123128492}
+  sideAttackEffect: {fileID: 0}
   combo1Effect: {fileID: 123128492}
   combo2Effect: {fileID: 123128492}
   combo3Effect: {fileID: 123128492}
-  combo1Color: {r: 1, g: 1, b: 1, a: 0}
-  combo2Color: {r: 1, g: 0.8, b: 0, a: 0}
-  combo3Color: {r: 1, g: 0, b: 0, a: 0}
+  combo1Color: {r: 1, g: 1, b: 1, a: 1}
+  combo2Color: {r: 1, g: 1, b: 1, a: 1}
+  combo3Color: {r: 1, g: 1, b: 1, a: 1}
   enableCombo3Shake: 1
   combo3ShakeDuration: 0.25
   combo3ShakeMagnitude: 0.5
