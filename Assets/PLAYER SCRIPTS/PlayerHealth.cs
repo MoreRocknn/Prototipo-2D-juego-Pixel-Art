@@ -218,6 +218,7 @@ public class PlayerHealth : MonoBehaviour
 
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         healthBar?.ForceShow();
+        CameraManager.instance?.ResetToDefaultCamera();
 
         hasDied = false;
     }

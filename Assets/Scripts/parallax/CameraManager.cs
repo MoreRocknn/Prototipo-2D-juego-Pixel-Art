@@ -7,7 +7,8 @@ using static CameraControlTrigger;
 public class CameraManager : MonoBehaviour
 {
     public static CameraManager instance;
-
+    [Header("Cámara por defecto al respawn")]
+    [SerializeField] private CinemachineCamera _defaultCamera;
     [SerializeField] private CinemachineCamera[] _allVirtualCameras;
 
     [Header("Controls for lerping the Y Damping during player jump/fall")]
@@ -173,5 +174,36 @@ public class CameraManager : MonoBehaviour
         }
     }
 
+
     #endregion
+
+    public void ResetToDefaultCamera()
+    {
+        for (int i = 0; i < _allVirtualCameras.Length; i++)
+        {
+            _allVirtualCameras[i].gameObject.SetActive(_allVirtualCameras[i] == _defaultCamera);
+        }
+
+        _currentCamera = _defaultCamera;
+        _positionComposer = _currentCamera.GetComponent<CinemachinePositionComposer>();
+
+        if (_positionComposer != null)
+        {
+            if (_cameraStartingOffsets.ContainsKey(_currentCamera))
+                _positionComposer.TargetOffset = _cameraStartingOffsets[_currentCamera];
+
+            _normYPanAmount = _positionComposer.Damping.y;
+        }
+
+        if (_panCameraCoroutine != null)
+            StopCoroutine(_panCameraCoroutine);
+        if (_lerpYPanCoroutine != null)
+            StopCoroutine(_lerpYPanCoroutine);
+
+        IsLerpingYDamping = false;
+        LerpedFromPlayerFalling = false;
+
+        // Bloquear swaps durante 2 segundos para que los triggers no sobreescriban el reset
+        _lastSwapTime = Time.time + 2f;
+    }
 }

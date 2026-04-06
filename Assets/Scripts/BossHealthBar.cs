@@ -11,8 +11,8 @@ public class BossHealthBar : MonoBehaviour
 
     [Header("Colores")]
     public Color highHealthColor = Color.red;
-    public Color midHealthColor = new Color(1f, 0.5f, 0f); // Naranja
-    public Color lowHealthColor = new Color(0.5f, 0f, 0f); // Rojo oscuro
+    public Color midHealthColor = new Color(1f, 0.5f, 0f);
+    public Color lowHealthColor = new Color(0.5f, 0f, 0f);
 
     public int maxHealth;
     private CanvasGroup canvasGroup;
@@ -21,11 +21,13 @@ public class BossHealthBar : MonoBehaviour
     {
         canvasGroup = GetComponent<CanvasGroup>();
         if (canvasGroup == null)
-        {
             canvasGroup = gameObject.AddComponent<CanvasGroup>();
-        }
 
-        // Buscar referencias automáticamente si no están asignadas
+        // Ocultar visualmente sin desactivar el GameObject
+        canvasGroup.alpha = 0f;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+
         if (healthSlider == null)
             healthSlider = GetComponentInChildren<Slider>();
 
@@ -35,16 +37,12 @@ public class BossHealthBar : MonoBehaviour
         if (fillImage == null && healthSlider != null)
             fillImage = healthSlider.fillRect.GetComponent<Image>();
 
-        // Si NO encuentra nada, crear UI dinámicamente
         if (bossNameText == null || healthSlider == null)
-        {
             CreateHealthBarUI();
-        }
     }
 
     void CreateHealthBarUI()
     {
-        // Crear Canvas si no existe
         Canvas canvas = GetComponent<Canvas>();
         if (canvas == null)
         {
@@ -61,13 +59,9 @@ public class BossHealthBar : MonoBehaviour
             scaler.referenceResolution = new Vector2(1920, 1080);
         }
 
-        GraphicRaycaster raycaster = GetComponent<GraphicRaycaster>();
-        if (raycaster == null)
-        {
+        if (GetComponent<GraphicRaycaster>() == null)
             gameObject.AddComponent<GraphicRaycaster>();
-        }
 
-        // Panel contenedor
         GameObject panel = new GameObject("BossHealthPanel");
         panel.transform.SetParent(transform, false);
 
@@ -78,7 +72,6 @@ public class BossHealthBar : MonoBehaviour
         panelRect.anchoredPosition = new Vector2(0, -50);
         panelRect.sizeDelta = new Vector2(800, 100);
 
-        // Nombre del Boss (TextMeshProUGUI)
         GameObject nameObj = new GameObject("BossName");
         nameObj.transform.SetParent(panel.transform, false);
 
@@ -96,7 +89,6 @@ public class BossHealthBar : MonoBehaviour
         nameRect.anchoredPosition = Vector2.zero;
         nameRect.sizeDelta = new Vector2(0, 50);
 
-        // Fondo de la barra
         GameObject bgObj = new GameObject("HealthBarBackground");
         bgObj.transform.SetParent(panel.transform, false);
 
@@ -110,7 +102,6 @@ public class BossHealthBar : MonoBehaviour
         bgRect.anchoredPosition = Vector2.zero;
         bgRect.sizeDelta = new Vector2(-40, -10);
 
-        // Crear Slider
         GameObject sliderObj = new GameObject("HealthSlider");
         sliderObj.transform.SetParent(bgObj.transform, false);
 
@@ -121,7 +112,6 @@ public class BossHealthBar : MonoBehaviour
         sliderRect.anchorMax = Vector2.one;
         sliderRect.sizeDelta = Vector2.zero;
 
-        // Fill Area
         GameObject fillArea = new GameObject("Fill Area");
         fillArea.transform.SetParent(sliderObj.transform, false);
         RectTransform fillAreaRect = fillArea.AddComponent<RectTransform>();
@@ -129,7 +119,6 @@ public class BossHealthBar : MonoBehaviour
         fillAreaRect.anchorMax = Vector2.one;
         fillAreaRect.sizeDelta = Vector2.zero;
 
-        // Barra de vida (Fill)
         GameObject fillObj = new GameObject("Fill");
         fillObj.transform.SetParent(fillArea.transform, false);
 
@@ -146,14 +135,11 @@ public class BossHealthBar : MonoBehaviour
         fillRect.anchoredPosition = Vector2.zero;
         fillRect.sizeDelta = Vector2.zero;
 
-        // Configurar slider
         healthSlider.fillRect = fillRect;
         healthSlider.minValue = 0;
         healthSlider.maxValue = 100;
         healthSlider.value = 100;
         healthSlider.interactable = false;
-
-        Debug.Log("✅ UI de BossHealthBar creada dinámicamente con TextMeshProUGUI");
     }
 
     public void Initialize(string name, int maxHp)
@@ -171,8 +157,6 @@ public class BossHealthBar : MonoBehaviour
 
         UpdateHealthColor(maxHp);
         Show();
-
-        Debug.Log($"✅ BossHealthBar inicializada: {name} ({maxHp} HP)");
     }
 
     public void UpdateHealth(int currentHp)
@@ -200,25 +184,16 @@ public class BossHealthBar : MonoBehaviour
 
     public void Show()
     {
-        if (canvasGroup != null)
-        {
-            canvasGroup.alpha = 1f;
-            canvasGroup.interactable = true;
-            canvasGroup.blocksRaycasts = true;
-        }
-        gameObject.SetActive(true);
+        canvasGroup.alpha = 1f;
+        canvasGroup.interactable = true;
+        canvasGroup.blocksRaycasts = true;
     }
 
     public void Hide()
     {
-        if (canvasGroup != null)
-        {
-            canvasGroup.alpha = 0f;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
-        }
-
-        // Destruir después de un delay
+        canvasGroup.alpha = 0f;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
         Destroy(gameObject, 0.5f);
     }
 }
