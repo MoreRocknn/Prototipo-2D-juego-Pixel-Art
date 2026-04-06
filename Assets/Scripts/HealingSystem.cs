@@ -9,6 +9,7 @@ public class HealingSystem : MonoBehaviour
     public int maxHealingVials = 3;
     public int currentHealingVials = 3;
     public KeyCode healKey = KeyCode.E;
+    private Animator anim;
 
     [Header("Configuración Dark Souls")]
     [Range(0f, 1f)]
@@ -29,6 +30,8 @@ public class HealingSystem : MonoBehaviour
 
     void Awake()
     {
+        anim = GetComponent<Animator>();
+
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
@@ -53,6 +56,10 @@ public class HealingSystem : MonoBehaviour
     {
         if (Input.GetKeyDown(healKey))
             TryUseHealingVial();
+        if (anim != null)
+        {
+            anim.SetTrigger("HealTrigger");
+        }
     }
 
     public void TryUseHealingVial()
@@ -88,9 +95,10 @@ public class HealingSystem : MonoBehaviour
         playerCore?.SetInputLock(true);
         playerCore?.StopPhysics();
 
-        if (audioSource != null && healSound != null)
-            audioSource.PlayOneShot(healSound);
 
+        anim.SetBool("IsHealing", true);
+        if (audioSource != null && healSound != null)
+            audioSource.PlayOneShot(healSound);               
         Debug.Log("Usando vial...");
         yield return new WaitForSeconds(healAnimationDuration);
 
@@ -99,6 +107,7 @@ public class HealingSystem : MonoBehaviour
         // FIX: usar PlayerHealth.Heal() para que actualice la barra automáticamente
         int healAmount = Mathf.Max(1, Mathf.CeilToInt(playerHealth.maxHealth * healPercentage));
         playerHealth.Heal(healAmount);
+        anim.SetBool("IsHealing", false);
 
         Debug.Log($"¡Curado! (+{healAmount} HP). Vida: {playerHealth.currentHealth}/{playerHealth.maxHealth}");
 
@@ -107,6 +116,7 @@ public class HealingSystem : MonoBehaviour
 
         playerCore?.SetInputLock(false);
         isHealing = false;
+        
     }
 
     public void RefillVials()

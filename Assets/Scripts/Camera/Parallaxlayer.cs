@@ -1,79 +1,57 @@
-﻿using UnityEngine;
+﻿// ParallaxLayer.cs — versión para Cinemachine (Unity 6)
+// Usa CinemachineCore para ejecutarse DESPUÉS de que
+// Cinemachine haya movido la cámara → sin jitter
+using UnityEngine;
+using Unity.Cinemachine;
 
-// ============================================================
-//  ParallaxLayer.cs  —  v2
-//
-//  FIXES:
-//  1. Loop correcto: duplica el sprite y hace swap cuando sale
-//  2. Factor 0 = fondo completamente estático
-//  3. Compatible con Cinemachine — lee posición de la cámara
-//     directamente, no depende de sorting layers de Cinemachine
-//
-//  SETUP por capa:
-//  · Añade este script al GameObject que tiene el SpriteRenderer
-//  · Asigna el mismo sprite en "spriteRenderer" del Inspector
-//  · Ajusta parallaxFactorX (0 = estático, 1 = se mueve mucho)
-// ============================================================
-
-[RequireComponent(typeof(SpriteRenderer))]
 public class ParallaxLayer : MonoBehaviour
 {
-    [Header("Movimiento")]
-    [Tooltip("0 = completamente estático.\n0.1-0.3 = movimiento sutil (capas lejanas).\n0.5-0.8 = movimiento notable (capas cercanas).")]
     [Range(0f, 1f)]
-    public float parallaxFactorX = 0f;
-
-    [Range(0f, 1f)]
-    public float parallaxFactorY = 0f;
-
-    [Header("Loop")]
-    [Tooltip("Activa para que el sprite se repita en bucle horizontalmente.")]
+    public float parallaxFactor = 0.5f;
     public bool loopHorizontal = true;
 
-    // ── Privados ──────────────────────────────────────────────
-    private Transform _cam;
-    private Vector3 _startPos;       // posición inicial de esta capa
-    private float _spriteWidth;    // ancho del sprite en unidades mundo
-    private SpriteRenderer _sr;
+    private Transform cam;
+    private Vector3 lastCamPos;
+    private float spriteWidth;
 
-    // ── Ciclo de vida ─────────────────────────────────────────
-
-    private void Awake()
+    void Start()
     {
-        // Usa Camera.main — funciona con y sin Cinemachine
-        // Cinemachine mueve la cámara real, Camera.main siempre apunta a ella
-        _cam = Camera.main.transform;
-        _sr = GetComponent<SpriteRenderer>();
-
-        _startPos = transform.position;
-        _spriteWidth = _sr.bounds.size.x;
+        cam = Camera.main.transform;
+        lastCamPos = cam.position;
+        spriteWidth = GetComponent<SpriteRenderer>().bounds.size.x;
     }
 
-    private void LateUpdate()
+    void OnEnable()
     {
-        // ── Parallax ───────────────────────────────────────────
-        // Desplazamiento relativo a la posición inicial de la cámara
-        // parallaxFactor 0 → posición fija (estático)
-        // parallaxFactor 1 → se mueve igual que la cámara
-        float camOffsetX = _cam.position.x * parallaxFactorX;
-        float camOffsetY = _cam.position.y * parallaxFactorY;
+        // Suscribirse al evento que Cinemachine lanza
+        // DESPUÉS de mover la cámara → orden garantizado
+        CinemachineCore.CameraUpdatedEvent.AddListener(OnCameraUpdated);
+    }
 
-        transform.position = new Vector3(
-            _startPos.x + camOffsetX,
-            _startPos.y + camOffsetY,
-            transform.position.z      // mantiene Z para el sorting
+    void OnDisable()
+    {
+        CinemachineCore.CameraUpdatedEvent.RemoveListener(OnCameraUpdated);
+    }
+
+    // Este método se llama cuando Cinemachine YA terminó de mover
+    void OnCameraUpdated(CinemachineBrain brain)
+    {
+        Vector3 delta = cam.position - lastCamPos;
+
+        transform.position += new Vector3(
+            delta.x * parallaxFactor, 0f, 0f
         );
 
-        // ── Loop horizontal ────────────────────────────────────
-        if (!loopHorizontal || _spriteWidth <= 0f) return;
+        lastCamPos = cam.position;
 
-        // Distancia entre la cámara y el centro de este sprite
-        float dist = _cam.position.x - transform.position.x;
+        if (!loopHorizontal) return;
 
-        // Si la cámara se alejó más de un ancho de sprite, hacemos jump
-        if (dist > _spriteWidth)
-            _startPos.x += _spriteWidth;
-        else if (dist < -_spriteWidth)
-            _startPos.x -= _spriteWidth;
+        float dist = cam.position.x - transform.position.x;
+        if (Mathf.Abs(dist) > spriteWidth)
+        {
+            transform.position += new Vector3(
+                spriteWidth * Mathf.Sign(dist), 0f, 0f
+            );
+        }
     }
 }

@@ -34,6 +34,7 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>Llamado desde PlayerCore.Update()</summary>
     public void HandleInput()
     {
+        
         if (state.isAttacking)
         {
             state.moveInput = 0;
@@ -41,17 +42,13 @@ public class PlayerMovement : MonoBehaviour
         else
         {
             state.moveInput = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f)
-                            - (Input.GetKey(KeyCode.LeftArrow)  ? 1f : 0f);
+                            - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
 
-
-            if (state.moveInput != 0)
-            {
-                anim.SetBool("isWalking", true);
-            }
-            else
-            {
-                anim.SetBool("isWalking", false);
-            }
+            // ✅ Solo camina si está en el suelo Y moviéndose
+            bool isWalking = state.moveInput != 0 && groundCheck.isGrounded;
+            anim.SetBool("isWalking", isWalking);
+            bool isCrouching = Input.GetKey(KeyCode.DownArrow) && groundCheck.isGrounded;
+            anim.SetBool("isCrouching", isCrouching);
         }
     }
 

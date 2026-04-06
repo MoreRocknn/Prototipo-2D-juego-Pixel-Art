@@ -1,7 +1,3 @@
-// ============================================================
-// CameraLookDown.cs — Look down combinando ScreenPosition + FollowOffset
-// Unity 6 + Cinemachine 3.x — Cámara Ortográfica 2D
-// ============================================================
 using UnityEngine;
 using Unity.Cinemachine;
 
@@ -11,21 +7,12 @@ public class CameraLookDown : MonoBehaviour
     public KeyCode lookDownKey = KeyCode.DownArrow;
     public KeyCode lookUpKey = KeyCode.UpArrow;
 
-    [Header("=== SCREEN POSITION (0.5 max por Cinemachine) ===")]
-    [Tooltip("Screen Y al mirar abajo — el jugador sube en pantalla")]
+    [Header("=== SCREEN POSITION ===")]
     [Range(-0.49f, 0f)]
     public float lookDownScreenY = -0.49f;
 
-    [Tooltip("Screen Y al mirar arriba")]
     [Range(0f, 0.49f)]
     public float lookUpScreenY = 0.49f;
-
-    [Header("=== FOLLOW OFFSET EXTRA (para bajar más) ===")]
-    [Tooltip("Unidades extra que baja la cámara al mirar abajo (suma al Screen Position)")]
-    public float lookDownOffsetExtra = -4f;
-
-    [Tooltip("Unidades extra que sube la cámara al mirar arriba")]
-    public float lookUpOffsetExtra = 4f;
 
     [Header("=== TIMING ===")]
     public float holdDelay = 0.2f;
@@ -34,15 +21,10 @@ public class CameraLookDown : MonoBehaviour
     [Header("=== REFERENCIAS ===")]
     public CinemachineCamera cinemachineCamera;
 
-    // ── Privadas ──────────────────────────────────────────────
     private CinemachinePositionComposer composer;
-    private CinemachineFollow follow;
     private float baseScreenY;
-    private float baseOffsetY;
     private float currentScreenY;
-    private float currentOffsetY;
     private float targetScreenY;
-    private float targetOffsetY;
     private float holdTimer;
     private bool isLooking;
 
@@ -52,18 +34,13 @@ public class CameraLookDown : MonoBehaviour
             cinemachineCamera = FindFirstObjectByType<CinemachineCamera>();
 
         if (cinemachineCamera != null)
-        {
             composer = cinemachineCamera.GetComponent<CinemachinePositionComposer>();
-            follow = cinemachineCamera.GetComponent<CinemachineFollow>();
-        }
 
-        if (composer != null) baseScreenY = composer.Composition.ScreenPosition.y;
-        if (follow != null) baseOffsetY = follow.FollowOffset.y;
+        if (composer != null)
+            baseScreenY = composer.Composition.ScreenPosition.y;
 
         currentScreenY = baseScreenY;
-        currentOffsetY = baseOffsetY;
         targetScreenY = baseScreenY;
-        targetOffsetY = baseOffsetY;
     }
 
     void Update()
@@ -78,9 +55,6 @@ public class CameraLookDown : MonoBehaviour
             {
                 isLooking = true;
                 targetScreenY = pressingDown ? lookDownScreenY : lookUpScreenY;
-                targetOffsetY = pressingDown
-                    ? baseOffsetY + lookDownOffsetExtra
-                    : baseOffsetY + lookUpOffsetExtra;
             }
         }
         else
@@ -90,26 +64,16 @@ public class CameraLookDown : MonoBehaviour
             {
                 isLooking = false;
                 targetScreenY = baseScreenY;
-                targetOffsetY = baseOffsetY;
             }
         }
 
-        float t = Time.deltaTime * smoothSpeed;
-        currentScreenY = Mathf.Lerp(currentScreenY, targetScreenY, t);
-        currentOffsetY = Mathf.Lerp(currentOffsetY, targetOffsetY, t);
+        currentScreenY = Mathf.Lerp(currentScreenY, targetScreenY, Time.deltaTime * smoothSpeed);
 
         if (composer != null)
         {
             var comp = composer.Composition;
             comp.ScreenPosition.y = currentScreenY;
             composer.Composition = comp;
-        }
-
-        if (follow != null)
-        {
-            Vector3 offset = follow.FollowOffset;
-            offset.y = currentOffsetY;
-            follow.FollowOffset = offset;
         }
     }
 }

@@ -1,13 +1,11 @@
 using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// Gestiona el sistema de combos tipo Blasphemous:
-/// combo de 3 golpes, ataques laterales/abajo, efectos visuales y camera shake.
-/// </summary>
 [RequireComponent(typeof(PlayerState))]
 public class PlayerCombat : MonoBehaviour
 {
+    [Header("Animator")]
+    private Animator anim;
     [Header("=== SLASH EFFECT ===")]
     [Tooltip("Prefab del efecto de slash blanco estilo Hollow Knight")]
     public GameObject slashEffectPrefab;
@@ -60,6 +58,7 @@ public class PlayerCombat : MonoBehaviour
 
     void Awake()
     {
+        anim = GetComponent<Animator>();
         state = GetComponent<PlayerState>();
         rb = GetComponent<Rigidbody2D>();
     }
@@ -85,7 +84,6 @@ public class PlayerCombat : MonoBehaviour
         }
     }
 
-    /// <summary>Llamado desde PlayerCore.Update()</summary>
     public void HandleComboReset()
     {
         if (Time.time - state.lastAttackTime > comboResetTime && state.currentComboStep > 0)
@@ -100,7 +98,6 @@ public class PlayerCombat : MonoBehaviour
         state.currentComboStep = 0;
     }
 
-    /// <summary>Llamado desde PlayerCore.Update()</summary>
     public void HandleAbilityInput()
     {
         var abilityHolder = GetComponent<AbilityHolder>();
@@ -108,7 +105,6 @@ public class PlayerCombat : MonoBehaviour
             abilityHolder.UseAbility();
     }
 
-    /// <summary>Llamado desde PlayerCore.Update()</summary>
     public void HandleBounceReset()
     {
         if (Time.time - state.lastBounceTime > bounceResetTime && !groundCheck.isGrounded)
@@ -127,6 +123,10 @@ public class PlayerCombat : MonoBehaviour
         GameObject effectPrefab = null;
         Color flashColor = Color.white;
         float knockbackMultiplier = 1f;
+
+        // ✅ Declarado antes del switch para que sea accesible después
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color originalColor = sr != null ? sr.color : Color.white;
 
         switch (state.currentComboStep)
         {
@@ -150,7 +150,6 @@ public class PlayerCombat : MonoBehaviour
                 flashColor = combo3Color;
                 knockbackMultiplier = 2f;
                 Debug.Log("💥⚔️⚔️⚔️ COMBO 3 - GOLPE FINAL!");
-
                 if (enableCombo3Shake && CameraShake.Instance != null)
                 {
                     if (useImpactShake)
@@ -161,15 +160,14 @@ public class PlayerCombat : MonoBehaviour
                 break;
         }
 
-        // Flash de color
-        SpriteRenderer sr = GetComponent<SpriteRenderer>();
-        Color originalColor = sr != null ? sr.color : Color.white;
         if (sr != null) sr.color = flashColor;
 
-        // Instanciar efecto
+        // ✅ Primero SetInteger con el valor correcto, luego el trigger
+        anim.SetInteger("ComboStep", state.currentComboStep + 1);
+        anim.SetTrigger("Attack");
+
         SpawnAttackEffect(effectPrefab);
 
-        // Slash effect estilo Hollow Knight
         if (slashEffectPrefab != null && attackPoint != null)
         {
             int slashDir = state.isFacingRight ? 1 : -1;
@@ -178,7 +176,6 @@ public class PlayerCombat : MonoBehaviour
             slash.GetComponent<SlashEffect>()?.Play(slashDir, slashSize);
         }
 
-        // Knockback al jugador en aire
         if (!state.isAttackingDown && !groundCheck.isGrounded)
         {
             float knockDir = state.isFacingRight ? -1 : 1;
@@ -186,13 +183,12 @@ public class PlayerCombat : MonoBehaviour
             rb.AddForce(new Vector2(knockDir * knockAmount, 0), ForceMode2D.Impulse);
         }
 
-        // Ejecutar ataque
         if (state.isAttackingDown && enableDownAttack)
             HandleDownAttack();
         else
             HandleSideAttack(damage, knockbackMultiplier);
 
-        // Avanzar combo
+        // ✅ Incremento después de que ya se usó el valor correcto arriba
         state.currentComboStep++;
         if (state.currentComboStep > 2) state.currentComboStep = 0;
 
@@ -277,7 +273,6 @@ public class PlayerCombat : MonoBehaviour
         if (enemy != null)
         {
             enemy.TakeDamage(damage, knockbackDir);
-            // Golpe final del combo = Heavy, resto = Light
             bool isFinal = state != null && state.currentComboStep == 0;
             SpriteRenderer sr = col.GetComponent<SpriteRenderer>();
             HitImpactSystem.Instance?.OnHit(

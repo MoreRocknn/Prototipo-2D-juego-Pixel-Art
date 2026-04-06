@@ -7,6 +7,9 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerState))]
 public class PlayerJump : MonoBehaviour
 {
+    [Header("Animator")]
+    private Animator anim;
+
     [Header("Salto")]
     public float jumpForce = 14f;
     public float jumpCutMultiplier = 0.5f;
@@ -28,6 +31,7 @@ public class PlayerJump : MonoBehaviour
 
     void Awake()
     {
+        anim = GetComponent<Animator>();
         state = GetComponent<PlayerState>();
         rb    = GetComponent<Rigidbody2D>();
     }
@@ -65,7 +69,19 @@ public class PlayerJump : MonoBehaviour
                     rb.linearVelocity.x,
                     rb.linearVelocity.y * jumpCutMultiplier
                 );
+
         }
+        bool isGrounded = groundCheck.isGrounded;
+        bool rising = rb.linearVelocity.y > 0.1f;
+        bool falling = rb.linearVelocity.y < -0.1f && !isGrounded;
+
+        // ✅ isJumping = true mientras esté en el aire (subiendo O bajando)
+        bool onWall = state.isTouchingWall && !groundCheck.isGrounded;
+
+        anim.SetBool("isWallSliding", onWall);
+        anim.SetBool("isJumping", !isGrounded && !onWall);
+
+
     }
 
     /// <summary>Llamado desde PlayerCore.FixedUpdate()</summary>

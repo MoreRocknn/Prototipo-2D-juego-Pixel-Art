@@ -1,24 +1,16 @@
 using System.Collections;
 using UnityEngine;
 
-// ============================================================
-//  PLAYER HEALTH
-//  Gestiona la vida del jugador:
-//
-//  - TakeDamage: recibir daño con knockback y parpadeo
-//  - Invincibility frames: no puede recibir daño durante un tiempo
-//  - Die / Respawn: morir y reaparecer desde el último checkpoint
-//  - Heal: recuperar vida (por ejemplo al usar una poción)
-//  - HealthBar: la barra de vida se crea automáticamente al iniciar
-// ============================================================
 [RequireComponent(typeof(PlayerState))]
 public class PlayerHealth : MonoBehaviour
 {
+    private Animator anim;
+    private bool hasDied = false;
+
     [Header("Vida")]
     [Tooltip("Vida máxima del jugador")]
     public int maxHealth = 3;
 
-    // La vida actual es pública para poder verla en el Inspector durante el juego
     public int currentHealth;
 
     [Header("Daño e invencibilidad")]
@@ -38,7 +30,10 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("Posición de la barra relativa al jugador. Y positivo = encima")]
     public Vector3 healthBarOffset = new Vector3(0f, 1.2f, 0f);
 
-    // Referencias internas
+    [Header("Muerte")]
+    [Tooltip("Segundos a esperar antes de mostrar la pantalla de muerte (duración animación)")]
+    public float deathAnimationTime = 1.2f;
+
     private PlayerState state;
     private Rigidbody2D rb;
     private PlayerCombat combat;
@@ -47,6 +42,7 @@ public class PlayerHealth : MonoBehaviour
 
     void Awake()
     {
+        anim = GetComponent<Animator>();
         state = GetComponent<PlayerState>();
         rb = GetComponent<Rigidbody2D>();
         combat = GetComponent<PlayerCombat>();
@@ -59,7 +55,6 @@ public class PlayerHealth : MonoBehaviour
         SpawnHealthBar();
     }
 
-    // ── Crear la barra de vida al iniciar ──────────────────────
     private void SpawnHealthBar()
     {
         if (!showHealthBar) return;
@@ -78,9 +73,9 @@ public class PlayerHealth : MonoBehaviour
         healthBar.ForceShow();
     }
 
-    // ── Recibir daño ───────────────────────────────────────────
     public void TakeDamage(int damage)
     {
+        if (hasDied) return;
         if (state.isDamageInvincible)
         {
             Debug.Log("Invencible, daño ignorado");
@@ -90,7 +85,6 @@ public class PlayerHealth : MonoBehaviour
         currentHealth = Mathf.Max(currentHealth - damage, 0);
         Debug.Log($"Daño recibido: {damage} → Vida: {currentHealth}/{maxHealth}");
 
-        // Game feel: hitstop + shake cuando el jugador recibe daño
         HitImpactSystem.Instance?.OnPlayerHit(GetComponent<SpriteRenderer>());
 
         healthBar?.UpdateHealth(currentHealth, maxHealth);
@@ -103,7 +97,6 @@ public class PlayerHealth : MonoBehaviour
             StartCoroutine(DamageInvincibility());
     }
 
-    // ── Curar al jugador ────────────────────────────────────────
     public void Heal(int amount)
     {
         currentHealth = Mathf.Min(currentHealth + amount, maxHealth);
@@ -111,7 +104,6 @@ public class PlayerHealth : MonoBehaviour
         Debug.Log($"Curado: +{amount} → Vida: {currentHealth}/{maxHealth}");
     }
 
-    // ── Knockback ───────────────────────────────────────────────
     private void ApplyKnockback()
     {
         float knockbackDir = 1f;
@@ -134,7 +126,6 @@ public class PlayerHealth : MonoBehaviour
         );
     }
 
-    // ── Parpadeo de invencibilidad ──────────────────────────────
     private IEnumerator DamageInvincibility()
     {
         state.isDamageInvincible = true;
@@ -153,14 +144,41 @@ public class PlayerHealth : MonoBehaviour
         state.isDamageInvincible = false;
     }
 
-    // ── Muerte ──────────────────────────────────────────────────
     private void Die()
     {
-        Debug.Log("¡Jugador murió!");
+        if (hasDied) return;
+        hasDied = true;
 
-        // Mostrar pantalla de muerte estilo Dark Souls
+        // Cancelar todos los coroutines activos (invencibilidad, ataques, etc.)
+        StopAllCoroutines();
+
+        // Resetear estados
+        state.isAttacking = false;
+        state.isDashing = false;
+        state.isInputLocked = false;
+        state.isDamageInvincible = false;
+
+        // Resetear color del sprite por si estaba parpadeando
+        if (spriteRenderer != null)
+            spriteRenderer.color = Color.white;
+
+        rb.linearVelocity = Vector2.zero;
+        rb.bodyType = RigidbodyType2D.Static;
+
+        StartCoroutine(PlayDeathSequence());
+    }
+    private IEnumerator PlayDeathSequence()
+    {
+        // Espera un frame para que el Animator procese el reset de estados
+        yield return null;
+
+        if (anim != null)
+            anim.SetTrigger("isDead");
+
+        // Espera la duración de la animación de muerte
+        yield return new WaitForSeconds(deathAnimationTime);
+
         DeathScreen.Instance?.Show();
-
         AbilityAbsorptionManager.Instance?.OnPlayerDeath();
         GetComponent<HealingSystem>()?.OnPlayerDeath();
         GetComponent<BloodPoolTransform>()?.ResetUses();
@@ -174,13 +192,13 @@ public class PlayerHealth : MonoBehaviour
             );
     }
 
-    // ── Respawn ─────────────────────────────────────────────────
     private IEnumerator RespawnAfterDeath()
     {
-        enabled = false;
-        if (spriteRenderer != null) spriteRenderer.enabled = false;
+        // Espera a que el jugador pulse continuar en la DeathScreen
+        yield return new WaitUntil(() => !DeathScreen.Instance.IsShowing);
 
-        yield return new WaitForSeconds(1f);
+        // Ocultar solo en el momento de teletransportar
+        if (spriteRenderer != null) spriteRenderer.enabled = false;
 
         currentHealth = maxHealth;
         state.currentComboStep = 0;
@@ -189,11 +207,18 @@ public class PlayerHealth : MonoBehaviour
         if (GameManager.Instance != null)
             transform.position = GameManager.Instance.GetRespawnPosition();
 
+        // Resetear el Animator para salir del estado de muerte
+        anim.Rebind();
+        anim.Update(0f);
+
         if (spriteRenderer != null) spriteRenderer.enabled = true;
         rb.linearVelocity = Vector2.zero;
+        rb.bodyType = RigidbodyType2D.Dynamic;
         enabled = true;
 
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         healthBar?.ForceShow();
+
+        hasDied = false;
     }
 }
