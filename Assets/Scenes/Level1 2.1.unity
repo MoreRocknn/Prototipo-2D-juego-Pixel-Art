@@ -9820,6 +9820,7 @@ GameObject:
   - component: {fileID: 451731786}
   - component: {fileID: 451731785}
   - component: {fileID: 451731784}
+  - component: {fileID: 451731789}
   m_Layer: 7
   m_Name: Boss
   m_TagString: Enemy
@@ -10050,9 +10051,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1aa213d9b131684a934ae67e22687fb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 40
-  bodyContactDamage: 1
-  bodyDamageCooldown: 1
+  maxHealth: 150
+  bodyContactDamage: 2
+  bodyDamageCooldown: 2
   deathDelay: 5
   victorySceneName: VictoryScene
   victorySceneDuration: 5
@@ -10172,10 +10173,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   meleeAttackPoint: {fileID: 972853156}
   meleeAttackBoxSize: {x: 8.73, y: 9.65}
-  meleeAttackDamage: 2
+  meleeAttackDamage: 3
   meleeWindup: 0.4
   meleeDashForce: 50
   meleeKnockback: 20
+--- !u!114 &451731789
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451731771}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba3cf3d0c5d3add4dba84cedc70e516d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &460938816
 GameObject:
   m_ObjectHideFlags: 0
@@ -13205,7 +13218,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &865530617
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -55472,9 +55485,9 @@ MonoBehaviour:
   combo1Effect: {fileID: 123128492}
   combo2Effect: {fileID: 123128492}
   combo3Effect: {fileID: 123128492}
-  combo1Color: {r: 1, g: 1, b: 1, a: 1}
-  combo2Color: {r: 1, g: 0.8, b: 0, a: 1}
-  combo3Color: {r: 1, g: 0, b: 0, a: 1}
+  combo1Color: {r: 1, g: 1, b: 1, a: 0}
+  combo2Color: {r: 1, g: 0.8, b: 0, a: 0}
+  combo3Color: {r: 1, g: 0, b: 0, a: 0}
   enableCombo3Shake: 1
   combo3ShakeDuration: 0.25
   combo3ShakeMagnitude: 0.5
