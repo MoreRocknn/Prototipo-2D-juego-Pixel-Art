@@ -322,8 +322,8 @@ MonoBehaviour:
   tiempoRecargaAtaque: 1.5
   tiempoGuardia: 0.8
   toleranciaAlineacion: 0.5
-  colorGuardia: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  colorAtaque: {r: 1, g: 0, b: 0, a: 1}
+  colorGuardia: {r: 1, g: 1, b: 1, a: 1}
+  colorAtaque: {r: 1, g: 1, b: 1, a: 1}
   colorDanado: {r: 1, g: 1, b: 1, a: 1}
   parametroVelocidad: speed
   parametroEstado: state

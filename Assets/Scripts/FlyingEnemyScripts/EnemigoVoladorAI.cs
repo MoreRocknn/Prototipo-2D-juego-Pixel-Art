@@ -167,15 +167,32 @@ public class EnemigoVoladorAI : MonoBehaviour
         GetComponent<EnemigoVoladorAnimator>()?.Actualizar();
     }
 
+    // ── FIX 1: Gizmos siguen al enemigo en runtime ────────────────────────
     void OnDrawGizmosSelected()
     {
-        // Null check: d puede ser null en el editor antes de Awake
         if (d == null) d = GetComponent<EnemigoVoladorData>();
         if (d == null) return;
-        Vector2 c = Application.isPlaying ? d.posicionInicial : (Vector2)transform.position;
-        Gizmos.color = Color.yellow; Gizmos.DrawWireSphere(c, d.rangoDeteccion);
-        Gizmos.color = Color.red; Gizmos.DrawWireSphere(c, d.rangoAtaque);
-        Gizmos.color = new Color(0, 1, 0, 0.3f); Gizmos.DrawWireCube(c, d.tamanoAreaPatrulla);
-        if (d.puntoAtaque) { Gizmos.color = Color.magenta; Gizmos.DrawWireSphere(d.puntoAtaque.position, d.radioAtaque); }
+
+        Vector2 pos = (Vector2)transform.position;                         // posición real del enemigo — SIEMPRE se mueve con él
+        Vector2 origen = Application.isPlaying ? d.posicionInicial : pos;    // área de patrulla anclada al punto de spawn
+
+        // Rango de detección — círculo amarillo, sigue al enemigo
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(pos, d.rangoDeteccion);
+
+        // Rango de ataque — círculo rojo, sigue al enemigo
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(pos, d.rangoAtaque);
+
+        // Área de patrulla — anclada al spawn (correcto, no cambia)
+        Gizmos.color = new Color(0, 1, 0, 0.3f);
+        Gizmos.DrawWireCube(origen, d.tamanoAreaPatrulla);
+
+        // Punto exacto de golpe del ataque — magenta, sigue al puntoAtaque hijo
+        if (d.puntoAtaque)
+        {
+            Gizmos.color = Color.magenta;
+            Gizmos.DrawWireSphere(d.puntoAtaque.position, d.radioAtaque);
+        }
     }
 }

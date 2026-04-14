@@ -13,12 +13,18 @@ public class EnemigoVoladorHealth : MonoBehaviour
 
     void Awake()
     {
-        d   = GetComponent<EnemigoVoladorData>();
-        sr  = GetComponent<SpriteRenderer>();
-        rb  = GetComponent<Rigidbody2D>();
+        d = GetComponent<EnemigoVoladorData>();
+        sr = GetComponent<SpriteRenderer>();
+        rb = GetComponent<Rigidbody2D>();
         col = GetComponent<Collider2D>();
-    }
 
+        if (sr) d.colorOriginal = sr.color;
+        // Guardar color original AQUÍ, antes de cualquier cambio
+        if (sr) d.colorOriginal = sr.color;
+
+        // Inicializar vida
+        d.vidaActual = d.vidaMaxima;
+    }
     // ── Recibir daño (llamado desde PlayerCombat) ─────────────
     public void TakeDamage(int dano, float direccionKnockback)
     {
@@ -62,6 +68,7 @@ public class EnemigoVoladorHealth : MonoBehaviour
 
     void Morir()
     {
+        StopAllCoroutines(); // <-- añade esto
         rb.linearVelocity = Vector2.zero;
         rb.simulated = false;
         if (col) col.enabled = false;

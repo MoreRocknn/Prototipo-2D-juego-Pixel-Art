@@ -8,30 +8,19 @@ public class PlayerHealth : MonoBehaviour
     private bool hasDied = false;
 
     [Header("Vida")]
-    [Tooltip("Vida máxima del jugador")]
     public int maxHealth = 3;
-
     public int currentHealth;
 
     [Header("Daño e invencibilidad")]
-    [Tooltip("Segundos de invencibilidad después de recibir daño")]
     public float damageInvincibilityTime = 1f;
-
-    [Tooltip("Fuerza del empujón al recibir daño. X = horizontal, Y = vertical")]
     public Vector2 damageKnockbackForce = new Vector2(5f, 5f);
-
-    [Tooltip("Color del parpadeo al recibir daño")]
     public Color damageColor = new Color(1f, 0.3f, 0.3f);
 
     [Header("Barra de vida")]
-    [Tooltip("¿Mostrar barra de vida encima del jugador?")]
     public bool showHealthBar = true;
-
-    [Tooltip("Posición de la barra relativa al jugador. Y positivo = encima")]
     public Vector3 healthBarOffset = new Vector3(0f, 1.2f, 0f);
 
     [Header("Muerte")]
-    [Tooltip("Segundos a esperar antes de mostrar la pantalla de muerte (duración animación)")]
     public float deathAnimationTime = 1.2f;
 
     private PlayerState state;
@@ -55,20 +44,31 @@ public class PlayerHealth : MonoBehaviour
         SpawnHealthBar();
     }
 
+    // ── Fix 3: suscripción al evento de pantalla negra ────────────────────
+    void OnEnable()
+    {
+        DeathScreen.OnPantallaNegraCompleta += ResetearEnemigos;
+    }
+
+    void OnDisable()
+    {
+        DeathScreen.OnPantallaNegraCompleta -= ResetearEnemigos;
+    }
+
+    // Se ejecuta mientras la pantalla está en negro → sin pop-in visible
+    void ResetearEnemigos()
+    {
+        // EnemyManager ya hace RespawnAllEnemies, pero lo llamábamos
+        // en PlayDeathSequence ANTES del fade → pop-in visible.
+        // Ahora se llama aquí, tapado por el negro.
+        EnemyManager.Instance?.RespawnAllEnemies();
+    }
+
     private void SpawnHealthBar()
     {
         if (!showHealthBar) return;
-
-        if (HealthBarFactory.Instance == null)
-        {
-            Debug.LogWarning("[PlayerHealth] No hay HealthBarFactory en la escena.");
-            return;
-        }
-
-        healthBar = HealthBarFactory.Instance.CreateHealthBar(
-            transform, currentHealth, maxHealth, healthBarOffset
-        );
-
+        if (HealthBarFactory.Instance == null) { Debug.LogWarning("[PlayerHealth] No hay HealthBarFactory en la escena."); return; }
+        healthBar = HealthBarFactory.Instance.CreateHealthBar(transform, currentHealth, maxHealth, healthBarOffset);
         healthBar.alwaysShow = true;
         healthBar.ForceShow();
     }
@@ -76,25 +76,18 @@ public class PlayerHealth : MonoBehaviour
     public void TakeDamage(int damage)
     {
         if (hasDied) return;
-        if (state.isDamageInvincible)
-        {
-            Debug.Log("Invencible, daño ignorado");
-            return;
-        }
+        if (state.isDamageInvincible) { Debug.Log("Invencible, daño ignorado"); return; }
 
         currentHealth = Mathf.Max(currentHealth - damage, 0);
         Debug.Log($"Daño recibido: {damage} → Vida: {currentHealth}/{maxHealth}");
 
         HitImpactSystem.Instance?.OnPlayerHit(GetComponent<SpriteRenderer>());
-
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         combat?.ResetCombo();
         ApplyKnockback();
 
-        if (currentHealth <= 0)
-            Die();
-        else
-            StartCoroutine(DamageInvincibility());
+        if (currentHealth <= 0) Die();
+        else StartCoroutine(DamageInvincibility());
     }
 
     public void Heal(int amount)
@@ -107,32 +100,21 @@ public class PlayerHealth : MonoBehaviour
     private void ApplyKnockback()
     {
         float knockbackDir = 1f;
-
         GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
         float closest = Mathf.Infinity;
         foreach (GameObject enemy in enemies)
         {
             float dist = Vector2.Distance(transform.position, enemy.transform.position);
-            if (dist < closest)
-            {
-                closest = dist;
-                knockbackDir = transform.position.x > enemy.transform.position.x ? 1f : -1f;
-            }
+            if (dist < closest) { closest = dist; knockbackDir = transform.position.x > enemy.transform.position.x ? 1f : -1f; }
         }
-
-        rb.linearVelocity = new Vector2(
-            knockbackDir * damageKnockbackForce.x,
-            damageKnockbackForce.y
-        );
+        rb.linearVelocity = new Vector2(knockbackDir * damageKnockbackForce.x, damageKnockbackForce.y);
     }
 
     private IEnumerator DamageInvincibility()
     {
         state.isDamageInvincible = true;
-
         Color originalColor = spriteRenderer != null ? spriteRenderer.color : Color.white;
         float interval = damageInvincibilityTime / 10f;
-
         for (int i = 0; i < 5; i++)
         {
             if (spriteRenderer != null) spriteRenderer.color = damageColor;
@@ -140,7 +122,6 @@ public class PlayerHealth : MonoBehaviour
             if (spriteRenderer != null) spriteRenderer.color = originalColor;
             yield return new WaitForSeconds(interval);
         }
-
         state.isDamageInvincible = false;
     }
 
@@ -148,7 +129,6 @@ public class PlayerHealth : MonoBehaviour
     {
         if (hasDied) return;
         hasDied = true;
-
         StopAllCoroutines();
 
         state.isAttacking = false;
@@ -156,9 +136,7 @@ public class PlayerHealth : MonoBehaviour
         state.isInputLocked = false;
         state.isDamageInvincible = false;
 
-        if (spriteRenderer != null)
-            spriteRenderer.color = Color.white;
-
+        if (spriteRenderer != null) spriteRenderer.color = Color.white;
         rb.linearVelocity = Vector2.zero;
         rb.bodyType = RigidbodyType2D.Static;
 
@@ -168,43 +146,46 @@ public class PlayerHealth : MonoBehaviour
     private IEnumerator PlayDeathSequence()
     {
         yield return null;
-
-        if (anim != null)
-            anim.SetTrigger("isDead");
-
+        if (anim != null) anim.SetTrigger("isDead");
         yield return new WaitForSeconds(deathAnimationTime);
 
-        DeathScreen.Instance?.Show();
+        // ── Fix 3: EnemyManager.RespawnAllEnemies() se movió a ResetearEnemigos()
+        //    que se llama desde el evento OnPantallaNegraCompleta, tapado por el negro.
+        //    Aquí solo lanzamos las cosas que no tienen pop-in visual.
         AbilityAbsorptionManager.Instance?.OnPlayerDeath();
         GetComponent<HealingSystem>()?.OnPlayerDeath();
         GetComponent<BloodPoolTransform>()?.ResetUses();
-        EnemyManager.Instance?.RespawnAllEnemies();
+
+        DeathScreen.Instance?.Show(); // dispara el fade → al terminar lanza OnPantallaNegraCompleta → ResetearEnemigos
 
         if (GameManager.Instance != null)
             StartCoroutine(RespawnAfterDeath());
         else
             UnityEngine.SceneManagement.SceneManager.LoadScene(
-                UnityEngine.SceneManagement.SceneManager.GetActiveScene().name
-            );
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
     }
 
     private IEnumerator RespawnAfterDeath()
     {
         yield return new WaitUntil(() => !DeathScreen.Instance.IsShowing);
 
+        // Ocultar al jugador mientras reposicionamos
         if (spriteRenderer != null) spriteRenderer.enabled = false;
 
         currentHealth = maxHealth;
         state.currentComboStep = 0;
         state.isDamageInvincible = false;
 
-        if (GameManager.Instance != null)
-            transform.position = GameManager.Instance.GetRespawnPosition();
+        // Mover al jugador al checkpoint
+        Vector3 respawnPos = GameManager.Instance != null
+            ? GameManager.Instance.GetRespawnPosition()
+            : transform.position;
+        transform.position = respawnPos;
 
-        // Resetear el boss DESPUÉS de reposicionar al jugador,
-        // así el boss no detecta al jugador en rango al resetearse
-        BossController boss = FindFirstObjectByType<BossController>();
-        if (boss != null) boss.ResetState();
+        // ── Fix 2: cámara TP instantáneo DESPUÉS de mover al jugador ─────────
+        // RespawnToCamera activa la cámara guardada en el último checkpoint
+        // y hace un cut (sin blend) para que no se vea el viaje de cámara.
+        CameraManager.instance?.RespawnToCamera(respawnPos);
 
         anim.Rebind();
         anim.Update(0f);
@@ -216,8 +197,6 @@ public class PlayerHealth : MonoBehaviour
 
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         healthBar?.ForceShow();
-
-        CameraManager.instance?.RespawnToCamera(transform.position);
 
         hasDied = false;
     }

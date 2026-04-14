@@ -60,7 +60,11 @@ public class CheckPoint : MonoBehaviour
     public Color normalButtonColor = new Color(0.8f, 0.75f, 0.65f);
     public Color selectedButtonColor = new Color(0.76f, 0.6f, 0.23f);
 
-    [HideInInspector] public CinemachineCamera savedCamera;
+    [Header("=== CAMARA ===")]
+    [Tooltip("Opcional: asigna aquí la cámara Cinemachine que debe usarse al respawnear " +
+             "en este checkpoint. Si lo dejas vacío se usará la cámara activa en el momento " +
+             "en que el jugador toque este checkpoint.")]
+    public CinemachineCamera overrideRespawnCamera;
 
     private bool playerNearby = false;
     private bool menuActive = false;
@@ -158,14 +162,20 @@ public class CheckPoint : MonoBehaviour
     {
         isActivated = true;
 
+        // Guardar posición del checkpoint en el GameManager
+        GameManager.Instance?.SetCheckpoint(transform.position);
+
+        // Guardar la cámara de respawn para este checkpoint:
+        // - Si hay una cámara asignada manualmente en el inspector → usarla
+        // - Si no → usar la que esté activa en este momento (la que ya activó el trigger de zona)
         if (CameraManager.instance != null)
         {
-            savedCamera = CameraManager.instance.GetCurrentCamera();
-            // ¡NUEVO! Guardamos la cámara en el Manager
-            CameraManager.instance.SaveCheckpointCamera(savedCamera);
+            if (overrideRespawnCamera != null)
+                CameraManager.instance.SaveCheckpointCamera(overrideRespawnCamera);
+            else
+                CameraManager.instance.SaveCheckpointCamera(); // guarda _currentCamera
         }
 
-        GameManager.Instance?.SetCheckpoint(transform.position);
         UpdateVisuals();
         if (activationEffect) activationEffect.Play();
         if (audioSource && activationSound) audioSource.PlayOneShot(activationSound);
@@ -284,19 +294,21 @@ public class CheckPoint : MonoBehaviour
 
         GameManager.Instance?.SetCheckpoint(transform.position);
 
+        // Actualizar cámara de respawn también al descansar
+        if (CameraManager.instance != null)
+        {
+            if (overrideRespawnCamera != null)
+                CameraManager.instance.SaveCheckpointCamera(overrideRespawnCamera);
+            else
+                CameraManager.instance.SaveCheckpointCamera();
+        }
+
         if (healOnRest && playerHealth != null)
             playerHealth.Heal(playerHealth.maxHealth);
 
         if (refillVialsOnRest && healingSys) healingSys.RefillVials();
         if (resetEnemiesOnRest) EnemyManager.Instance?.RespawnAllEnemies();
         if (audioSource && refillSound) audioSource.PlayOneShot(refillSound);
-
-        if (CameraManager.instance != null)
-        {
-            savedCamera = CameraManager.instance.GetCurrentCamera();
-            // ¡NUEVO! Guardamos la cámara en el Manager
-            CameraManager.instance.SaveCheckpointCamera(savedCamera);
-        }
 
         resting = false;
         CloseMenu();

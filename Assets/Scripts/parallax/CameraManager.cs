@@ -7,6 +7,7 @@ using static CameraControlTrigger;
 public class CameraManager : MonoBehaviour
 {
     public static CameraManager instance;
+
     [Header("Cámara por defecto al respawn")]
     [SerializeField] private CinemachineCamera _defaultCamera;
     [SerializeField] private CinemachineCamera[] _allVirtualCameras;
@@ -25,25 +26,24 @@ public class CameraManager : MonoBehaviour
     private CinemachinePositionComposer _positionComposer;
     private CinemachineCamera _currentCamera;
 
-    private CinemachineCamera _savedCheckpointCamera;
+    // Cámara que se usará al respawnear.
+    // Se actualiza SOLO cuando el jugador activa un checkpoint.
+    private CinemachineCamera _respawnCamera;
 
     private float _normYPanAmount;
 
     private Dictionary<CinemachineCamera, Vector3> _cameraStartingOffsets = new Dictionary<CinemachineCamera, Vector3>();
     private float _lastSwapTime = 0f;
-    private float _swapCooldown = 0.5f;
+    private float _swapCooldown = 0.1f;
 
     private void Awake()
     {
         if (instance == null)
             instance = this;
 
-        // Solo guardamos los offsets, sin asumir cuál está activa
-        for (int i = 0; i < _allVirtualCameras.Length; i++)
+        foreach (var cam in _allVirtualCameras)
         {
-            var cam = _allVirtualCameras[i];
             var composer = cam.GetComponent<CinemachinePositionComposer>();
-
             if (composer != null)
                 _cameraStartingOffsets[cam] = composer.TargetOffset;
         }
@@ -51,12 +51,12 @@ public class CameraManager : MonoBehaviour
 
     private void Start()
     {
-        // Forzamos siempre la cámara por defecto al iniciar la escena,
-        // sin importar si venimos del menú principal o del Play directo.
         ActivateCamera(_defaultCamera);
+        _respawnCamera = _defaultCamera;
     }
 
     #region Lerp the Y Damping
+
     public void LerpYDamping(bool isPlayerFalling)
     {
         if (_lerpYPanCoroutine != null)
@@ -94,9 +94,25 @@ public class CameraManager : MonoBehaviour
 
         IsLerpingYDamping = false;
     }
+
+    #endregion
+
+    #region Trigger / Zone Activation
+
+    /// <summary>
+    /// Llamado por CameraControlTrigger cuando el jugador entra en una zona.
+    /// Cambia la cámara activa pero NO toca _respawnCamera (eso lo hace el checkpoint).
+    /// </summary>
+    public void ActivateCameraFromTrigger(CinemachineCamera targetCamera)
+    {
+        if (targetCamera == _currentCamera) return;
+        ActivateCamera(targetCamera);
+    }
+
     #endregion
 
     #region Pan Camera
+
     public void PanCameraOnContact(float panDistance, float panTime, PanDirection panDirection, bool panToStartingPos)
     {
         _panCameraCoroutine = StartCoroutine(PanCamera(panDistance, panTime, panDirection, panToStartingPos));
@@ -104,6 +120,8 @@ public class CameraManager : MonoBehaviour
 
     private IEnumerator PanCamera(float panDistance, float panTime, PanDirection panDirection, bool panToStartingPos)
     {
+        if (_positionComposer == null) yield break;
+
         Vector3 endPos = Vector3.zero;
         Vector3 startingPos = Vector3.zero;
 
@@ -118,13 +136,15 @@ public class CameraManager : MonoBehaviour
             }
 
             endPos *= panDistance;
-            startingPos = _cameraStartingOffsets[_currentCamera];
+            if (_cameraStartingOffsets.TryGetValue(_currentCamera, out Vector3 offset))
+                startingPos = offset;
             endPos += startingPos;
         }
         else
         {
             startingPos = _positionComposer.TargetOffset;
-            endPos = _cameraStartingOffsets[_currentCamera];
+            if (_cameraStartingOffsets.TryGetValue(_currentCamera, out Vector3 offset))
+                endPos = offset;
         }
 
         float elapsedTime = 0f;
@@ -135,84 +155,81 @@ public class CameraManager : MonoBehaviour
             yield return null;
         }
     }
+
     #endregion
 
     #region Swap Cameras
+
     public void SwapCamera(CinemachineCamera cameraFromLeft, CinemachineCamera cameraFromRight, Vector2 triggerExitDirection)
     {
-        if (Time.time < _lastSwapTime + _swapCooldown)
-            return;
+        if (Time.time < _lastSwapTime + _swapCooldown) return;
 
         if (_currentCamera == cameraFromLeft)
         {
-            cameraFromRight.gameObject.SetActive(true);
-            cameraFromLeft.gameObject.SetActive(false);
-            _currentCamera = cameraFromRight;
-
-            var composer = _currentCamera.GetComponent<CinemachinePositionComposer>();
-            if (composer != null) _positionComposer = composer;
-
+            ActivateCamera(cameraFromRight);
             _lastSwapTime = Time.time;
         }
         else if (_currentCamera == cameraFromRight)
         {
-            cameraFromLeft.gameObject.SetActive(true);
-            cameraFromRight.gameObject.SetActive(false);
-            _currentCamera = cameraFromLeft;
-
-            var composer = _currentCamera.GetComponent<CinemachinePositionComposer>();
-            if (composer != null) _positionComposer = composer;
-
+            ActivateCamera(cameraFromLeft);
             _lastSwapTime = Time.time;
         }
     }
+
     #endregion
 
-    #region Respawn Camera
+    #region Checkpoint Camera
 
-    public CinemachineCamera GetCurrentCamera()
+    public CinemachineCamera GetCurrentCamera() => _currentCamera;
+
+    /// <summary>
+    /// El CheckPoint llama esto al activarse para guardar qué cámara
+    /// debe restaurarse cuando el jugador muera y respawnee aquí.
+    /// </summary>
+    public void SaveCheckpointCamera()
     {
-        return _currentCamera;
+        _respawnCamera = _currentCamera;
+        Debug.Log($"[CameraManager] Cámara de respawn guardada: {_respawnCamera.name}");
     }
 
+    /// <summary>
+    /// Sobrecarga: permite forzar una cámara específica desde el inspector del checkpoint.
+    /// Dejar en null para usar la cámara activa automáticamente.
+    /// </summary>
     public void SaveCheckpointCamera(CinemachineCamera cam)
     {
-        _savedCheckpointCamera = cam;
+        _respawnCamera = cam != null ? cam : _currentCamera;
+        Debug.Log($"[CameraManager] Cámara de respawn forzada: {_respawnCamera.name}");
     }
 
+    /// <summary>
+    /// Llamado desde PlayerHealth al respawnear.
+    /// Restaura la cámara del checkpoint y fuerza un cut instantáneo
+    /// para que la cámara no haga un blend visible al reaparecer.
+    ///
+    /// IMPORTANTE: llama esto ANTES de mover al jugador al checkpoint.
+    /// </summary>
+    // ── FIX 2: cut instantáneo de cámara al respawnear ────────────────────
     public void RespawnToCamera(Vector2 spawnPos)
     {
-        // 1. Si tenemos una cámara guardada del checkpoint, la usamos directamente.
-        if (_savedCheckpointCamera != null)
+        CinemachineCamera target = _respawnCamera != null ? _respawnCamera : _defaultCamera;
+        ActivateCamera(target);
+
+        // Fuerza un cut instantáneo: desactiva y reactiva el CinemachineBrain
+        // para que no interpole desde la posición de muerte hasta el checkpoint.
+        var brain = Camera.main?.GetComponent<CinemachineBrain>();
+        if (brain != null)
         {
-            ActivateCamera(_savedCheckpointCamera);
-            return;
+            brain.enabled = false;
+            brain.enabled = true;
         }
 
-        // 2. Fallback: busca si hay un collider que contenga el punto de spawn
-        CinemachineCamera targetCamera = null;
-        foreach (var cam in _allVirtualCameras)
-        {
-            Collider2D zone = cam.GetComponent<Collider2D>();
-            if (zone != null && zone.OverlapPoint(spawnPos))
-            {
-                targetCamera = cam;
-                break;
-            }
-        }
-
-        // 3. Si no hay nada, usar la de por defecto
-        if (targetCamera == null)
-            targetCamera = _defaultCamera;
-
-        ActivateCamera(targetCamera);
+        Debug.Log($"[CameraManager] Respawn → cámara activada con cut: {target.name}");
     }
 
-    public void RespawnToSpecificCamera(CinemachineCamera targetCamera)
-    {
-        if (targetCamera == null) targetCamera = _defaultCamera;
-        ActivateCamera(targetCamera);
-    }
+    #endregion
+
+    #region Core Activate
 
     private void ActivateCamera(CinemachineCamera targetCamera)
     {
@@ -238,10 +255,12 @@ public class CameraManager : MonoBehaviour
 
         _lastSwapTime = Time.time + 2f;
     }
-    #endregion
 
     public void ResetToDefaultCamera()
     {
         ActivateCamera(_defaultCamera);
+        _respawnCamera = _defaultCamera;
     }
+
+    #endregion
 }

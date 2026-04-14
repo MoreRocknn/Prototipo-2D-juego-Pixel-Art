@@ -24,6 +24,11 @@ public class DeathScreen : MonoBehaviour
 {
     public static DeathScreen Instance { get; private set; }
 
+    // ── FIX 3: evento que se dispara cuando la pantalla ya está en negro,
+    //    antes de mostrar el texto. Suscríbete aquí para resetear enemigos
+    //    sin que el jugador vea el pop-in.
+    public static event System.Action OnPantallaNegraCompleta;
+
     [Header("=== TEXTO ===")]
     [Tooltip("El texto que aparece en pantalla al morir")]
     public string deathText = "YOU DIED";
@@ -113,6 +118,10 @@ public class DeathScreen : MonoBehaviour
         // 1. Fade negro
         yield return StartCoroutine(FadeImage(blackOverlay, 0f, 1f, fadeDuration));
 
+        // ── FIX 3: pantalla completamente negra → momento seguro para resetear ──
+        // Los enemigos y el mundo se resetean aquí, el jugador no ve nada
+        OnPantallaNegraCompleta?.Invoke();
+
         // 2. Espera antes del texto
         yield return new WaitForSecondsRealtime(textDelay);
 
@@ -136,11 +145,8 @@ public class DeathScreen : MonoBehaviour
     void OnContinue()
     {
         Time.timeScale = 1f;
-        isShowing = false; // DeathZone usa WaitUntil(!IsShowing)
+        isShowing = false;
         Hide();
-        // El respawn lo gestiona quien llamó a Show():
-        // - PlayerHealth.Die() -> hace su propio RespawnAfterDeath
-        // - DeathZone -> espera IsShowing=false y hace el respawn
     }
 
     // ── Helpers de animación ──────────────────────────────────
