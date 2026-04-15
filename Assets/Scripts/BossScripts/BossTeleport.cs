@@ -1,10 +1,8 @@
 // ============================================================
 // BossTeleport.cs
-// RESPONSABILIDAD: Teletransporte defensivo del boss.
-//                  Se activa cuando recibe demasiados golpes
-//                  seguidos, para escapar del jugador.
-//
-// Para usarlo: añádelo al mismo GameObject que BossController.
+// FIX: Al finalizar el teleport llama a
+//      movement.NotifyTeleportCompleted() para que el boss
+//      NO entre en modo retreat nada mas aparecer.
 // ============================================================
 
 using UnityEngine;
@@ -12,53 +10,40 @@ using System.Collections;
 
 public class BossTeleport : MonoBehaviour
 {
-    // ─────────────────────────────────────────────────────────
-    // INSPECTOR
-    // ─────────────────────────────────────────────────────────
     [Header("=== TELETRANSPORTE DEFENSIVO ===")]
-    // Cuántos golpes recibidos antes de teletransportarse
-    public int   hitsToTriggerTeleport = 4;
+    public int hitsToTriggerTeleport = 4;
+    public float teleportDelay = 0.5f;
 
-    // Segundos de "carga" antes de reaparecer (tiempo para el jugador)
-    public float teleportDelay         = 0.5f;
+    private int currentHitCounter = 0;
+    private float lastTeleportTime = -999f;
+    private float minTeleportInterval = 3f;
 
-    // ─────────────────────────────────────────────────────────
-    // ESTADO INTERNO
-    // ─────────────────────────────────────────────────────────
-    private int   currentHitCounter   = 0;
-    private float lastTeleportTime    = -999f; // -999 = nunca ocurrió
-    private float minTeleportInterval = 3f;    // segundos mínimos entre teleports
-
-    // Referencias
-    private BossData       data;
-    private Rigidbody2D    rb;
+    private BossData data;
+    private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
-    private Collider2D     bossCollider;
+    private Collider2D bossCollider;
+    private BossMovementAI movement; // FIX: referencia al AI de movimiento
 
     // =========================================================
-    // INITIALIZE — Llamado por BossController en Start()
+    // INITIALIZE
     // =========================================================
     public void Initialize(BossData data, Rigidbody2D rb,
                            SpriteRenderer sr, Collider2D col)
     {
-        this.data           = data;
-        this.rb             = rb;
+        this.data = data;
+        this.rb = rb;
         this.spriteRenderer = sr;
-        this.bossCollider   = col;
+        this.bossCollider = col;
+        this.movement = GetComponent<BossMovementAI>(); // FIX
     }
 
     // =========================================================
-    // REGISTER HIT — Llamado por BossHealth cada vez que el
-    // boss recibe un golpe. Decide si debe teletransportarse.
+    // REGISTER HIT
     // =========================================================
     public void RegisterHit(bool isCurrentlyAttacking)
     {
         currentHitCounter++;
 
-        // Condiciones para teletransportarse:
-        // 1. No está en mitad de un ataque
-        // 2. Han pasado al menos 3 segundos desde el último teleport
-        // 3. Ha recibido suficientes golpes seguidos
         bool canTeleport = !isCurrentlyAttacking &&
                            (Time.time - lastTeleportTime) > minTeleportInterval &&
                            currentHitCounter >= hitsToTriggerTeleport;
@@ -68,51 +53,45 @@ public class BossTeleport : MonoBehaviour
     }
 
     // =========================================================
-    // DO TELEPORT — Coroutine principal del teletransporte
-    //
-    // Una Coroutine puede PAUSARSE con "yield return" y
-    // reanudar más tarde. Aquí usamos eso para:
-    //   1. Hacerse invisible (intangible)
-    //   2. Esperar teleportDelay segundos
-    //   3. Reaparecer en otro lugar
+    // DO TELEPORT
     // =========================================================
     IEnumerator DoTeleport()
     {
         data.isTeleporting = true;
-        rb.linearVelocity  = Vector2.zero;
+        rb.linearVelocity = Vector2.zero;
 
-        // Hacerse intangible e invisible
-        if (bossCollider)   bossCollider.enabled   = false;
+        if (bossCollider) bossCollider.enabled = false;
         if (spriteRenderer) spriteRenderer.enabled = false;
-        rb.gravityScale = 0; // suspender en el aire
+        rb.gravityScale = 0;
 
-        // Pausar aquí → el jugador ve que "desaparece"
         yield return new WaitForSeconds(teleportDelay);
 
-        // Elegir posición aleatoria dentro de la arena
+        // Elegir posicion aleatoria dentro de la arena
         float randomX = Random.Range(data.minArenaX + 2f, data.maxArenaX - 2f);
 
-        // Si cae demasiado cerca del jugador → ir al extremo opuesto
+        // Si cae demasiado cerca del jugador, ir al extremo opuesto
         if (data.player != null && Mathf.Abs(randomX - data.player.position.x) < 5f)
         {
             float centro = (data.minArenaX + data.maxArenaX) / 2f;
             randomX = data.player.position.x > centro
-                ? data.minArenaX + 3f   // jugador en la derecha → aparecer en la izquierda
-                : data.maxArenaX - 3f;  // jugador en la izquierda → aparecer en la derecha
+                ? data.minArenaX + 3f
+                : data.maxArenaX - 3f;
         }
 
-        // ¡TELETRANSPORTE! Mover instantáneamente
         transform.position = new Vector3(randomX, data.initialPosition.y, 0);
 
-        // Restaurar visibilidad y física
         if (spriteRenderer) spriteRenderer.enabled = true;
-        if (bossCollider)   bossCollider.enabled   = true;
+        if (bossCollider) bossCollider.enabled = true;
         rb.gravityScale = data.defaultGravity;
 
-        // Limpiar estado
-        data.isTeleporting  = false;
-        currentHitCounter   = 0;          // resetear contador de golpes
-        lastTeleportTime    = Time.time;  // guardar cuándo ocurrió
+        // FIX: avisar al MovementAI para que active el periodo de gracia
+        // y el boss vaya hacia el jugador en vez de huir
+        if (movement != null)
+            movement.NotifyTeleportCompleted();
+
+        data.isTeleporting = false;
+        currentHitCounter = 0;
+        lastTeleportTime = Time.time;
     }
 
     // =========================================================
@@ -121,13 +100,13 @@ public class BossTeleport : MonoBehaviour
     public void ResetTeleport()
     {
         currentHitCounter = 0;
-        lastTeleportTime  = -999f;
+        lastTeleportTime = -999f;
     }
 
     // =========================================================
-    // GETTERS — Para que otros componentes puedan consultar
+    // GETTERS
     // =========================================================
-    public float GetLastTeleportTime()    => lastTeleportTime;
+    public float GetLastTeleportTime() => lastTeleportTime;
     public float GetMinTeleportInterval() => minTeleportInterval;
-    public int   GetHitCounter()          => currentHitCounter;
+    public int GetHitCounter() => currentHitCounter;
 }

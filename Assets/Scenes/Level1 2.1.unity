@@ -9829,7 +9829,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1aa213d9b131684a934ae67e22687fb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 150
+  maxHealth: 1
   bodyContactDamage: 2
   bodyDamageCooldown: 2
   deathDelay: 5
@@ -9855,6 +9855,8 @@ MonoBehaviour:
   optimalDistance: 7
   retreatDistance: 3
   movementSmoothing: 10
+  postTeleportGraceDuration: 1.2
+  animator: {fileID: 0}
 --- !u!114 &451731783
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -51982,7 +51984,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d7bdc3b95423912449c6960967011cac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 2
+  maxHealth: 2222
   currentHealth: 2
   damageInvincibilityTime: 1
   damageKnockbackForce: {x: 5, y: 5}
@@ -52626,6 +52628,10 @@ PrefabInstance:
       propertyPath: customInspectorObjects.cameraOnLeft
       value: 
       objectReference: {fileID: 4114572}
+    - target: {fileID: 4616135719112075290, guid: db6055fead35efd46b1ede08bdc3bf88, type: 3}
+      propertyPath: customInspectorObjects.targetCamera
+      value: 
+      objectReference: {fileID: 865530617}
     - target: {fileID: 4616135719112075290, guid: db6055fead35efd46b1ede08bdc3bf88, type: 3}
       propertyPath: customInspectorObjects.cameraOnRight
       value: 
