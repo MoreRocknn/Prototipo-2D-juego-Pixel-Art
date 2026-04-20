@@ -12,7 +12,6 @@
 using UnityEngine;
 using System.Collections;
 
-// Sigue implementando las interfaces para el sistema de checkpoints
 public class BossController : MonoBehaviour, IAbsorbable, IResettable
 {
     // ─────────────────────────────────────────────────────────
@@ -32,47 +31,42 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
     // ─────────────────────────────────────────────────────────
     // REFERENCIAS A LOS COMPONENTES HERMANOS
-    // Todos viven en el mismo GameObject. Se obtienen en Awake.
     // ─────────────────────────────────────────────────────────
-    [HideInInspector] public BossData data;       // estado compartido
-    [HideInInspector] public BossHealth health;     // vida y daño
-    [HideInInspector] public BossMovementAI movement;   // movimiento inteligente
-    [HideInInspector] public BossAttackSystem attacks;    // todos los ataques
-    [HideInInspector] public BossTeleport teleport;   // teletransporte defensivo
+    [HideInInspector] public BossData data;
+    [HideInInspector] public BossHealth health;
+    [HideInInspector] public BossMovementAI movement;
+    [HideInInspector] public BossAttackSystem attacks;
+    [HideInInspector] public BossTeleport teleport;
 
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
     private Collider2D bossCollider;
     private float _detectionCooldown = 0f;
+
     // =========================================================
-    // AWAKE — Obtener todos los componentes del mismo GameObject
+    // AWAKE
     // =========================================================
     void Awake()
     {
-        // Componentes de Unity
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         bossCollider = GetComponent<Collider2D>();
 
-        // Componentes del boss (deben estar en el mismo GameObject)
         data = GetComponent<BossData>();
         health = GetComponent<BossHealth>();
         movement = GetComponent<BossMovementAI>();
         attacks = GetComponent<BossAttackSystem>();
         teleport = GetComponent<BossTeleport>();
 
-        // Guardar datos de posición y física en BossData
         data.initialPosition = transform.position;
         ConfigurePhysics();
     }
 
     // =========================================================
-    // START — Inicializar referencias y calcular arena
+    // START
     // =========================================================
     void Start()
     {
-        // Buscar jugador y cachear sus referencias en BossData
-        // para que todos los componentes puedan acceder a él
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
         {
@@ -83,7 +77,6 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
         CalculateArenaBounds();
 
-        // Inicializar cada componente con la referencia a BossData
         health.Initialize(data, rb, spriteRenderer, bossCollider, this);
         movement.Initialize(data, rb, spriteRenderer, bossCollider);
         attacks.Initialize(data, rb, spriteRenderer);
@@ -96,50 +89,44 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     // =========================================================
-    // UPDATE — Bucle principal: decisiones cada frame
+    // UPDATE
     // =========================================================
     void Update()
     {
         if (_detectionCooldown > 0f)
         {
             _detectionCooldown -= Time.deltaTime;
-            return; // no hacer nada hasta que pase el cooldown
+            return;
         }
+
         if (data.isDead || data.player == null) return;
 
-        // Asegurar visibilidad si algo salió mal
         if (!data.isTeleporting && !data.isAttacking)
             movement.EnsureVisibility();
 
-        // Mantener al boss dentro del escenario
         movement.ClampToArena();
 
         float dist = Vector2.Distance(transform.position, data.player.position);
 
-        // Activar barra de vida al entrar en rango
         if (!data.healthBarActivated && dist <= detectionRange)
             ActivateBossHealthBar();
 
-        // Cerrar puertas al acercarse
         if (!data.arenaSealed && dist <= doorCloseDistance)
             SealArena();
 
         if (dist <= detectionRange)
         {
-            // Delegar combate al AttackSystem
             attacks.HandleCombat(dist);
 
-            // Voltear sprite hacia el jugador
             if (!data.isAttacking && !data.isTeleporting)
                 movement.FlipTowardsPlayer();
         }
 
-        // Recalcular fase según vida restante
         UpdatePhase();
     }
 
     // =========================================================
-    // FIXEDUPDATE — Física: aplicar movimiento suavizado
+    // FIXEDUPDATE
     // =========================================================
     void FixedUpdate()
     {
@@ -149,11 +136,10 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     // =========================================================
-    // FASE — Recalcular según porcentaje de vida
+    // FASE
     // =========================================================
     void UpdatePhase()
     {
-        // (float) convierte int a float para que no pierda decimales
         float hp = (float)health.currentHealth / health.maxHealth;
 
         if (hp > 0.60f) data.currentPhase = BossData.BossPhase.Phase1;
@@ -162,7 +148,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     // =========================================================
-    // FÍSCA — Configurar Rigidbody2D
+    // FÍSICA
     // =========================================================
     void ConfigurePhysics()
     {
@@ -174,12 +160,11 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         data.defaultGravity = rb.gravityScale;
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-        // Interpolate: suaviza visualmente el movimiento entre frames de física
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
     }
 
     // =========================================================
-    // ARENA — Límites y puertas
+    // ARENA
     // =========================================================
     void CalculateArenaBounds()
     {
@@ -214,7 +199,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     // =========================================================
-    // UI — Barra de vida del boss
+    // UI — Barra de vida
     // =========================================================
     void ActivateBossHealthBar()
     {
@@ -240,21 +225,13 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
 
     // =========================================================
     // COMPATIBILIDAD CON SCRIPTS EXTERNOS
-    // PlayerCombat.cs llama bossController.TakeDamage()
-    // Este método reenvía la llamada a BossHealth.
-    // Así no hay que modificar ningún script externo.
     // =========================================================
-
-    // TakeDamage: llamado por PlayerCombat al golpear al boss
     public void TakeDamage(int dmg, int dir)
     {
         health.TakeDamage(dmg, dir);
-        // Registrar el golpe en el sistema de teletransporte
         teleport.RegisterHit(data.isAttacking);
     }
 
-    // bossHealthBarUI: EnemyManager accede a esta propiedad directamente.
-    // La exponemos aquí como propiedad pública que apunta a BossHealth.
     public BossHealthBar bossHealthBarUI
     {
         get => health != null ? health.bossHealthBarUI : null;
@@ -262,20 +239,23 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     // =========================================================
-    // IAbsorbable — El boss puede ser absorbido al morir
+    // IAbsorbable
     // =========================================================
     public bool CanBeAbsorbed() => data.isDead;
     public void OnAbsorbed() { Destroy(gameObject); }
     public bool IsBoss => true;
 
     // =========================================================
-    // IResettable — Reiniciar todo al morir el jugador
+    // IResettable — Llamado por PlayerHealth.ResetearEnemigos()
+    //               mientras la pantalla está en negro.
+    //               BossHealth.ResetOnPlayerDeath() llama a este
+    //               método para resetear la IA y la arena.
     // =========================================================
-    public void ResetState()
+    public void ResetOnPlayerDeath()
     {
         StopAllCoroutines();
 
-        // Destruir barra de vida de la UI
+        // Destruir barra de vida anterior (se recreará al entrar en rango)
         if (health.bossHealthBarUI != null)
         {
             Destroy(health.bossHealthBarUI.gameObject);
@@ -286,7 +266,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         CamaraScript camara = Camera.main.GetComponent<CamaraScript>();
         if (camara != null) camara.enModoBoss = false;
 
-        // Resetear estado compartido
+        // Resetear todo el estado compartido
         data.isDead = false;
         data.isAttacking = false;
         data.isTeleporting = false;
@@ -295,31 +275,40 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
         data.healthBarActivated = false;
         data.currentPhase = BossData.BossPhase.Phase1;
 
-        // Resetear cada componente
+        // Resetear cada subsistema
         health.ResetHealth();
         movement.ResetMovement();
         attacks.ResetAttacks();
         teleport.ResetTeleport();
 
-        // Restaurar posición y escala
+        // Restaurar posición y escala originales
         transform.position = data.initialPosition;
         transform.localScale = new Vector3(
             Mathf.Abs(transform.localScale.x),
-            transform.localScale.y, 1
+            transform.localScale.y,
+            1f
         );
 
         // Restaurar componentes de Unity
         if (spriteRenderer) { spriteRenderer.enabled = true; spriteRenderer.color = Color.white; }
         if (bossCollider) bossCollider.enabled = true;
         if (rb) { rb.gravityScale = data.defaultGravity; rb.linearVelocity = Vector2.zero; }
-        data.healthBarActivated = false;
-        _detectionCooldown = 2f; // ← NUEVO
+
+        // Cooldown para que el boss no reaccione instantáneamente al respawn
+        _detectionCooldown = 2f;
+
         SetDoorsState(false);
         gameObject.SetActive(true);
+
+        Debug.Log("[BossController] Boss reseteado correctamente.");
     }
 
+    // Alias por retrocompatibilidad (AbilityAbsorptionManager u otros
+    // scripts que puedan estar llamando a ResetState todavía)
+    public void ResetState() => ResetOnPlayerDeath();
+
     // =========================================================
-    // CONTACTO FÍSICO — Daño al tocar al jugador
+    // CONTACTO FÍSICO
     // =========================================================
     void OnCollisionStay2D(Collision2D collision)
     {
@@ -328,7 +317,7 @@ public class BossController : MonoBehaviour, IAbsorbable, IResettable
     }
 
     // =========================================================
-    // GIZMOS — Solo visibles en el Editor de Unity
+    // GIZMOS
     // =========================================================
     void OnDrawGizmosSelected()
     {

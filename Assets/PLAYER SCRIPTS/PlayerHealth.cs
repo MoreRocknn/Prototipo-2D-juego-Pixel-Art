@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using UnityEngine;
 
 [RequireComponent(typeof(PlayerState))]
@@ -44,7 +45,6 @@ public class PlayerHealth : MonoBehaviour
         SpawnHealthBar();
     }
 
-    // ── Fix 3: suscripción al evento de pantalla negra ────────────────────
     void OnEnable()
     {
         DeathScreen.OnPantallaNegraCompleta += ResetearEnemigos;
@@ -55,13 +55,21 @@ public class PlayerHealth : MonoBehaviour
         DeathScreen.OnPantallaNegraCompleta -= ResetearEnemigos;
     }
 
-    // Se ejecuta mientras la pantalla está en negro → sin pop-in visible
+    // Se ejecuta mientras la pantalla está en negro → sin pop-in visible.
+    // Llama a ResetState() que es el método que tu IResettable ya tenía.
     void ResetearEnemigos()
     {
-        // EnemyManager ya hace RespawnAllEnemies, pero lo llamábamos
-        // en PlayDeathSequence ANTES del fade → pop-in visible.
-        // Ahora se llama aquí, tapado por el negro.
+        // Enemigos normales
         EnemyManager.Instance?.RespawnAllEnemies();
+
+        // Boss y cualquier otro IResettable de la escena (usa el método original)
+        var resettables = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+                              .OfType<IResettable>();
+
+        foreach (var resettable in resettables)
+        {
+            resettable.ResetState(); // ← nombre original de tu interfaz
+        }
     }
 
     private void SpawnHealthBar()
@@ -149,14 +157,11 @@ public class PlayerHealth : MonoBehaviour
         if (anim != null) anim.SetTrigger("isDead");
         yield return new WaitForSeconds(deathAnimationTime);
 
-        // ── Fix 3: EnemyManager.RespawnAllEnemies() se movió a ResetearEnemigos()
-        //    que se llama desde el evento OnPantallaNegraCompleta, tapado por el negro.
-        //    Aquí solo lanzamos las cosas que no tienen pop-in visual.
         AbilityAbsorptionManager.Instance?.OnPlayerDeath();
         GetComponent<HealingSystem>()?.OnPlayerDeath();
         GetComponent<BloodPoolTransform>()?.ResetUses();
 
-        DeathScreen.Instance?.Show(); // dispara el fade → al terminar lanza OnPantallaNegraCompleta → ResetearEnemigos
+        DeathScreen.Instance?.Show();
 
         if (GameManager.Instance != null)
             StartCoroutine(RespawnAfterDeath());
@@ -169,22 +174,17 @@ public class PlayerHealth : MonoBehaviour
     {
         yield return new WaitUntil(() => !DeathScreen.Instance.IsShowing);
 
-        // Ocultar al jugador mientras reposicionamos
         if (spriteRenderer != null) spriteRenderer.enabled = false;
 
         currentHealth = maxHealth;
         state.currentComboStep = 0;
         state.isDamageInvincible = false;
 
-        // Mover al jugador al checkpoint
         Vector3 respawnPos = GameManager.Instance != null
             ? GameManager.Instance.GetRespawnPosition()
             : transform.position;
         transform.position = respawnPos;
 
-        // ── Fix 2: cámara TP instantáneo DESPUÉS de mover al jugador ─────────
-        // RespawnToCamera activa la cámara guardada en el último checkpoint
-        // y hace un cut (sin blend) para que no se vea el viaje de cámara.
         CameraManager.instance?.RespawnToCamera(respawnPos);
 
         anim.Rebind();

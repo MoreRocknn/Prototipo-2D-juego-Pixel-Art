@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections;
 
-public class BossHealth : MonoBehaviour
+public class BossHealth : MonoBehaviour, IResettable
 {
     [Header("=== SALUD ===")]
     public int maxHealth = 50;
@@ -12,9 +12,9 @@ public class BossHealth : MonoBehaviour
     public float bodyDamageCooldown = 1.0f;
 
     [Header("=== MUERTE Y ESCENAS ===")]
-    public float deathDelay = 5f;           // Segundos antes de cambiar de escena
+    public float deathDelay = 5f;
     public string victorySceneName = "VictoryScene";
-    public float victorySceneDuration = 5f; // Segundos en la escena de victoria
+    public float victorySceneDuration = 5f;
     public string mainMenuSceneName = "MainMenu";
 
     [HideInInspector] public int currentHealth;
@@ -27,6 +27,9 @@ public class BossHealth : MonoBehaviour
     private Collider2D bossCollider;
     private BossController controller;
 
+    // Flag para distinguir muerte real (victoria) de muerte del jugador
+    private bool isRealDeath = false;
+
     public void Initialize(BossData data, Rigidbody2D rb,
                            SpriteRenderer sr, Collider2D col,
                            BossController controller)
@@ -36,9 +39,21 @@ public class BossHealth : MonoBehaviour
         this.spriteRenderer = sr;
         this.bossCollider = col;
         this.controller = controller;
+
         currentHealth = maxHealth;
     }
 
+    // ── IResettable ──────────────────────────────────────────────────────────
+    public bool IsBoss => true;
+
+    // Delega en BossController para no duplicar lógica.
+    public void ResetState()
+    {
+        if (isRealDeath) return; // el boss murió de verdad, no resetear
+        controller?.ResetState();
+    }
+
+    // ── Daño ─────────────────────────────────────────────────────────────────
     public void TakeDamage(int dmg, int dir)
     {
         if (data.isDead || data.isInvulnerable || data.isTeleporting) return;
@@ -72,9 +87,11 @@ public class BossHealth : MonoBehaviour
             spriteRenderer.color = Color.white;
     }
 
+    // ── Muerte real (victoria) ────────────────────────────────────────────────
     void Die()
     {
         data.isDead = true;
+        isRealDeath = true;
 
         controller.UnsealArena();
 
@@ -90,32 +107,40 @@ public class BossHealth : MonoBehaviour
         if (bossCollider) bossCollider.enabled = false;
         if (rb) rb.simulated = false;
 
-        // Iniciar secuencia de muerte con DontDestroyOnLoad
-        // para que el manager sobreviva entre escenas
         StartCoroutine(DeathSequence());
     }
 
     IEnumerator DeathSequence()
     {
-        // 1) Esperar X segundos con el boss muerto en escena
         yield return new WaitForSeconds(deathDelay);
-
-        // 2) Cargar escena de victoria
         SceneManager.LoadScene(victorySceneName);
 
-        // 3) Crear un GameObject persistente que espere y cargue el menú
         GameObject timer = new GameObject("VictoryTimer");
         DontDestroyOnLoad(timer);
         timer.AddComponent<VictoryTimer>().Init(victorySceneDuration, mainMenuSceneName);
     }
 
+    // ── Reset de salud y componentes ─────────────────────────────────────────
+    // Llamado por BossController.ResetState()
     public void ResetHealth()
     {
         currentHealth = maxHealth;
         lastBodyDamageTime = 0f;
+        isRealDeath = false;
 
-        if (spriteRenderer) spriteRenderer.enabled = true;
+        if (spriteRenderer)
+        {
+            spriteRenderer.enabled = true;
+            spriteRenderer.color = Color.white;
+        }
+
         if (bossCollider) bossCollider.enabled = true;
         if (rb) rb.simulated = true;
+
+        if (bossHealthBarUI != null)
+        {
+            bossHealthBarUI.UpdateHealth(currentHealth);
+            bossHealthBarUI.Show();
+        }
     }
 }
