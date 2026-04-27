@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 
 public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
@@ -92,6 +92,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     public Color guardColor = Color.yellow, attackColor = Color.red;
     public Color immortalColor = new Color(1f, 0.84f, 0f);
 
+    [Header("=== SANGRE ===")]
+    [Tooltip("Prefab con el componente BloodEffect")]
+    public GameObject bloodEffectPrefab;
+    [Tooltip("Offset respecto al centro del enemigo donde aparece la sangre")]
+    public Vector3 bloodOffset = new Vector3(0f, 0.3f, 0f);
+
     private EnemyState currentState = EnemyState.Idle;
     private enum EnemyState { Idle, Patrol, Guard, Chase, Attack, Stunned, Dashing, WaitingAbsorption }
 
@@ -135,11 +141,13 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         SetupHealthBar();
         currentState = shouldPatrol ? EnemyState.Patrol : EnemyState.Idle;
     }
+
     void ApplyDelayedMovement()
     {
         currentVelocityX = Mathf.Lerp(currentVelocityX, targetVelocityX, movementSmoothing * Time.deltaTime);
         rb.linearVelocity = new Vector2(currentVelocityX, rb.linearVelocity.y);
     }
+
     void CheckAndSetupAbility()
     {
         if (isEliteWithDash && disableAbilityIfPlayerHasDash)
@@ -219,14 +227,12 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     void Update()
     {
-        
         if (isInvincible || currentState == EnemyState.Stunned || isCriticalStunned)
         {
             if (isCriticalStunned) rb.linearVelocity = Vector2.zero;
             UpdateAnimations();
             return;
         }
-        
 
         if (isDashing) { UpdateAnimations(); return; }
 
@@ -408,7 +414,7 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
     }
 
     // ========================================
-    // TAKE DAMAGE - CORREGIDO
+    // TAKE DAMAGE
     // ========================================
     public void TakeDamage(int damage, int knockbackDirection)
     {
@@ -426,16 +432,18 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
         rb.linearVelocity = new Vector2(knockbackDirection * knockbackForce.x, knockbackForce.y);
 
+        // ── Spawn sangre ──────────────────────────────────────
+        SpawnBlood(knockbackDirection);
+        // ─────────────────────────────────────────────────────
+
         // ========================================
         // SI LLEGARÍA A 0 O MENOS
         // ========================================
         if (health <= 0)
         {
-            // Si tiene habilidad y debe ser inmortal en crítico
             if (immortalWhenCriticalWithDash && !abilityDisabledByPlayerProgress &&
                 abilityHolder != null && abilityHolder.HasAbility())
             {
-                // NO MUERE - se queda en 1 HP y entra en crítico
                 health = 1;
                 if (healthBar != null) healthBar.UpdateHealth(health, maxHealth);
             }
@@ -448,6 +456,14 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         {
             StartCoroutine(InvincibilityCoroutine());
         }
+    }
+
+    void SpawnBlood(int knockDir)
+    {
+        if (!bloodEffectPrefab) return;
+        GameObject bloodGO = Instantiate(bloodEffectPrefab, transform.position + bloodOffset, Quaternion.identity);
+        BloodEffect be = bloodGO.GetComponent<BloodEffect>();
+        if (be) be.Play(knockDir);
     }
 
     IEnumerator InvincibilityCoroutine()
@@ -487,9 +503,8 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         if (isCritical && !wasCritical)
         {
             if (immortalWhenCriticalWithDash && abilityHolder != null && abilityHolder.HasAbility())
-            {
                 isImmortalForAbsorption = true;
-            }
+
             StartCoroutine(CriticalHealthSequence());
         }
     }
@@ -522,7 +537,6 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
         else
             EnterState(EnemyState.Chase);
 
-        // Seguir parpadeando mientras esté crítico
         while (isCritical)
         {
             if (sr) sr.color = flashColor;
@@ -601,6 +615,14 @@ public class Enemigo : MonoBehaviour, IAbsorbable, IDashExecutor, IResettable
 
     void Die()
     {
+        // Sangre extra al morir
+        if (bloodEffectPrefab)
+        {
+            GameObject bloodGO = Instantiate(bloodEffectPrefab, transform.position + bloodOffset, Quaternion.identity);
+            BloodEffect be = bloodGO.GetComponent<BloodEffect>();
+            if (be) be.PlayDeath();
+        }
+
         if (healthBar != null) healthBar.gameObject.SetActive(false);
         if (EnemyManager.Instance != null) EnemyManager.Instance.OnEnemyDeath(gameObject);
         else Destroy(gameObject);

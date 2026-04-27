@@ -19,17 +19,17 @@ public class EnemigoRanged : MonoBehaviour, IResettable
 
     [Header("=== DETECCIÓN ===")]
     public float detectionRange = 10f;
-    public float stopShootingRange = 2f;   // deja de disparar si el jugador está muy cerca
+    public float stopShootingRange = 2f;
     public LayerMask playerLayer, wallLayer, groundLayer;
     public Transform detectionPoint;
 
     [Header("=== PROYECTIL ===")]
-    public GameObject bulletPrefab;        // prefab con Rigidbody2D + Collider2D
-    public Transform firePoint;            // punto de disparo (assign en inspector)
+    public GameObject bulletPrefab;
+    public Transform firePoint;
     public float bulletSpeed = 8f;
     public int bulletDamage = 1;
     public float shootCooldown = 2f;
-    public float windupTime = 0.4f;        // pausa antes de disparar (telegrafía)
+    public float windupTime = 0.4f;
 
     [Header("=== MOVIMIENTO ===")]
     public float moveSpeed = 2f;
@@ -50,7 +50,13 @@ public class EnemigoRanged : MonoBehaviour, IResettable
     public string animShootTrigger = "shoot";
 
     [Header("=== VISUALES ===")]
-    public Color aimColor = new Color(1f, 0.6f, 0f);   // color al apuntar
+    public Color aimColor = new Color(1f, 0.6f, 0f);
+
+    [Header("=== SANGRE ===")]
+    [Tooltip("Prefab con el componente BloodEffect")]
+    public GameObject bloodEffectPrefab;
+    [Tooltip("Offset respecto al centro del enemigo donde aparece la sangre")]
+    public Vector3 bloodOffset = new Vector3(0f, 0.3f, 0f);
 
     // ─────────────────────────────────────────────────────────
     // PRIVADOS
@@ -91,7 +97,7 @@ public class EnemigoRanged : MonoBehaviour, IResettable
         currentHealth = maxHealth;
 
         if (!detectionPoint) detectionPoint = transform;
-        if (!firePoint) firePoint = transform; // fallback
+        if (!firePoint) firePoint = transform;
 
         player = GameObject.FindGameObjectWithTag("Player")?.transform;
 
@@ -103,14 +109,15 @@ public class EnemigoRanged : MonoBehaviour, IResettable
                 transform, currentHealth, maxHealth, healthBarOffset);
 
         state = shouldPatrol ? State.Patrol : State.Idle;
-    }
 
+        // === DEBUG LOG ===
+        Debug.Log($"{name} Start() health={currentHealth}", gameObject);
+    }
     void OnDestroy()
     {
         if (AbilityAbsorptionManager.Instance != null)
             AbilityAbsorptionManager.Instance.UnregisterResettable(this);
     }
-
     // ─────────────────────────────────────────────────────────
     // UPDATE
     // ─────────────────────────────────────────────────────────
@@ -183,7 +190,6 @@ public class EnemigoRanged : MonoBehaviour, IResettable
 
     void Aim(bool detected, bool tooClose)
     {
-        // Si el jugador salió de rango o hay pared, volver a patrulla
         if (!detected) { BackToPatrol(); return; }
         if (tooClose) { Enter(State.Retreat); return; }
 
@@ -199,10 +205,8 @@ public class EnemigoRanged : MonoBehaviour, IResettable
         if (sr) sr.color = aimColor;
         if (anim) anim.SetBool(animIsAiming, true);
 
-        // Windup — telegrafía el disparo
         yield return new WaitForSeconds(windupTime);
 
-        // Verificar que el jugador sigue en rango antes de disparar
         float dist = player ? Vector2.Distance(detectionPoint.position, player.position) : Mathf.Infinity;
         if (player && dist <= detectionRange && dist > stopShootingRange)
         {
@@ -218,7 +222,6 @@ public class EnemigoRanged : MonoBehaviour, IResettable
         isShooting = false;
         shootTimer = shootCooldown;
 
-        // Volver a apuntar si el jugador sigue visible
         float distAfter = player ? Vector2.Distance(detectionPoint.position, player.position) : Mathf.Infinity;
         bool tooClose = distAfter <= stopShootingRange;
         bool detected = CanSeePlayer(distAfter) || (hasSeenPlayer && distAfter <= detectionRange * 1.3f);
@@ -236,12 +239,10 @@ public class EnemigoRanged : MonoBehaviour, IResettable
         Rigidbody2D bRb = b.GetComponent<Rigidbody2D>();
         if (bRb)
         {
-            // Disparo SIEMPRE horizontal en la dirección que mira el enemigo
             float dir = isFacingRight ? 1f : -1f;
             bRb.linearVelocity = new Vector2(dir * bulletSpeed, 0f);
         }
 
-        // Pasar daño al componente del proyectil si lo tiene
         EnemyBullet bullet = b.GetComponent<EnemyBullet>();
         if (bullet) bullet.damage = bulletDamage;
     }
@@ -251,7 +252,6 @@ public class EnemigoRanged : MonoBehaviour, IResettable
         if (!detected) { BackToPatrol(); return; }
         if (!tooClose) { Enter(State.Aim); return; }
 
-        // Alejarse del jugador
         if (player)
         {
             float dir = transform.position.x > player.position.x ? 1f : -1f;
@@ -266,14 +266,27 @@ public class EnemigoRanged : MonoBehaviour, IResettable
     // ─────────────────────────────────────────────────────────
     public void TakeDamage(int damage, int knockDir)
     {
+        Debug.Log($"{name} TakeDamage — damage={damage}, health={currentHealth}, frame={Time.frameCount}\n{System.Environment.StackTrace}", gameObject);
+
         if (isInvincible) return;
 
         currentHealth -= damage;
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         rb.linearVelocity = new Vector2(knockDir * knockbackForce.x, knockbackForce.y);
 
+        SpawnBlood(knockDir);
+
         if (currentHealth <= 0) Die();
         else StartCoroutine(Invincibility());
+    }
+
+
+    void SpawnBlood(int knockDir)
+    {
+        if (!bloodEffectPrefab) return;
+        GameObject bloodGO = Instantiate(bloodEffectPrefab, transform.position + bloodOffset, Quaternion.identity);
+        BloodEffect be = bloodGO.GetComponent<BloodEffect>();
+        if (be) be.Play(knockDir);
     }
 
     IEnumerator Invincibility()
@@ -291,8 +304,19 @@ public class EnemigoRanged : MonoBehaviour, IResettable
 
     void Die()
     {
+        Debug.Log($"{name} Die() called! Current health: {currentHealth}. Frame: {Time.frameCount}", gameObject);
+
+        // Sangre extra al morir
+        if (bloodEffectPrefab)
+        {
+            GameObject bloodGO = Instantiate(bloodEffectPrefab, transform.position + bloodOffset, Quaternion.identity);
+            BloodEffect be = bloodGO.GetComponent<BloodEffect>();
+            if (be) be.PlayDeath();
+        }
+
         healthBar?.gameObject.SetActive(false);
-        if (EnemyManager.Instance) EnemyManager.Instance.OnEnemyDeath(gameObject);
+        if (EnemyManager.Instance)
+            EnemyManager.Instance.OnEnemyDeath(gameObject);
         else Destroy(gameObject);
     }
 

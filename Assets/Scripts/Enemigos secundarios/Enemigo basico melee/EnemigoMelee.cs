@@ -56,6 +56,12 @@ public class EnemigoMelee : MonoBehaviour, IResettable
     public Color guardColor = Color.yellow;
     public Color attackColor = Color.red;
 
+    [Header("=== SANGRE ===")]
+    [Tooltip("Prefab con el componente BloodEffect (o un ParticleSystem configurado con el spritesheet de sangre)")]
+    public GameObject bloodEffectPrefab;
+    [Tooltip("Offset respecto al centro del enemigo donde aparece la sangre")]
+    public Vector3 bloodOffset = new Vector3(0f, 0.3f, 0f);
+
     // ─────────────────────────────────────────────────────────
     // PRIVADOS
     // ─────────────────────────────────────────────────────────
@@ -247,8 +253,27 @@ public class EnemigoMelee : MonoBehaviour, IResettable
         healthBar?.UpdateHealth(currentHealth, maxHealth);
         rb.linearVelocity = new Vector2(knockDir * knockbackForce.x, knockbackForce.y);
 
+        // ── Spawn sangre ──────────────────────────────────────
+        SpawnBlood(knockDir);
+        // ─────────────────────────────────────────────────────
+
         if (currentHealth <= 0) Die();
         else StartCoroutine(Invincibility());
+    }
+
+    /// <summary>
+    /// Instancia el prefab de sangre y le indica la dirección del golpe.
+    /// </summary>
+    void SpawnBlood(int knockDir)
+    {
+        if (!bloodEffectPrefab) return;
+
+        Vector3 spawnPos = transform.position + bloodOffset;
+        GameObject bloodGO = Instantiate(bloodEffectPrefab, spawnPos, Quaternion.identity);
+
+        // Si el prefab tiene BloodEffect, pasamos la dirección del golpe
+        BloodEffect be = bloodGO.GetComponent<BloodEffect>();
+        if (be) be.Play(knockDir);
     }
 
     IEnumerator Invincibility()
@@ -266,6 +291,15 @@ public class EnemigoMelee : MonoBehaviour, IResettable
 
     void Die()
     {
+        // Spawn sangre extra al morir (más partículas)
+        if (bloodEffectPrefab)
+        {
+            Vector3 spawnPos = transform.position + bloodOffset;
+            GameObject bloodGO = Instantiate(bloodEffectPrefab, spawnPos, Quaternion.identity);
+            BloodEffect be = bloodGO.GetComponent<BloodEffect>();
+            if (be) be.PlayDeath();
+        }
+
         healthBar?.gameObject.SetActive(false);
         if (EnemyManager.Instance) EnemyManager.Instance.OnEnemyDeath(gameObject);
         else Destroy(gameObject);

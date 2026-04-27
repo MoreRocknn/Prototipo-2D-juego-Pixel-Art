@@ -1,4 +1,4 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
@@ -10,7 +10,7 @@ public class GameManager : MonoBehaviour
     public int playerHealth = 3;
     public int maxHealth = 3;
 
-    [Header("ConfiguraciÛn")]
+    [Header("Configuraci√≥n")]
     public Vector2 spawnInicial = new Vector2(0, 0);
 
     // ========================================
@@ -34,6 +34,7 @@ public class GameManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
+            transform.SetParent(null); // üëà A√ëADE ESTA L√çNEA
             DontDestroyOnLoad(gameObject);
         }
         else
@@ -43,9 +44,7 @@ public class GameManager : MonoBehaviour
         }
 
         if (!hasCheckpoint)
-        {
             lastCheckpoint = spawnInicial;
-        }
     }
 
     public void SetCheckpoint(Vector2 position)
@@ -61,19 +60,19 @@ public class GameManager : MonoBehaviour
     }
 
     // ========================================
-    // M…TODOS PARA HABILIDADES PERMANENTES
+    // M√âTODOS PARA HABILIDADES PERMANENTES
     // ========================================
 
     /// <summary>
-    /// Llama a este mÈtodo cuando el jugador absorbe el Dash por primera vez.
-    /// El Dash quedar· guardado permanentemente.
+    /// Llama a este m√©todo cuando el jugador absorbe el Dash por primera vez.
+    /// El Dash quedar√° guardado permanentemente.
     /// </summary>
     public void UnlockPermanentDash()
     {
         if (!hasPermanentDash)
         {
             hasPermanentDash = true;
-            Debug.Log("°DASH DESBLOQUEADO PERMANENTEMENTE!");
+            Debug.Log("¬°DASH DESBLOQUEADO PERMANENTEMENTE!");
         }
     }
 
@@ -104,7 +103,7 @@ public class GameManager : MonoBehaviour
         BossController boss = FindFirstObjectByType<BossController>();
         if (boss != null) boss.ResetState();
 
-        // Resetear c·mara
+        // Resetear c√°mara
         CameraManager.instance?.RespawnToCamera(lastCheckpoint);
     }
 }
